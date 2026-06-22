@@ -1,3 +1,14 @@
+<!-- We've seen that note-taking tools usually just store text.
+But SpringNote treats notes as something that grows over time.
+Instead of static records, we model a living system:
+  .     *   .       .        o        .       *     .   .
+    .   .      |     .    .        .     .     *   .     .
+       --o--           SpringNote           .      |   .
+    *    |      .   capture → organize → reflect → grow
+ .    .     .     .        .        .     .   --*--   .
+      .        *      .        .     .        |     .  .
+(ASCII art depicting scattered thoughts converging into SpringNote) -->
+
 <h1 align="center">
   <img src="./snapshots/logo.png" width="48" alt="SpringNote Logo" style="vertical-align: -6px;">
   SpringNote
