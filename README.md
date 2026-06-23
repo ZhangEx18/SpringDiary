@@ -85,11 +85,11 @@ Instead of static records, we model a living system:
 
   ![第四步](./snapshots/configfour.png)
 
-## 🌍 Community
+## 🌍 社区
 
-### QQ Groups
+### QQ 群组
 
-- Group 1: 463423961
+- 1 群：463423961
 
 ## ❤️ Special Thanks
 
