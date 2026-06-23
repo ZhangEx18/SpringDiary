@@ -107,8 +107,4 @@ Instead of static records, we model a living system:
   <img src="https://count.getloli.com/@SpringNote?name=SpringNote&theme=miku&padding=7&offset=0&align=center&scale=0.3&pixelated=1&darkmode=auto" alt="visitor count" />
 </p>
 
-<p align="center">
-  <a href="https://star-history.com/#Radiant303/SpringNote&Date">
-    <img src="https://api.star-history.com/svg?repos=Radiant303/SpringNote&type=Date" alt="Star History Chart" />
-  </a>
-</p>
+[![Star History Chart](https://api.star-history.com/svg?repos=Radiant303/SpringNote&type=Date)](https://star-history.com/#Radiant303/SpringNote&Date)
