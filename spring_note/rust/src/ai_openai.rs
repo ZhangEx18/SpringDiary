@@ -12,7 +12,12 @@ use std::time::Instant;
 
 pub async fn chat(request: &AiChatRequest) -> Result<AiTextResult, String> {
     let url = join_url(&request.provider.base_url, &request.provider.api_path);
-    let body = build_chat_body(request);
+    let uses_responses = is_responses_endpoint(&request.provider);
+    let body = if uses_responses {
+        build_responses_chat_body(request)
+    } else {
+        build_chat_body(request)
+    };
     let request_body = body_to_string(&body);
     let started_at = Instant::now();
     let response = Client::new()
@@ -65,10 +70,13 @@ pub async fn chat(request: &AiChatRequest) -> Result<AiTextResult, String> {
     }
     let value = serde_json::from_str::<Value>(&response_body).map_err(|error| error.to_string())?;
 
-    let content =
+    let content = if uses_responses {
+        responses_output_text(&value)
+    } else {
         extract_text(&value, &[&["choices", "0", "message", "content"]]).ok_or_else(|| {
             "OpenAI-compatible response missing choices[0].message.content".to_string()
-        })?;
+        })?
+    };
     let (input, output, cached) = usage_from_value(&value);
     Ok(AiTextResult::success(
         request, content, input, output, cached,
@@ -142,6 +150,79 @@ pub async fn memory_tool_chat(
     let content = read_string_field(message, "content");
     let reasoning_content = read_string_field(message, "reasoning_content");
     let tool_calls = parse_tool_calls(message);
+    let (input, output, cached) = usage_from_value(&value);
+    Ok(MemoryToolChatResult::success(
+        request,
+        content,
+        reasoning_content,
+        tool_calls,
+        input,
+        output,
+        cached,
+    ))
+}
+
+pub async fn memory_tool_responses(
+    request: &MemoryToolChatRequest,
+    system_prompt: &str,
+) -> Result<MemoryToolChatResult, String> {
+    let log_request = memory_as_chat_request(request, system_prompt);
+    let url = join_url(&request.provider.base_url, &request.provider.api_path);
+    let body = build_memory_tool_responses_body(request, system_prompt);
+    let request_body = body_to_string(&body);
+    let started_at = Instant::now();
+    let response = Client::new()
+        .post(&url)
+        .bearer_auth(&request.provider.api_key)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|error| {
+            let message = error.to_string();
+            log_chat(
+                &log_request,
+                "POST",
+                &url,
+                &request_body,
+                None,
+                "",
+                started_at,
+                &message,
+            );
+            message
+        })?;
+    let status = response.status();
+    let response_body = response.text().await.map_err(|error| {
+        let message = error.to_string();
+        log_chat(
+            &log_request,
+            "POST",
+            &url,
+            &request_body,
+            Some(status.as_u16()),
+            "",
+            started_at,
+            &message,
+        );
+        message
+    })?;
+    log_chat(
+        &log_request,
+        "POST",
+        &url,
+        &request_body,
+        Some(status.as_u16()),
+        &response_body,
+        started_at,
+        "",
+    );
+    if !status.is_success() {
+        return Err(format!("HTTP {status}: {response_body}"));
+    }
+    let value = serde_json::from_str::<Value>(&response_body).map_err(|error| error.to_string())?;
+    let content = responses_output_text(&value);
+    let reasoning_content = responses_reasoning_text(&value);
+    let tool_calls = parse_responses_function_calls(&value);
     let (input, output, cached) = usage_from_value(&value);
     Ok(MemoryToolChatResult::success(
         request,
@@ -292,6 +373,71 @@ pub async fn memory_tool_chat_stream(
         content,
         reasoning_content,
         tool_calls,
+        error_code: String::new(),
+        error_message: String::new(),
+        input_tokens,
+        output_tokens,
+        cached_tokens,
+    });
+    Ok(())
+}
+
+pub async fn memory_tool_responses_stream(
+    request: MemoryToolChatRequest,
+    system_prompt: &str,
+    sink: StreamSink<MemoryToolChatStreamEvent>,
+) -> Result<(), String> {
+    let log_request = memory_as_chat_request(&request, system_prompt);
+    if request.provider.api_key.trim().is_empty() {
+        let _ = sink.add(MemoryToolChatStreamEvent::error(
+            "missing_api_key",
+            "供应商 API Key 为空。",
+        ));
+        return Ok(());
+    }
+
+    let result = memory_tool_responses(&request, system_prompt).await?;
+    let content = result.content.clone();
+    let reasoning_content = result.reasoning_content.clone();
+    let input_tokens = result.input_tokens;
+    let output_tokens = result.output_tokens;
+    let cached_tokens = result.cached_tokens;
+
+    if !content.trim().is_empty() || !reasoning_content.trim().is_empty() {
+        let _ = sink.add(MemoryToolChatStreamEvent {
+            event_type: "delta".to_string(),
+            content_delta: content.clone(),
+            reasoning_delta: reasoning_content.clone(),
+            content: content.clone(),
+            reasoning_content: reasoning_content.clone(),
+            tool_calls: vec![],
+            error_code: String::new(),
+            error_message: String::new(),
+            input_tokens: 0,
+            output_tokens: 0,
+            cached_tokens: 0,
+        });
+    }
+
+    let text_result = AiTextResult {
+        ok: result.ok,
+        content: content.clone(),
+        error_code: result.error_code.clone(),
+        error_message: result.error_message.clone(),
+        input_tokens,
+        output_tokens,
+        cached_tokens,
+        provider_name: result.provider_name.clone(),
+        model_id: result.model_id.clone(),
+    };
+    let _ = stats::record_model_call(&request.app_data_dir, &log_request, &text_result);
+    let _ = sink.add(MemoryToolChatStreamEvent {
+        event_type: "done".to_string(),
+        content_delta: String::new(),
+        reasoning_delta: String::new(),
+        content,
+        reasoning_content,
+        tool_calls: result.tool_calls,
         error_code: String::new(),
         error_message: String::new(),
         input_tokens,
@@ -459,6 +605,15 @@ pub fn build_chat_body(request: &AiChatRequest) -> Value {
     body
 }
 
+pub fn build_responses_chat_body(request: &AiChatRequest) -> Value {
+    json!({
+        "model": request.model.model_id,
+        "instructions": request.system_prompt,
+        "input": request.user_prompt,
+        "temperature": 0.2
+    })
+}
+
 pub fn build_memory_tool_body(request: &MemoryToolChatRequest, system_prompt: &str) -> Value {
     let mut body = json!({
         "model": request.model.model_id,
@@ -482,6 +637,19 @@ pub fn build_memory_tool_stream_body(
     body["stream"] = Value::Bool(true);
     body["stream_options"] = json!({"include_usage": true});
     body
+}
+
+pub fn build_memory_tool_responses_body(
+    request: &MemoryToolChatRequest,
+    system_prompt: &str,
+) -> Value {
+    json!({
+        "model": request.model.model_id,
+        "instructions": system_prompt,
+        "input": responses_memory_input(&request.messages),
+        "tools": responses_memory_tools_json(),
+        "tool_choice": "auto"
+    })
 }
 
 pub fn build_fim_body(request: &FimCompleteRequest) -> Value {
@@ -534,6 +702,48 @@ fn memory_message_json(message: &AiChatMessage) -> Value {
         "role": message.role,
         "content": message.content
     })
+}
+
+fn responses_memory_input(messages: &[AiChatMessage]) -> Vec<Value> {
+    let mut result = Vec::new();
+    for message in messages {
+        if message.role == "assistant" && !message.tool_calls.is_empty() {
+            if !message.content.trim().is_empty() {
+                result.push(json!({
+                    "role": "assistant",
+                    "content": message.content
+                }));
+            }
+            for tool_call in &message.tool_calls {
+                result.push(json!({
+                    "type": "function_call",
+                    "call_id": tool_call.id,
+                    "name": tool_call.name,
+                    "arguments": tool_call.arguments,
+                    "status": "completed"
+                }));
+            }
+            continue;
+        }
+
+        if message.role == "tool" {
+            if !message.tool_call_id.trim().is_empty() {
+                result.push(json!({
+                    "type": "function_call_output",
+                    "call_id": message.tool_call_id,
+                    "output": message.content,
+                    "status": "completed"
+                }));
+            }
+            continue;
+        }
+
+        result.push(json!({
+            "role": if message.role == "assistant" { "assistant" } else { message.role.as_str() },
+            "content": message.content
+        }));
+    }
+    result
 }
 
 fn apply_thinking_options(body: &mut Value, enabled: bool, effort: &str) {
@@ -672,6 +882,26 @@ pub fn memory_tools_json() -> Value {
     ])
 }
 
+fn responses_memory_tools_json() -> Value {
+    let tools = memory_tools_json()
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|item| {
+            let function = item.get("function")?;
+            Some(json!({
+                "type": "function",
+                "name": function.get("name").cloned().unwrap_or(Value::String(String::new())),
+                "description": function.get("description").cloned().unwrap_or(Value::String(String::new())),
+                "parameters": function.get("parameters").cloned().unwrap_or_else(|| json!({ "type": "object", "properties": {} })),
+                "strict": function.get("strict").cloned().unwrap_or(Value::Bool(true))
+            }))
+        })
+        .collect::<Vec<_>>();
+    Value::Array(tools)
+}
+
 fn parse_tool_calls(message: &Value) -> Vec<AiToolCall> {
     message
         .get("tool_calls")
@@ -701,6 +931,99 @@ fn parse_tool_calls(message: &Value) -> Vec<AiToolCall> {
                 })
                 .filter(|tool_call| !tool_call.id.is_empty() && !tool_call.name.is_empty())
                 .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn parse_responses_function_calls(value: &Value) -> Vec<AiToolCall> {
+    value
+        .get("output")
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter(|item| item.get("type").and_then(Value::as_str) == Some("function_call"))
+                .map(|item| AiToolCall {
+                    id: item
+                        .get("call_id")
+                        .or_else(|| item.get("id"))
+                        .and_then(Value::as_str)
+                        .unwrap_or("")
+                        .to_string(),
+                    name: item
+                        .get("name")
+                        .and_then(Value::as_str)
+                        .unwrap_or("")
+                        .to_string(),
+                    arguments: item
+                        .get("arguments")
+                        .and_then(Value::as_str)
+                        .unwrap_or("{}")
+                        .to_string(),
+                })
+                .filter(|tool_call| !tool_call.id.is_empty() && !tool_call.name.is_empty())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn responses_output_text(value: &Value) -> String {
+    if let Some(text) = value.get("output_text").and_then(Value::as_str) {
+        return text.to_string();
+    }
+
+    value
+        .get("output")
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter(|item| item.get("type").and_then(Value::as_str) == Some("message"))
+                .flat_map(|item| {
+                    item.get("content")
+                        .and_then(Value::as_array)
+                        .cloned()
+                        .unwrap_or_default()
+                })
+                .filter_map(|content| {
+                    let content_type = content.get("type").and_then(Value::as_str);
+                    if matches!(content_type, Some("output_text") | Some("text")) {
+                        content
+                            .get("text")
+                            .and_then(Value::as_str)
+                            .map(str::to_string)
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join("")
+        })
+        .unwrap_or_default()
+}
+
+fn responses_reasoning_text(value: &Value) -> String {
+    value
+        .get("output")
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter(|item| item.get("type").and_then(Value::as_str) == Some("reasoning"))
+                .flat_map(|item| {
+                    item.get("summary")
+                        .and_then(Value::as_array)
+                        .cloned()
+                        .unwrap_or_default()
+                })
+                .filter_map(|summary| {
+                    summary
+                        .get("text")
+                        .and_then(Value::as_str)
+                        .map(str::to_string)
+                })
+                .collect::<Vec<_>>()
+                .join("\n")
         })
         .unwrap_or_default()
 }
@@ -803,6 +1126,12 @@ fn join_url(base_url: &str, path: &str) -> String {
 
 fn completions_url(provider: &AiProvider) -> String {
     join_url(&provider.base_url, "/completions")
+}
+
+pub fn is_responses_endpoint(provider: &AiProvider) -> bool {
+    join_url(&provider.base_url, &provider.api_path)
+        .trim_end_matches('/')
+        .ends_with("/responses")
 }
 
 fn body_to_string(body: &Value) -> String {
@@ -928,6 +1257,35 @@ mod tests {
     }
 
     #[test]
+    fn builds_openai_responses_chat_payload() {
+        let request = AiChatRequest {
+            app_data_dir: ".".to_string(),
+            provider: AiProvider {
+                id: "p".to_string(),
+                name: "OpenAI".to_string(),
+                protocol: "openaiCompatible".to_string(),
+                api_key: "key".to_string(),
+                base_url: "https://api.example.com/v1".to_string(),
+                api_path: "/responses".to_string(),
+            },
+            model: AiModel {
+                model_id: "gpt-test".to_string(),
+                display_name: "GPT Test".to_string(),
+            },
+            system_prompt: "system".to_string(),
+            user_prompt: "user".to_string(),
+            purpose: "test".to_string(),
+            api_log_enabled: false,
+        };
+
+        let body = build_responses_chat_body(&request);
+        assert_eq!(body["model"], "gpt-test");
+        assert_eq!(body["instructions"], "system");
+        assert_eq!(body["input"], "user");
+        assert!(body.get("messages").is_none());
+    }
+
+    #[test]
     fn joins_url_without_double_slashes() {
         assert_eq!(
             join_url("https://api.example.com/v1/", "/chat/completions"),
@@ -1013,6 +1371,117 @@ mod tests {
             body["tools"][1]["function"]["parameters"]["additionalProperties"],
             false
         );
+    }
+
+    #[test]
+    fn builds_memory_tool_responses_payload_with_call_ids() {
+        let request = MemoryToolChatRequest {
+            app_data_dir: ".".to_string(),
+            provider: AiProvider {
+                id: "p".to_string(),
+                name: "OpenAI Compatible".to_string(),
+                protocol: "openaiCompatible".to_string(),
+                api_key: "key".to_string(),
+                base_url: "https://api.example.com/v1".to_string(),
+                api_path: "/responses".to_string(),
+            },
+            model: AiModel {
+                model_id: "responses-test".to_string(),
+                display_name: "Responses Test".to_string(),
+            },
+            messages: vec![
+                AiChatMessage {
+                    role: "user".to_string(),
+                    content: "什么时候删除 nacos 配置？".to_string(),
+                    reasoning_content: String::new(),
+                    tool_call_id: String::new(),
+                    tool_calls: vec![],
+                },
+                AiChatMessage {
+                    role: "assistant".to_string(),
+                    content: String::new(),
+                    reasoning_content: String::new(),
+                    tool_call_id: String::new(),
+                    tool_calls: vec![AiToolCall {
+                        id: "call_1".to_string(),
+                        name: "keyword_search".to_string(),
+                        arguments: "{\"keywords\":[\"nacos\"]}".to_string(),
+                    }],
+                },
+                AiChatMessage {
+                    role: "tool".to_string(),
+                    content: "{\"results\":[]}".to_string(),
+                    reasoning_content: String::new(),
+                    tool_call_id: "call_1".to_string(),
+                    tool_calls: vec![],
+                },
+            ],
+            thinking_enabled: true,
+            reasoning_effort: "high".to_string(),
+            api_log_enabled: false,
+        };
+
+        let body = build_memory_tool_responses_body(&request, "system");
+        assert_eq!(body["model"], "responses-test");
+        assert_eq!(body["instructions"], "system");
+        assert_eq!(body["tool_choice"], "auto");
+        assert!(body.get("messages").is_none());
+        assert_eq!(body["tools"][1]["name"], "keyword_search");
+        assert_eq!(body["tools"][1]["strict"], true);
+        assert_eq!(body["input"][1]["type"], "function_call");
+        assert_eq!(body["input"][1]["call_id"], "call_1");
+        assert_eq!(body["input"][1]["name"], "keyword_search");
+        assert_eq!(body["input"][2]["type"], "function_call_output");
+        assert_eq!(body["input"][2]["call_id"], "call_1");
+        assert_eq!(body["input"][2]["output"], "{\"results\":[]}");
+    }
+
+    #[test]
+    fn parses_responses_function_calls() {
+        let value = json!({
+            "output": [
+                {
+                    "type": "function_call",
+                    "call_id": "call_abc",
+                    "name": "keyword_search",
+                    "arguments": "{\"keywords\":[\"回忆书\"]}"
+                }
+            ]
+        });
+
+        let tool_calls = parse_responses_function_calls(&value);
+        assert_eq!(tool_calls.len(), 1);
+        assert_eq!(tool_calls[0].id, "call_abc");
+        assert_eq!(tool_calls[0].name, "keyword_search");
+        assert_eq!(tool_calls[0].arguments, "{\"keywords\":[\"回忆书\"]}");
+    }
+
+    #[test]
+    fn reads_responses_output_text() {
+        let value = json!({
+            "output_text": "直接答案"
+        });
+
+        assert_eq!(responses_output_text(&value), "直接答案");
+    }
+
+    #[test]
+    fn detects_responses_endpoint() {
+        let provider = AiProvider {
+            id: "p".to_string(),
+            name: "OpenAI Compatible".to_string(),
+            protocol: "openaiCompatible".to_string(),
+            api_key: "key".to_string(),
+            base_url: "https://api.openai.com/v1".to_string(),
+            api_path: "/responses".to_string(),
+        };
+        assert!(is_responses_endpoint(&provider));
+
+        let provider = AiProvider {
+            api_path: "/chat/completions".to_string(),
+            ..provider
+        };
+        assert!(!is_responses_endpoint(&provider));
     }
 
     #[test]

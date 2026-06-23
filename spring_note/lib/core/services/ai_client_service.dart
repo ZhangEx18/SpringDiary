@@ -185,21 +185,29 @@ class AiClientService {
       request.headers
         ..set(HttpHeaders.authorizationHeader, 'Bearer ${provider.apiKey}')
         ..set(HttpHeaders.contentTypeHeader, ContentType.json.mimeType);
-      request.write(
-        jsonEncode({
-          'model': model.modelId,
-          'messages': const [
-            {
-              'role': 'system',
-              'content':
+      final body = _isResponsesEndpoint(provider)
+          ? {
+              'model': model.modelId,
+              'instructions':
                   'You are a connection test endpoint. Reply with OK only.',
-            },
-            {'role': 'user', 'content': 'Say OK.'},
-          ],
-          'temperature': 0.2,
-          'stream': true,
-        }),
-      );
+              'input': 'Say OK.',
+              'temperature': 0.2,
+              'stream': true,
+            }
+          : {
+              'model': model.modelId,
+              'messages': const [
+                {
+                  'role': 'system',
+                  'content':
+                      'You are a connection test endpoint. Reply with OK only.',
+                },
+                {'role': 'user', 'content': 'Say OK.'},
+              ],
+              'temperature': 0.2,
+              'stream': true,
+            };
+      request.write(jsonEncode(body));
 
       final response = await request.close().timeout(
         const Duration(seconds: 45),
@@ -546,6 +554,13 @@ class AiClientService {
       return normalizedBase;
     }
     return '$normalizedBase/$normalizedPath';
+  }
+
+  bool _isResponsesEndpoint(ProviderConfig provider) {
+    return _joinUrl(
+      provider.baseUrl,
+      provider.apiPath,
+    ).replaceAll(RegExp(r'/+$'), '').endsWith('/responses');
   }
 
   String? _readStreamErrorMessage(String payload) {
