@@ -91,6 +91,14 @@ Instead of static records, we model a living system:
 
 - Group 1: 463423961
 
+## ❤️ Special Thanks
+
+特别感谢所有 Contributors和社区成员对 SpringNote 的支持 ❤️
+
+<a href="https://github.com/Radiant303/SpringNote/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=Radiant303/SpringNote&max=300&columns=15" />
+</a>
+
 ## ⭐ Star History
 
 > [!TIP]
@@ -100,4 +108,8 @@ Instead of static records, we model a living system:
   <img src="https://count.getloli.com/@SpringNote?name=SpringNote&theme=miku&padding=7&offset=0&align=center&scale=0.3&pixelated=1&darkmode=auto" alt="visitor count" />
 </p>
 
-![Star History](https://api.star-history.com/svg?repos=Radiant303/SpringNote&type=Date)
+<div align="center">
+
+[![Star History Chart](https://api.star-history.com/svg?repos=Radiant303/SpringNote&type=Date)](https://star-history.com/#Radiant303/SpringNote&Date)
+
+</div>
