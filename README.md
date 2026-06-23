@@ -15,7 +15,6 @@ Instead of static records, we model a living system:
 </h1>
 
 <div align="center">
-
 <div>
 <img src="https://img.shields.io/badge/Platform-Windows-blue?style=flat&color=76bad9">
 <img src="https://img.shields.io/badge/Flutter-3.x-blue.svg?logo=flutter">
@@ -108,6 +107,8 @@ Instead of static records, we model a living system:
   <img src="https://count.getloli.com/@SpringNote?name=SpringNote&theme=miku&padding=7&offset=0&align=center&scale=0.3&pixelated=1&darkmode=auto" alt="visitor count" />
 </p>
 
-<div align="center">
-
-[![Star History Chart](https://api.star-history.com/svg?repos=Radiant303/SpringNote&type=Date)](https://star-history.com/#Radiant303/SpringNote&Date)
+<p align="center">
+  <a href="https://star-history.com/#Radiant303/SpringNote&Date">
+    <img src="https://api.star-history.com/svg?repos=Radiant303/SpringNote&type=Date" alt="Star History Chart" />
+  </a>
+</p>
