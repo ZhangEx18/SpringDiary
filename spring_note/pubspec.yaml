@@ -44,6 +44,7 @@ dependencies:
   window_manager: ^0.5.1
   msix: ^3.17.0
   package_info_plus: ^10.1.0
+  file_selector: ^1.0.4
 
 dependency_overrides:
   # syntax_highlight's CodeEditor depends on super_clipboard, which pulls in a

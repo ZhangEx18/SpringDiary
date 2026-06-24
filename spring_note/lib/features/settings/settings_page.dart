@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
@@ -126,6 +127,9 @@ class _SettingsPageState extends State<SettingsPage> {
         _saving = false;
       });
       widget.onLocalDataStateChanged?.call(state);
+      if (mounted) {
+        await _showDataMigrationCompleteDialog();
+      }
     } catch (error) {
       if (mounted) {
         setState(() {
@@ -134,6 +138,31 @@ class _SettingsPageState extends State<SettingsPage> {
         });
       }
     }
+  }
+
+  Future<void> _showDataMigrationCompleteDialog() {
+    return showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: '关闭',
+      barrierColor: Colors.black.withValues(alpha: 0.18),
+      transitionDuration: const Duration(milliseconds: 180),
+      pageBuilder: (context, _, _) => const _DataMigrationCompleteDialog(),
+      transitionBuilder: (context, animation, _, child) {
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
+        );
+        return FadeTransition(
+          opacity: curved,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.975, end: 1).animate(curved),
+            child: child,
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _updateProvider(ProviderConfig provider) async {
@@ -859,6 +888,172 @@ class _PreferencesPanel extends StatelessWidget {
           ).textTheme.bodyMedium?.copyWith(color: AppTheme.textSubtle),
         ),
       ],
+    );
+  }
+}
+
+class _DataMigrationCompleteDialog extends StatelessWidget {
+  const _DataMigrationCompleteDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      key: const ValueKey('data-migration-complete-dialog'),
+      backgroundColor: Colors.white,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: SizedBox(
+        width: 320,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(22, 18, 22, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              const _DataMigrationSuccessIcon(),
+              const SizedBox(height: 10),
+              Text(
+                '数据迁移完成',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: AppTheme.text,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  height: 1.18,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '已成功切换至新的数据目录。\n确认数据正常后，可删除原目录以释放存储空间。',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppTheme.textSubtle,
+                  fontSize: 12.5,
+                  height: 1.45,
+                ),
+              ),
+              const SizedBox(height: 18),
+              _DataMigrationDialogButton(
+                label: '确定',
+                onTap: () => Navigator.of(context).pop(),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DataMigrationSuccessIcon extends StatelessWidget {
+  const _DataMigrationSuccessIcon();
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 38,
+      height: 38,
+      child: CustomPaint(painter: _DataMigrationSuccessIconPainter()),
+    );
+  }
+}
+
+class _DataMigrationSuccessIconPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.shortestSide / 2;
+    final backgroundPaint = Paint()
+      ..color = const Color(0xFFF5F5F5)
+      ..style = PaintingStyle.fill;
+    final ringPaint = Paint()
+      ..color = const Color(0xFFE2E2E2)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
+    final checkPaint = Paint()
+      ..color = AppTheme.text
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.4
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    canvas.drawCircle(center, radius - 0.6, backgroundPaint);
+    canvas.drawCircle(center, radius - 1.2, ringPaint);
+
+    final checkPath = Path()
+      ..moveTo(size.width * 0.31, size.height * 0.52)
+      ..lineTo(size.width * 0.45, size.height * 0.66)
+      ..lineTo(size.width * 0.70, size.height * 0.38);
+    canvas.drawPath(checkPath, checkPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _DataMigrationDialogButton extends StatefulWidget {
+  const _DataMigrationDialogButton({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  State<_DataMigrationDialogButton> createState() =>
+      _DataMigrationDialogButtonState();
+}
+
+class _DataMigrationDialogButtonState
+    extends State<_DataMigrationDialogButton> {
+  bool _hovered = false;
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final backgroundColor = _pressed
+        ? const Color(0xFF202020)
+        : (_hovered ? const Color(0xFF2A2A2A) : Colors.black);
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() {
+        _hovered = false;
+        _pressed = false;
+      }),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapDown: (_) => setState(() => _pressed = true),
+        onTapCancel: () => setState(() => _pressed = false),
+        onTapUp: (_) => setState(() => _pressed = false),
+        onTap: widget.onTap,
+        child: AnimatedScale(
+          scale: _pressed ? 0.975 : 1,
+          duration: _pressed
+              ? const Duration(milliseconds: 70)
+              : const Duration(milliseconds: 160),
+          curve: Curves.easeOutCubic,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 130),
+            curve: Curves.easeOutCubic,
+            height: 36,
+            width: 88,
+            decoration: BoxDecoration(
+              color: backgroundColor,
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: Center(
+              child: Text(
+                widget.label,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  height: 1.2,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -4759,9 +4954,18 @@ class _DataDirectorySettingRowState extends State<_DataDirectorySettingRow> {
     super.dispose();
   }
 
-  void _submit() {
-    final value = _controller.text.trim();
-    widget.onChanged(value.isEmpty ? null : value);
+  Future<void> _pickDirectory() async {
+    if (widget.saving) {
+      return;
+    }
+    final path = await getDirectoryPath(
+      initialDirectory: widget.dataDirectory,
+      confirmButtonText: '选择此文件夹',
+    );
+    if (path == null || path.trim().isEmpty) {
+      return;
+    }
+    widget.onChanged(path.trim());
   }
 
   @override
@@ -4777,11 +4981,10 @@ class _DataDirectorySettingRowState extends State<_DataDirectorySettingRow> {
               child: TextField(
                 controller: _controller,
                 enabled: !widget.saving,
-                textInputAction: TextInputAction.done,
-                onSubmitted: (_) => _submit(),
+                readOnly: true,
                 decoration: const InputDecoration(
                   isDense: true,
-                  hintText: '输入新的保存目录路径',
+                  hintText: '当前保存目录',
                   contentPadding: EdgeInsets.symmetric(
                     horizontal: 14,
                     vertical: 12,
@@ -4791,8 +4994,8 @@ class _DataDirectorySettingRowState extends State<_DataDirectorySettingRow> {
             ),
             const SizedBox(width: 8),
             _DataDirectoryActionButton(
-              tooltip: '迁移到此目录',
-              onPressed: widget.saving ? null : _submit,
+              tooltip: '选择并迁移目录',
+              onPressed: widget.saving ? null : _pickDirectory,
               child: widget.saving
                   ? const SizedBox(
                       width: 16,
