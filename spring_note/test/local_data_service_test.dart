@@ -68,6 +68,87 @@ void main() {
     );
   });
 
+  test('local data service migrates data to custom directory', () async {
+    final temp = await Directory.systemTemp.createTemp('spring_note_migrate_');
+    addTearDown(() async {
+      if (await temp.exists()) {
+        await temp.delete(recursive: true);
+      }
+    });
+
+    final service = LocalDataService(appDataPath: temp.path);
+    final state = await service.initialize();
+    final dailyNote = File(
+      '${state.dailyNotesDirectory}${Platform.pathSeparator}2026-06-24.md',
+    );
+    await dailyNote.writeAsString('# Today\n\nMoved note');
+
+    final target = Directory(
+      '${temp.path}${Platform.pathSeparator}custom_store',
+    );
+    final migrated = await service.migrateDataDirectory(
+      currentState: state.copyWith(
+        config: state.config.copyWith(dailyWorkHours: 7),
+      ),
+      targetDirectory: target.path,
+    );
+
+    expect(migrated.dataDirectory, target.absolute.path);
+    expect(migrated.config.customDataDirectory, target.absolute.path);
+    expect(await File(migrated.configPath).exists(), isTrue);
+    expect(
+      await File(
+        '${migrated.dailyNotesDirectory}${Platform.pathSeparator}2026-06-24.md',
+      ).readAsString(),
+      '# Today\n\nMoved note',
+    );
+
+    final reinitialized = await service.initialize();
+    expect(reinitialized.dataDirectory, target.absolute.path);
+    expect(reinitialized.config.dailyWorkHours, 7);
+  });
+
+  test(
+    'local data service restores default directory and clears pointer',
+    () async {
+      final temp = await Directory.systemTemp.createTemp(
+        'spring_note_default_',
+      );
+      addTearDown(() async {
+        if (await temp.exists()) {
+          await temp.delete(recursive: true);
+        }
+      });
+
+      final service = LocalDataService(appDataPath: temp.path);
+      final state = await service.initialize();
+      final target = Directory(
+        '${temp.path}${Platform.pathSeparator}custom_store',
+      );
+      final migrated = await service.migrateDataDirectory(
+        currentState: state,
+        targetDirectory: target.path,
+      );
+
+      final restored = await service.migrateDataDirectory(
+        currentState: migrated,
+        targetDirectory: null,
+      );
+
+      final defaultRoot = '${temp.path}${Platform.pathSeparator}SpringNote';
+      expect(restored.dataDirectory, defaultRoot);
+      expect(restored.config.customDataDirectory, isNull);
+      expect(
+        await File(
+          '$defaultRoot${Platform.pathSeparator}data-directory.json',
+        ).exists(),
+        isFalse,
+      );
+
+      final reinitialized = await service.initialize();
+      expect(reinitialized.dataDirectory, defaultRoot);
+    },
+  );
   test('model config derives FIM mode from completion model type', () {
     const completionModel = ModelConfig(
       modelId: 'fim-model',

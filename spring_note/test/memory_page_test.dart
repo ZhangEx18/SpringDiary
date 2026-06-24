@@ -55,4 +55,25 @@ void main() {
     expect(memoryToolResultLabel(emptyResult), '无结果');
     expect(memoryToolResultLabel(null), '无结果');
   });
+
+  test('memory tool cache key is stable for reordered arguments', () {
+    final left = memoryToolCacheKey('read_daily_note', {
+      'date': '2026-06-24',
+      'options': {'b': 2, 'a': 1},
+    });
+    final right = memoryToolCacheKey('read_daily_note', {
+      'options': {'a': 1, 'b': 2},
+      'date': '2026-06-24',
+    });
+
+    expect(left, right);
+  });
+
+  test('deduplicated memory tool content asks model to reuse result', () {
+    final content = deduplicatedMemoryToolContent('{"date":"2026-06-24"}');
+
+    expect(content, contains('"cached":true'));
+    expect(content, contains('Use the cached result'));
+    expect(content, contains('2026-06-24'));
+  });
 }

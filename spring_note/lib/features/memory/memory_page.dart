@@ -27,12 +27,43 @@ String memoryToolResultLabel(MemoryMessage? resultMessage) {
   return '无结果';
 }
 
+String memoryToolCacheKey(String toolName, Map<String, Object?> arguments) {
+  return '$toolName:${jsonEncode(_normalizeJsonValue(arguments))}';
+}
+
+String deduplicatedMemoryToolContent(String content) {
+  final trimmed = content.trim();
+  return jsonEncode({
+    'cached': true,
+    'note':
+        'This exact tool call already returned earlier in this conversation. Use the cached result and continue to answer instead of calling the same tool again.',
+    'result': trimmed.isEmpty ? content : trimmed,
+  });
+}
+
 Duration? memoryReasoningDuration(MemoryMessage message) {
   final milliseconds = message.reasoningDurationMs;
   if (milliseconds == null || milliseconds < 0) {
     return null;
   }
   return Duration(milliseconds: milliseconds);
+}
+
+Object? _normalizeJsonValue(Object? value) {
+  if (value is Map) {
+    final entries =
+        value.entries
+            .map((entry) => MapEntry(entry.key.toString(), entry.value))
+            .toList()
+          ..sort((left, right) => left.key.compareTo(right.key));
+    return {
+      for (final entry in entries) entry.key: _normalizeJsonValue(entry.value),
+    };
+  }
+  if (value is Iterable) {
+    return value.map(_normalizeJsonValue).toList();
+  }
+  return value;
 }
 
 class MemoryPage extends StatefulWidget {
@@ -177,6 +208,7 @@ class _MemoryPageState extends State<MemoryPage> {
         .round()
         .clamp(1, 12);
     final turnSources = <MemorySource>[];
+    final toolResultCache = <String, MemoryToolExecution>{};
 
     for (var turn = 0; turn < maxTurns; turn++) {
       final requestStartedAt = DateTime.now();
@@ -304,20 +336,30 @@ class _MemoryPageState extends State<MemoryPage> {
       await _persist();
 
       for (final toolCall in toolCalls) {
-        final execution = await widget.searchService.executeTool(
-          localDataState: widget.localDataState,
-          toolName: toolCall.name,
-          arguments: _decodeToolArguments(toolCall.arguments),
-          limit: maxTurns,
-        );
-        turnSources.addAll(execution.sources);
+        final arguments = _decodeToolArguments(toolCall.arguments);
+        final cacheKey = memoryToolCacheKey(toolCall.name, arguments);
+        final cachedExecution = toolResultCache[cacheKey];
+        final execution =
+            cachedExecution ??
+            await widget.searchService.executeTool(
+              localDataState: widget.localDataState,
+              toolName: toolCall.name,
+              arguments: arguments,
+              limit: maxTurns,
+            );
+        toolResultCache[cacheKey] = execution;
+        if (cachedExecution == null) {
+          turnSources.addAll(execution.sources);
+        }
         final toolMessage = MemoryMessage(
           role: 'tool',
-          content: execution.content,
+          content: cachedExecution == null
+              ? execution.content
+              : deduplicatedMemoryToolContent(execution.content),
           createdAt: DateTime.now(),
           toolName: execution.toolName,
           toolCallId: toolCall.id,
-          sources: execution.sources,
+          sources: cachedExecution == null ? execution.sources : const [],
         );
         setState(() => _messages = [..._messages, toolMessage]);
         await _persist();
