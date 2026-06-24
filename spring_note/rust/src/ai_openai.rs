@@ -1199,16 +1199,19 @@ fn apply_responses_stream_event(
         }
         "response.output_item.added" => {
             if let Some(item) = value.get("item") {
-                accumulator.merge_responses_output_item(item);
+                accumulator.merge_responses_output_item(value, item);
             }
         }
         "response.output_item.done" => {
             if let Some(item) = value.get("item") {
-                accumulator.merge_responses_output_item(item);
+                accumulator.merge_responses_output_item(value, item);
             }
         }
         "response.function_call_arguments.delta" => {
             accumulator.merge_responses_function_arguments_delta(value);
+        }
+        "response.function_call_arguments.done" => {
+            accumulator.merge_responses_function_arguments_done(value);
         }
         "response.completed" => {
             if let Some(response) = value.get("response") {
@@ -1291,19 +1294,11 @@ impl StreamAccumulator {
         }
     }
 
-    fn merge_responses_output_item(&mut self, item: &Value) {
+    fn merge_responses_output_item(&mut self, event: &Value, item: &Value) {
         if item.get("type").and_then(Value::as_str) != Some("function_call") {
             return;
         }
-        let index = item
-            .get("output_index")
-            .or_else(|| item.get("index"))
-            .and_then(Value::as_u64)
-            .map(|value| value as usize)
-            .unwrap_or_else(|| self.tool_calls.len());
-        while self.tool_calls.len() <= index {
-            self.tool_calls.push(ToolCallAccumulator::default());
-        }
+        let index = self.responses_tool_index(event, item);
         let target = &mut self.tool_calls[index];
         if let Some(id) = item
             .get("call_id")
@@ -1326,15 +1321,7 @@ impl StreamAccumulator {
     }
 
     fn merge_responses_function_arguments_delta(&mut self, value: &Value) {
-        let index = value
-            .get("output_index")
-            .or_else(|| value.get("item_index"))
-            .or_else(|| value.get("index"))
-            .and_then(Value::as_u64)
-            .unwrap_or(0) as usize;
-        while self.tool_calls.len() <= index {
-            self.tool_calls.push(ToolCallAccumulator::default());
-        }
+        let index = self.responses_tool_index(value, value);
         let target = &mut self.tool_calls[index];
         if let Some(id) = value
             .get("call_id")
@@ -1356,6 +1343,22 @@ impl StreamAccumulator {
         }
     }
 
+    fn merge_responses_function_arguments_done(&mut self, value: &Value) {
+        let index = self.responses_tool_index(value, value);
+        let target = &mut self.tool_calls[index];
+        if let Some(id) = value
+            .get("call_id")
+            .or_else(|| value.get("item_id"))
+            .and_then(Value::as_str)
+            .filter(|id| !id.is_empty())
+        {
+            target.id = id.to_string();
+        }
+        if let Some(arguments) = value.get("arguments").and_then(Value::as_str) {
+            target.arguments = arguments.to_string();
+        }
+    }
+
     fn merge_responses_completed(&mut self, response: &Value, delta: &mut ResponsesStreamDelta) {
         let completed_content = responses_output_text(response);
         if !completed_content.is_empty() && self.content.is_empty() {
@@ -1373,7 +1376,7 @@ impl StreamAccumulator {
             .cloned()
             .unwrap_or_default()
         {
-            self.merge_responses_output_item(&item);
+            self.merge_responses_output_item(&json!({}), &item);
         }
         let (input, output, cached) = usage_from_value(response);
         if input != 0 || output != 0 || cached != 0 {
@@ -1381,6 +1384,41 @@ impl StreamAccumulator {
             self.output_tokens = output;
             self.cached_tokens = cached;
         }
+    }
+
+    fn responses_tool_index(&mut self, event: &Value, item: &Value) -> usize {
+        let explicit_index = event
+            .get("output_index")
+            .or_else(|| event.get("item_index"))
+            .or_else(|| event.get("index"))
+            .or_else(|| item.get("output_index"))
+            .or_else(|| item.get("item_index"))
+            .or_else(|| item.get("index"))
+            .and_then(Value::as_u64)
+            .map(|value| value as usize);
+        if let Some(index) = explicit_index {
+            while self.tool_calls.len() <= index {
+                self.tool_calls.push(ToolCallAccumulator::default());
+            }
+            return index;
+        }
+
+        let ids = [
+            item.get("call_id").and_then(Value::as_str),
+            event.get("call_id").and_then(Value::as_str),
+            item.get("id").and_then(Value::as_str),
+            event.get("item_id").and_then(Value::as_str),
+        ];
+        if let Some(index) = self.tool_calls.iter().position(|tool_call| {
+            ids.iter().flatten().any(|id| {
+                !id.is_empty() && !tool_call.id.is_empty() && tool_call.id == *id
+            })
+        }) {
+            return index;
+        }
+
+        self.tool_calls.push(ToolCallAccumulator::default());
+        self.tool_calls.len() - 1
     }
 
     fn tool_calls(&self) -> Vec<AiToolCall> {
@@ -1818,6 +1856,52 @@ mod tests {
         assert_eq!(tool_calls[0].id, "call_1");
         assert_eq!(tool_calls[0].name, "keyword_search");
         assert_eq!(tool_calls[0].arguments, "{\"keywords\":[\"回忆书\"]}");
+    }
+
+    #[test]
+    fn merges_responses_stream_events_by_outer_output_index() {
+        let mut accumulator = StreamAccumulator::default();
+
+        apply_responses_stream_event(
+            &mut accumulator,
+            &json!({
+                "type": "response.output_item.added",
+                "output_index": 0,
+                "item": {
+                    "type": "function_call",
+                    "call_id": "call_date",
+                    "name": "get_current_date",
+                    "arguments": ""
+                }
+            }),
+        );
+        apply_responses_stream_event(
+            &mut accumulator,
+            &json!({
+                "type": "response.function_call_arguments.delta",
+                "output_index": 0,
+                "delta": "{}"
+            }),
+        );
+        apply_responses_stream_event(
+            &mut accumulator,
+            &json!({
+                "type": "response.output_item.done",
+                "output_index": 0,
+                "item": {
+                    "type": "function_call",
+                    "call_id": "call_date",
+                    "name": "get_current_date",
+                    "arguments": "{}"
+                }
+            }),
+        );
+
+        let tool_calls = accumulator.tool_calls();
+        assert_eq!(tool_calls.len(), 1);
+        assert_eq!(tool_calls[0].id, "call_date");
+        assert_eq!(tool_calls[0].name, "get_current_date");
+        assert_eq!(tool_calls[0].arguments, "{}");
     }
 
     #[test]
