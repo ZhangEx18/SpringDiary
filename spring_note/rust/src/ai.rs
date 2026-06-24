@@ -413,14 +413,18 @@ pub async fn memory_tool_chat(request: MemoryToolChatRequest) -> MemoryToolChatR
         return MemoryToolChatResult::error(
             &chat_request,
             "unsupported_tool_protocol",
-            "回忆书工具调用目前仅支持 OpenAI-compatible Chat Completions。",
+            "回忆书工具调用目前仅支持 OpenAI-compatible Chat Completions 或 Responses API。",
             0,
             0,
             0,
         );
     }
 
-    let response = ai_openai::memory_tool_chat(&request, MEMORY_TOOL_SYSTEM_PROMPT).await;
+    let response = if ai_openai::is_responses_endpoint(&request.provider) {
+        ai_openai::memory_tool_responses(&request, MEMORY_TOOL_SYSTEM_PROMPT).await
+    } else {
+        ai_openai::memory_tool_chat(&request, MEMORY_TOOL_SYSTEM_PROMPT).await
+    };
     let result = match response {
         Ok(result) => result,
         Err(error) => MemoryToolChatResult::error(&chat_request, "request_failed", &error, 0, 0, 0),
@@ -463,15 +467,24 @@ pub async fn memory_tool_chat_stream(
     if request.provider.protocol != "openaiCompatible" {
         let _ = sink.add(MemoryToolChatStreamEvent::error(
             "unsupported_tool_protocol",
-            "回忆书流式工具调用目前仅支持 OpenAI-compatible Chat Completions。",
+            "回忆书流式工具调用目前仅支持 OpenAI-compatible Chat Completions 或 Responses API。",
         ));
         return;
     }
 
-    if let Err(error) =
+    let response = if ai_openai::is_responses_endpoint(&request.provider) {
+        ai_openai::memory_tool_responses_stream(
+            request.clone(),
+            MEMORY_TOOL_SYSTEM_PROMPT,
+            sink.clone(),
+        )
+        .await
+    } else {
         ai_openai::memory_tool_chat_stream(request.clone(), MEMORY_TOOL_SYSTEM_PROMPT, sink.clone())
             .await
-    {
+    };
+
+    if let Err(error) = response {
         let _ = sink.add(MemoryToolChatStreamEvent::error("request_failed", &error));
         let result = AiTextResult::error(&chat_request, "request_failed", &error, 0, 0, 0);
         let _ = stats::record_model_call(&request.app_data_dir, &chat_request, &result);
