@@ -41,12 +41,14 @@ class SettingsPage extends StatefulWidget {
     this.localDataService = const LocalDataService(),
     this.aiClientService = const AiClientService(),
     this.onConfigChanged,
+    this.onLocalDataStateChanged,
   });
 
   final LocalDataState localDataState;
   final LocalDataService localDataService;
   final AiClientService aiClientService;
   final ValueChanged<AppConfig>? onConfigChanged;
+  final ValueChanged<LocalDataState>? onLocalDataStateChanged;
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -57,6 +59,7 @@ class _SettingsPageState extends State<SettingsPage> {
   late AppConfig _config = widget.localDataState.config;
   String? _selectedProviderId;
   bool _saving = false;
+  String? _settingsError;
 
   ProviderConfig? get _selectedProvider {
     if (_config.providers.isEmpty) {
@@ -83,10 +86,53 @@ class _SettingsPageState extends State<SettingsPage> {
         _selectedProviderId = config.providers.first.id;
       }
     });
-    await widget.localDataService.saveConfig(config);
-    widget.onConfigChanged?.call(config);
-    if (mounted) {
-      setState(() => _saving = false);
+    try {
+      await widget.localDataService.saveConfig(config);
+      widget.onConfigChanged?.call(config);
+      if (mounted) {
+        setState(() {
+          _saving = false;
+          _settingsError = null;
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _saving = false;
+          _settingsError = error.toString();
+        });
+      }
+    }
+  }
+
+  Future<void> _migrateDataDirectory(String? targetDirectory) async {
+    if (_saving) {
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _settingsError = null;
+    });
+    try {
+      final state = await widget.localDataService.migrateDataDirectory(
+        currentState: widget.localDataState.copyWith(config: _config),
+        targetDirectory: targetDirectory,
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _config = state.config;
+        _saving = false;
+      });
+      widget.onLocalDataStateChanged?.call(state);
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _saving = false;
+          _settingsError = error.toString();
+        });
+      }
     }
   }
 
@@ -224,7 +270,11 @@ class _SettingsPageState extends State<SettingsPage> {
       _SettingsSection.preferences => _PreferencesPanel(
         config: _config,
         onChanged: _updateConfig,
+        dataDirectory: widget.localDataState.dataDirectory,
         configPath: widget.localDataState.configPath,
+        saving: _saving,
+        errorMessage: _settingsError,
+        onDataDirectoryChanged: _migrateDataDirectory,
       ),
       _SettingsSection.providers => _ProvidersPanel(
         appDataDir: widget.localDataState.dataDirectory,
@@ -662,12 +712,20 @@ class _PreferencesPanel extends StatelessWidget {
   const _PreferencesPanel({
     required this.config,
     required this.onChanged,
+    required this.dataDirectory,
     required this.configPath,
+    required this.saving,
+    required this.errorMessage,
+    required this.onDataDirectoryChanged,
   });
 
   final AppConfig config;
   final ValueChanged<AppConfig> onChanged;
+  final String dataDirectory;
   final String configPath;
+  final bool saving;
+  final String? errorMessage;
+  final ValueChanged<String?> onDataDirectoryChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -764,6 +822,16 @@ class _PreferencesPanel extends StatelessWidget {
           ],
         ),
         _SettingsCard(
+          title: '数据保存',
+          children: [
+            _DataDirectorySettingRow(
+              dataDirectory: dataDirectory,
+              saving: saving,
+              onChanged: onDataDirectoryChanged,
+            ),
+          ],
+        ),
+        _SettingsCard(
           title: '组件设置',
           children: [
             _SwitchSettingRow(
@@ -781,6 +849,8 @@ class _PreferencesPanel extends StatelessWidget {
             ),
           ],
         ),
+        if (errorMessage != null)
+          _SettingsMessage(text: errorMessage!, error: true),
         Text(
           '配置文件：$configPath',
           style: Theme.of(
@@ -4645,6 +4715,314 @@ class _TextSettingRow extends StatelessWidget {
           ),
           ?trailing,
         ],
+      ),
+    );
+  }
+}
+
+class _DataDirectorySettingRow extends StatefulWidget {
+  const _DataDirectorySettingRow({
+    required this.dataDirectory,
+    required this.saving,
+    required this.onChanged,
+  });
+
+  final String dataDirectory;
+  final bool saving;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  State<_DataDirectorySettingRow> createState() =>
+      _DataDirectorySettingRowState();
+}
+
+class _DataDirectorySettingRowState extends State<_DataDirectorySettingRow> {
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.dataDirectory,
+  );
+
+  @override
+  void didUpdateWidget(covariant _DataDirectorySettingRow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.dataDirectory != oldWidget.dataDirectory &&
+        widget.dataDirectory != _controller.text) {
+      _controller.text = widget.dataDirectory;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final value = _controller.text.trim();
+    widget.onChanged(value.isEmpty ? null : value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _SettingRowShell(
+      label: '保存目录',
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 560),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _controller,
+                enabled: !widget.saving,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => _submit(),
+                decoration: const InputDecoration(
+                  isDense: true,
+                  hintText: '输入新的保存目录路径',
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            _DataDirectoryActionButton(
+              tooltip: '迁移到此目录',
+              onPressed: widget.saving ? null : _submit,
+              child: widget.saving
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const _DataDirectoryActionIcon(
+                      type: _DataDirectoryActionIconType.folderUp,
+                      size: 16,
+                    ),
+            ),
+            const SizedBox(width: 2),
+            _DataDirectoryActionButton(
+              tooltip: '恢复默认目录',
+              onPressed: widget.saving ? null : () => widget.onChanged(null),
+              child: const _DataDirectoryActionIcon(
+                type: _DataDirectoryActionIconType.rotateCcw,
+                size: 16,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+enum _DataDirectoryActionIconType { folderUp, rotateCcw }
+
+class _DataDirectoryActionButton extends StatefulWidget {
+  const _DataDirectoryActionButton({
+    required this.tooltip,
+    required this.child,
+    required this.onPressed,
+  });
+
+  final String tooltip;
+  final Widget child;
+  final VoidCallback? onPressed;
+
+  @override
+  State<_DataDirectoryActionButton> createState() =>
+      _DataDirectoryActionButtonState();
+}
+
+class _DataDirectoryActionButtonState
+    extends State<_DataDirectoryActionButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = widget.onPressed != null;
+    final active = enabled && _hovered;
+    final backgroundColor = active
+        ? const Color(0xFFF5F5F5)
+        : Colors.transparent;
+    final iconColor = !enabled
+        ? const Color(0xFFBDBDBD)
+        : (active ? AppTheme.text : AppTheme.textSubtle);
+
+    return Tooltip(
+      message: widget.tooltip,
+      waitDuration: const Duration(milliseconds: 450),
+      child: MouseRegion(
+        cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+        onEnter: (_) {
+          if (enabled) {
+            setState(() => _hovered = true);
+          }
+        },
+        onExit: (_) {
+          if (_hovered) {
+            setState(() => _hovered = false);
+          }
+        },
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onPressed,
+          child: SizedBox(
+            width: 36,
+            height: 36,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 120),
+              curve: Curves.easeOutCubic,
+              decoration: BoxDecoration(
+                color: backgroundColor,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: IconTheme(
+                data: IconThemeData(color: iconColor, size: 16),
+                child: Center(child: widget.child),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DataDirectoryActionIcon extends StatelessWidget {
+  const _DataDirectoryActionIcon({required this.type, required this.size});
+
+  final _DataDirectoryActionIconType type;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = IconTheme.of(context).color ?? AppTheme.textSubtle;
+    return CustomPaint(
+      size: Size.square(size),
+      painter: _DataDirectoryActionIconPainter(type: type, color: color),
+    );
+  }
+}
+
+class _DataDirectoryActionIconPainter extends CustomPainter {
+  const _DataDirectoryActionIconPainter({
+    required this.type,
+    required this.color,
+  });
+
+  final _DataDirectoryActionIconType type;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final sx = size.width / 24;
+    final sy = size.height / 24;
+    final strokeScale = sx < sy ? sx : sy;
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2 * strokeScale
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    Offset point(double x, double y) => Offset(x * sx, y * sy);
+    switch (type) {
+      case _DataDirectoryActionIconType.folderUp:
+        final folderPath = Path()
+          ..moveTo(point(3, 6.5).dx, point(3, 6.5).dy)
+          ..cubicTo(
+            point(3, 5.4).dx,
+            point(3, 5.4).dy,
+            point(3.9, 4.5).dx,
+            point(3.9, 4.5).dy,
+            point(5, 4.5).dx,
+            point(5, 4.5).dy,
+          )
+          ..lineTo(point(9.1, 4.5).dx, point(9.1, 4.5).dy)
+          ..lineTo(point(11.3, 7).dx, point(11.3, 7).dy)
+          ..lineTo(point(19, 7).dx, point(19, 7).dy)
+          ..cubicTo(
+            point(20.1, 7).dx,
+            point(20.1, 7).dy,
+            point(21, 7.9).dx,
+            point(21, 7.9).dy,
+            point(21, 9).dx,
+            point(21, 9).dy,
+          )
+          ..lineTo(point(21, 17.5).dx, point(21, 17.5).dy)
+          ..cubicTo(
+            point(21, 18.6).dx,
+            point(21, 18.6).dy,
+            point(20.1, 19.5).dx,
+            point(20.1, 19.5).dy,
+            point(19, 19.5).dx,
+            point(19, 19.5).dy,
+          )
+          ..lineTo(point(5, 19.5).dx, point(5, 19.5).dy)
+          ..cubicTo(
+            point(3.9, 19.5).dx,
+            point(3.9, 19.5).dy,
+            point(3, 18.6).dx,
+            point(3, 18.6).dy,
+            point(3, 17.5).dx,
+            point(3, 17.5).dy,
+          )
+          ..close();
+        canvas.drawPath(folderPath, paint);
+        canvas.drawLine(point(12, 16), point(12, 11), paint);
+        canvas.drawPath(
+          Path()
+            ..moveTo(point(8.9, 13.1).dx, point(8.9, 13.1).dy)
+            ..lineTo(point(12, 10).dx, point(12, 10).dy)
+            ..lineTo(point(15.1, 13.1).dx, point(15.1, 13.1).dy),
+          paint,
+        );
+        break;
+      case _DataDirectoryActionIconType.rotateCcw:
+        canvas.drawPath(
+          Path()
+            ..moveTo(point(3, 7).dx, point(3, 7).dy)
+            ..lineTo(point(3, 3).dx, point(3, 3).dy)
+            ..lineTo(point(7, 3).dx, point(7, 3).dy),
+          paint,
+        );
+        final arcRect = Rect.fromLTWH(4 * sx, 4 * sy, 16 * sx, 16 * sy);
+        canvas.drawArc(arcRect, -2.35, 4.75, false, paint);
+        break;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DataDirectoryActionIconPainter oldDelegate) {
+    return oldDelegate.type != type || oldDelegate.color != color;
+  }
+}
+
+class _SettingsMessage extends StatelessWidget {
+  const _SettingsMessage({required this.text, this.error = false});
+
+  final String text;
+  final bool error;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: error ? const Color(0xFFFFF1F2) : const Color(0xFFF0FDF4),
+        border: Border.all(
+          color: error ? const Color(0xFFFECACA) : const Color(0xFFBBF7D0),
+        ),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Text(
+        text,
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: error ? const Color(0xFFB91C1C) : const Color(0xFF166534),
+        ),
       ),
     );
   }

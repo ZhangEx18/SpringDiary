@@ -130,6 +130,21 @@ class _AppShellState extends State<AppShell> {
     _syncDesktopWidgetWindow();
   }
 
+  void _handleLocalDataStateChanged(LocalDataState state) {
+    setState(() {
+      _localDataState = state;
+      _desktopWidgetController.attach(_localDataState);
+      _levelProgressController.attach(_localDataState);
+    });
+    widget.onConfigChanged?.call(state.config);
+    _syncDesktopWidgetWindow();
+    _syncAutoStart(state.config);
+    _syncTray(state.config);
+    _syncGlobalHotkey(state.config);
+    unawaited(_runStartupReportGeneration(state));
+    unawaited(_runUpdateCheck(state.config));
+  }
+
   void _notifyNoteSaved(NoteKind kind, String path) {
     _noteExternalUpdate.value = NoteExternalUpdate(
       kind: kind,
@@ -248,20 +263,10 @@ class _AppShellState extends State<AppShell> {
                     SettingsPage(
                       localDataState: _localDataState,
                       onConfigChanged: (config) {
-                        setState(() {
-                          _localDataState = _localDataState.copyWith(
-                            config: config,
-                          );
-                          _desktopWidgetController.attach(_localDataState);
-                          _levelProgressController.attach(_localDataState);
-                        });
-                        widget.onConfigChanged?.call(config);
-                        _syncDesktopWidgetWindow();
-                        _syncAutoStart(config);
-                        _syncTray(config);
-                        _syncGlobalHotkey(config);
-                        unawaited(_runUpdateCheck(config));
+                        final state = _localDataState.copyWith(config: config);
+                        _handleLocalDataStateChanged(state);
                       },
+                      onLocalDataStateChanged: _handleLocalDataStateChanged,
                     ),
                   ],
                 ),
