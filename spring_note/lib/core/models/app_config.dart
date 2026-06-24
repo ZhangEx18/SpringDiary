@@ -7,6 +7,7 @@ class AppConfig {
     required this.industry,
     required this.appFont,
     required this.fontScale,
+    required this.customDataDirectory,
     required this.autoStart,
     required this.showUpdates,
     required this.showDesktopWidget,
@@ -24,6 +25,7 @@ class AppConfig {
   final String industry;
   final String appFont;
   final double fontScale;
+  final String? customDataDirectory;
   final bool autoStart;
   final bool showUpdates;
   final bool showDesktopWidget;
@@ -42,6 +44,7 @@ class AppConfig {
       industry: '互联网',
       appFont: 'system',
       fontScale: 100,
+      customDataDirectory: null,
       autoStart: false,
       showUpdates: true,
       showDesktopWidget: true,
@@ -66,6 +69,7 @@ class AppConfig {
       industry: json['industry'] as String? ?? '互联网',
       appFont: json['appFont'] as String? ?? 'system',
       fontScale: _readDouble(json['fontScale'], 100),
+      customDataDirectory: _readOptionalString(json['customDataDirectory']),
       autoStart: json['autoStart'] as bool? ?? false,
       showUpdates: json['showUpdates'] as bool? ?? true,
       showDesktopWidget: json['showDesktopWidget'] as bool? ?? true,
@@ -91,6 +95,7 @@ class AppConfig {
       'industry': industry,
       'appFont': appFont,
       'fontScale': fontScale,
+      'customDataDirectory': customDataDirectory,
       'autoStart': autoStart,
       'showUpdates': showUpdates,
       'showDesktopWidget': showDesktopWidget,
@@ -110,6 +115,7 @@ class AppConfig {
     String? industry,
     String? appFont,
     double? fontScale,
+    Object? customDataDirectory = _sentinel,
     bool? autoStart,
     bool? showUpdates,
     bool? showDesktopWidget,
@@ -130,6 +136,9 @@ class AppConfig {
       industry: industry ?? this.industry,
       appFont: appFont ?? this.appFont,
       fontScale: fontScale ?? this.fontScale,
+      customDataDirectory: customDataDirectory == _sentinel
+          ? this.customDataDirectory
+          : customDataDirectory as String?,
       autoStart: autoStart ?? this.autoStart,
       showUpdates: showUpdates ?? this.showUpdates,
       showDesktopWidget: showDesktopWidget ?? this.showDesktopWidget,
@@ -148,6 +157,14 @@ class AppConfig {
       return value.toDouble();
     }
     return fallback;
+  }
+
+  static String? _readOptionalString(Object? value) {
+    if (value is! String) {
+      return null;
+    }
+    final trimmed = value.trim();
+    return trimmed.isEmpty ? null : trimmed;
   }
 
   static List<ProviderConfig> _readProviders(Object? value) {
@@ -177,3 +194,5 @@ class AppConfig {
     return result;
   }
 }
+
+const Object _sentinel = Object();
