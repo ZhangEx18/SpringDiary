@@ -314,7 +314,7 @@ class AiClientService {
     );
   }
 
-  Future<String?> fimCompleteMarkdown({
+  Future<({String? content, String? error})> fimCompleteMarkdown({
     required String appDataDir,
     required AppConfig config,
     required String prompt,
@@ -324,12 +324,12 @@ class AiClientService {
       config.defaultModels['editCompletionModel'],
     );
     if (modelRef == null) {
-      return null;
+      return (content: null, error: null);
     }
 
     final selection = _findFimModel(config, modelRef);
     if (selection == null) {
-      return null;
+      return (content: null, error: null);
     }
 
     final response = await rust_api.fimComplete(
@@ -343,11 +343,14 @@ class AiClientService {
       ),
     );
 
-    if (!response.ok || response.content.isEmpty) {
-      return null;
+    if (!response.ok) {
+      return (content: null, error: response.errorMessage);
+    }
+    if (response.content.isEmpty) {
+      return (content: null, error: null);
     }
 
-    return response.content;
+    return (content: response.content, error: null);
   }
 
   Future<String?> memoryChat({
@@ -471,9 +474,6 @@ class AiClientService {
     if (selection.provider.protocol != 'openaiCompatible') {
       return 'FIM 仅支持 OpenAI-compatible 供应商';
     }
-    if (_isResponsesEndpoint(selection.provider)) {
-      return 'FIM 不支持 Responses API 供应商';
-    }
     if (!selection.model.modelTypes.contains('completion')) {
       return '编辑补全模型的模型类型没有勾选“补全”';
     }
@@ -487,8 +487,7 @@ class AiClientService {
       }
       if (!provider.enabled ||
           provider.apiKey.trim().isEmpty ||
-          provider.protocol != 'openaiCompatible' ||
-          _isResponsesEndpoint(provider)) {
+          provider.protocol != 'openaiCompatible') {
         continue;
       }
       for (final model in provider.models) {

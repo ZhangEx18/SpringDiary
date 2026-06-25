@@ -434,7 +434,7 @@ class _FakeAiClientService extends AiClientService {
   String _lastPrompt = '';
 
   @override
-  Future<String?> fimCompleteMarkdown({
+  Future<({String? content, String? error})> fimCompleteMarkdown({
     required String appDataDir,
     required AppConfig config,
     required String prompt,
@@ -442,6 +442,6 @@ class _FakeAiClientService extends AiClientService {
   }) async {
     _calls++;
     _lastPrompt = prompt;
-    return prediction;
+    return (content: prediction, error: null);
   }
 }

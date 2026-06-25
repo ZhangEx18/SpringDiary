@@ -389,13 +389,16 @@ class _NotesPageState extends State<NotesPage> {
     setState(() => _predicting = true);
     final offset = selection.baseOffset;
     String? prediction;
+    String? fimError;
     try {
-      prediction = await widget.aiClientService.fimCompleteMarkdown(
+      final result = await widget.aiClientService.fimCompleteMarkdown(
         appDataDir: widget.localDataState.dataDirectory,
         config: widget.localDataState.config,
         prompt: text.substring(0, offset),
         suffix: text.substring(offset),
       );
+      prediction = result.content;
+      fimError = result.error;
     } catch (_) {
       prediction = null;
     }
@@ -411,7 +414,9 @@ class _NotesPageState extends State<NotesPage> {
       _predicting = false;
       if (prediction?.isEmpty ?? true) {
         _fimPrediction = null;
-        _fimMessage = 'FIM 已请求，但没有返回可用预测';
+        _fimMessage = fimError != null && fimError.isNotEmpty
+            ? 'FIM 请求失败：$fimError'
+            : 'FIM 已请求，但没有返回可用预测';
       } else {
         _fimPrediction = prediction;
         _fimMessage = null;
