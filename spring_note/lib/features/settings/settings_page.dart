@@ -4027,6 +4027,7 @@ class _AboutPanel extends StatelessWidget {
   static const _projectUrl = 'https://github.com/Radiant303/SpringNote';
   static const _licenseUrl =
       'https://github.com/Radiant303/SpringNote/blob/main/LICENSE';
+  static const _qqGroupUrl = 'https://qm.qq.com/q/4gWWKvwhP2';
   static const _externalLinkService = ExternalLinkService();
 
   @override
@@ -4090,6 +4091,11 @@ class _AboutPanel extends StatelessWidget {
               icon: _AboutRowIconType.license,
               label: '许可证',
               onTap: () => _externalLinkService.open(_licenseUrl),
+            ),
+            _AboutListRow(
+              icon: _AboutRowIconType.qq,
+              label: '加入QQ群',
+              onTap: () => _externalLinkService.open(_qqGroupUrl),
             ),
           ],
         ),
@@ -6172,7 +6178,7 @@ class _AboutListCard extends StatelessWidget {
   }
 }
 
-enum _AboutRowIconType { code, system, globe, github, license }
+enum _AboutRowIconType { code, system, globe, github, license, qq }
 
 class _PubspecVersionRow extends StatelessWidget {
   const _PubspecVersionRow();
@@ -6517,6 +6523,17 @@ class _AboutRowIconPainter extends CustomPainter {
         canvas.drawLine(p(14, 7.5), p(18, 7.5), paint);
         canvas.drawLine(p(9.5, 11.5), p(15.5, 11.5), paint);
         canvas.drawLine(p(9.5, 15), p(14, 15), paint);
+        break;
+      case _AboutRowIconType.qq:
+        canvas.drawRRect(rr(4.5, 5.5, 15, 11.5, 3.4), paint);
+        final tail = Path()
+          ..moveTo(9.2 * sx, 16.8 * sy)
+          ..lineTo(7.4 * sx, 20 * sy)
+          ..lineTo(11.8 * sx, 16.8 * sy);
+        canvas.drawPath(tail, paint);
+        canvas.drawCircle(p(9, 11.2), 0.9 * strokeScale, fillPaint);
+        canvas.drawCircle(p(12, 11.2), 0.9 * strokeScale, fillPaint);
+        canvas.drawCircle(p(15, 11.2), 0.9 * strokeScale, fillPaint);
         break;
     }
   }
