@@ -9,6 +9,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import '../../core/models/app_config.dart';
 import '../../core/models/local_data_state.dart';
 import '../../core/models/model_config.dart';
+import '../../core/models/model_reference.dart';
 import '../../core/models/provider_config.dart';
 import '../../core/services/ai_client_service.dart';
 import '../../core/services/external_link_service.dart';
@@ -72,10 +73,11 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  List<ModelConfig> get _allModels {
+  List<_ProviderModelOption> get _allModels {
     return [
       for (final provider in _config.providers)
-        for (final model in provider.models) model,
+        for (final model in provider.models)
+          _ProviderModelOption(provider: provider, model: model),
     ];
   }
 
@@ -179,12 +181,24 @@ class _SettingsPageState extends State<SettingsPage> {
         .expand((provider) => provider.models)
         .map((model) => model.modelId)
         .toSet();
+    final removedModelRefs = _config.providers
+        .where((provider) => provider.id == id)
+        .expand((provider) => provider.models)
+        .map(
+          (model) =>
+              ModelReference.encode(providerId: id, modelId: model.modelId),
+        )
+        .toSet();
     final providers = _config.providers
         .where((provider) => provider.id != id)
         .toList();
     final defaultModels = Map<String, String?>.from(_config.defaultModels);
     for (final entry in defaultModels.entries.toList()) {
-      if (removedModelIds.contains(entry.value)) {
+      final modelRef = ModelReference.parse(entry.value);
+      if (modelRef?.providerId == id ||
+          (modelRef?.providerId == null &&
+              removedModelIds.contains(modelRef?.modelId)) ||
+          removedModelRefs.contains(entry.value)) {
         defaultModels[entry.key] = null;
       }
     }
@@ -229,7 +243,9 @@ class _SettingsPageState extends State<SettingsPage> {
         .toList();
     final defaultModels = Map<String, String?>.from(_config.defaultModels);
     for (final entry in defaultModels.entries.toList()) {
-      if (entry.value == modelId) {
+      final modelRef = ModelReference.parse(entry.value);
+      if (modelRef?.matches(providerId: currentProvider.id, modelId: modelId) ??
+          false) {
         defaultModels[entry.key] = null;
       }
     }
@@ -1247,6 +1263,12 @@ class _ProviderDetailsState extends State<_ProviderDetails> {
               obscureText: true,
               onChanged: (value) {
                 widget.onProviderChanged(provider.copyWith(apiKey: value));
+              },
+            ),
+            _ProtocolField(
+              value: provider.protocol,
+              onChanged: (value) {
+                widget.onProviderChanged(provider.copyWith(protocol: value));
               },
             ),
             _LooseField(
@@ -3023,7 +3045,7 @@ class _DefaultModelsPanel extends StatelessWidget {
   });
 
   final AppConfig config;
-  final List<ModelConfig> models;
+  final List<_ProviderModelOption> models;
   final ValueChanged<AppConfig> onChanged;
 
   @override
@@ -3044,7 +3066,7 @@ class _DefaultModelsPanel extends StatelessWidget {
           description: '用于便签页补全。模型类型包含补全时，默认按 completions FIM 调用。',
           value: config.defaultModels['editCompletionModel'],
           models: models
-              .where((model) => model.modelTypes.contains('completion'))
+              .where((option) => option.model.modelTypes.contains('completion'))
               .toList(),
           onSelected: (value) => _setDefault('editCompletionModel', value),
         ),
@@ -3066,6 +3088,16 @@ class _DefaultModelsPanel extends StatelessWidget {
   }
 }
 
+class _ProviderModelOption {
+  const _ProviderModelOption({required this.provider, required this.model});
+
+  final ProviderConfig provider;
+  final ModelConfig model;
+
+  String get value =>
+      ModelReference.encode(providerId: provider.id, modelId: model.modelId);
+}
+
 class _DefaultModelCard extends StatelessWidget {
   const _DefaultModelCard({
     required this.title,
@@ -3078,7 +3110,7 @@ class _DefaultModelCard extends StatelessWidget {
   final String title;
   final String description;
   final String? value;
-  final List<ModelConfig> models;
+  final List<_ProviderModelOption> models;
   final ValueChanged<String?> onSelected;
 
   Future<void> _openPicker(BuildContext context) async {
@@ -3087,19 +3119,27 @@ class _DefaultModelCard extends StatelessWidget {
       builder: (_) => _ModelPickerDialog(
         title: title,
         models: models,
-        selectedModelId: value,
+        selectedValue: value,
       ),
     );
     if (result != null) {
-      onSelected(result.modelId);
+      onSelected(result.value);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final selected = models
-        .where((model) => model.modelId == value)
-        .firstOrNull;
+    final selectedRef = ModelReference.parse(value);
+    final selected = selectedRef == null
+        ? null
+        : models
+              .where(
+                (option) => selectedRef.matches(
+                  providerId: option.provider.id,
+                  modelId: option.model.modelId,
+                ),
+              )
+              .firstOrNull;
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -3140,7 +3180,14 @@ class _DefaultModelCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    Expanded(child: Text(selected?.displayName ?? '未选择模型')),
+                    Expanded(
+                      child: Text(
+                        selected == null
+                            ? '未选择模型'
+                            : '${selected.model.displayName} · ${selected.provider.name}',
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                     const Icon(Icons.expand_more_rounded),
                   ],
                 ),
@@ -3154,21 +3201,21 @@ class _DefaultModelCard extends StatelessWidget {
 }
 
 class _ModelSelectionResult {
-  const _ModelSelectionResult(this.modelId);
+  const _ModelSelectionResult(this.value);
 
-  final String? modelId;
+  final String? value;
 }
 
 class _ModelPickerDialog extends StatefulWidget {
   const _ModelPickerDialog({
     required this.title,
     required this.models,
-    required this.selectedModelId,
+    required this.selectedValue,
   });
 
   final String title;
-  final List<ModelConfig> models;
-  final String? selectedModelId;
+  final List<_ProviderModelOption> models;
+  final String? selectedValue;
 
   @override
   State<_ModelPickerDialog> createState() => _ModelPickerDialogState();
@@ -3179,9 +3226,9 @@ class _ModelPickerDialogState extends State<_ModelPickerDialog> {
   String _query = '';
   String? _hoveredOptionKey;
 
-  List<ModelConfig?> get _models {
+  List<_ProviderModelOption?> get _models {
     final normalizedQuery = _query.trim().toLowerCase();
-    final values = <ModelConfig?>[null, ...widget.models];
+    final values = <_ProviderModelOption?>[null, ...widget.models];
     if (normalizedQuery.isEmpty) {
       return values;
     }
@@ -3189,7 +3236,9 @@ class _ModelPickerDialogState extends State<_ModelPickerDialog> {
       if (model == null) {
         return '未选择'.contains(normalizedQuery);
       }
-      return model.displayName.toLowerCase().contains(normalizedQuery);
+      return '${model.model.displayName} ${model.model.modelId} ${model.provider.name}'
+          .toLowerCase()
+          .contains(normalizedQuery);
     }).toList();
   }
 
@@ -3202,6 +3251,7 @@ class _ModelPickerDialogState extends State<_ModelPickerDialog> {
   @override
   Widget build(BuildContext context) {
     final models = _models;
+    final selectedRef = ModelReference.parse(widget.selectedValue);
     return Dialog(
       backgroundColor: Colors.white,
       insetPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
@@ -3252,10 +3302,16 @@ class _ModelPickerDialogState extends State<_ModelPickerDialog> {
                       itemCount: models.length,
                       itemBuilder: (context, index) {
                         final model = models[index];
-                        final optionKey = model?.modelId ?? '__none__';
+                        final optionKey = model?.value ?? '__none__';
                         return _ModelOptionTile(
                           model: model,
-                          selected: model?.modelId == widget.selectedModelId,
+                          selected: model == null
+                              ? selectedRef == null
+                              : selectedRef?.matches(
+                                      providerId: model.provider.id,
+                                      modelId: model.model.modelId,
+                                    ) ??
+                                    false,
                           hovered: optionKey == _hoveredOptionKey,
                           onHoverChanged: (hovered) {
                             setState(() {
@@ -3268,7 +3324,7 @@ class _ModelPickerDialogState extends State<_ModelPickerDialog> {
                           },
                           onTap: () => Navigator.of(
                             context,
-                          ).pop(_ModelSelectionResult(model?.modelId)),
+                          ).pop(_ModelSelectionResult(model?.value)),
                         );
                       },
                     ),
@@ -3289,7 +3345,7 @@ class _ModelOptionTile extends StatelessWidget {
     required this.onTap,
   });
 
-  final ModelConfig? model;
+  final _ProviderModelOption? model;
   final bool selected;
   final bool hovered;
   final ValueChanged<bool> onHoverChanged;
@@ -3301,7 +3357,11 @@ class _ModelOptionTile extends StatelessWidget {
     final backgroundColor = selected
         ? const Color(0xFFE2E2E2)
         : const Color(0xFFF5F5F5);
-    final title = model?.displayName ?? '未选择';
+    final option = model;
+    final title = option?.model.displayName ?? '未选择';
+    final subtitle = option == null
+        ? null
+        : '${option.provider.name} · ${option.model.modelId}';
     final contentColor = active ? AppTheme.text : AppTheme.textMuted;
 
     return MouseRegion(
@@ -3342,17 +3402,33 @@ class _ModelOptionTile extends StatelessWidget {
                   child: Row(
                     children: [
                       Expanded(
-                        child: Text(
-                          title,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(
-                                color: contentColor,
-                                fontWeight: selected
-                                    ? FontWeight.w600
-                                    : FontWeight.w400,
-                                height: 1.2,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              title,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(
+                                    color: contentColor,
+                                    fontWeight: selected
+                                        ? FontWeight.w600
+                                        : FontWeight.w400,
+                                    height: 1.1,
+                                  ),
+                            ),
+                            if (subtitle != null)
+                              Text(
+                                subtitle,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(
+                                      color: AppTheme.textSubtle,
+                                      height: 1.1,
+                                    ),
                               ),
+                          ],
                         ),
                       ),
                       if (selected)
@@ -4016,18 +4092,19 @@ class _AddProviderDialogState extends State<_AddProviderDialog> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
             children: [
-              for (final template in ['OpenAI', 'Google', 'Claude']) ...[
-                Expanded(
+              for (final template in ProviderConfig.templateNames)
+                SizedBox(
+                  width: 166,
                   child: _ProviderTemplateChip(
                     label: template,
                     selected: _template == template,
                     onTap: () => _selectTemplate(template),
                   ),
                 ),
-                if (template != 'Claude') const SizedBox(width: 10),
-              ],
             ],
           ),
           const SizedBox(height: 16),
@@ -4115,33 +4192,40 @@ class _ProviderTemplateChipState extends State<_ProviderTemplateChip> {
             borderRadius: BorderRadius.circular(13),
             border: Border.all(color: borderColor),
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              SizedBox(
-                width: 16,
-                child: AnimatedOpacity(
-                  duration: const Duration(milliseconds: 120),
-                  curve: Curves.easeOutCubic,
-                  opacity: selected ? 1 : 0,
-                  child: const Icon(
-                    Icons.check_rounded,
-                    size: 16,
-                    color: AppTheme.text,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                SizedBox(
+                  width: 16,
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 120),
+                    curve: Curves.easeOutCubic,
+                    opacity: selected ? 1 : 0,
+                    child: const Icon(
+                      Icons.check_rounded,
+                      size: 16,
+                      color: AppTheme.text,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 7),
-              Text(
-                widget.label,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: active ? AppTheme.text : AppTheme.textSubtle,
-                  fontWeight: FontWeight.w700,
-                  height: 1,
+                const SizedBox(width: 7),
+                Expanded(
+                  child: Text(
+                    widget.label,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: active ? AppTheme.text : AppTheme.textSubtle,
+                      fontWeight: FontWeight.w700,
+                      height: 1,
+                    ),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 23),
-            ],
+                const SizedBox(width: 16),
+              ],
+            ),
           ),
         ),
       ),
@@ -5877,6 +5961,54 @@ class _LooseField extends StatelessWidget {
             obscureText: obscureText,
             compact: true,
             onChanged: onChanged,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProtocolField extends StatelessWidget {
+  const _ProtocolField({required this.value, required this.onChanged});
+
+  final String value;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    const protocols = {
+      'openaiCompatible': 'OpenAI-compatible',
+      'gemini': 'Gemini',
+      'claude': 'Claude',
+    };
+    final current = protocols.containsKey(value) ? value : 'openaiCompatible';
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('协议', style: Theme.of(context).textTheme.labelLarge),
+          const SizedBox(height: 4),
+          DropdownButtonFormField<String>(
+            initialValue: current,
+            items: [
+              for (final entry in protocols.entries)
+                DropdownMenuItem(value: entry.key, child: Text(entry.value)),
+            ],
+            onChanged: (next) {
+              if (next != null) {
+                onChanged(next);
+              }
+            },
+            decoration: const InputDecoration(
+              isDense: true,
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 12,
+              ),
+              constraints: BoxConstraints.tightFor(height: 48),
+            ),
           ),
         ],
       ),
