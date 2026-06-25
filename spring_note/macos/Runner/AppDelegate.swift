@@ -3,6 +3,7 @@ import FlutterMacOS
 
 @main
 class AppDelegate: FlutterAppDelegate {
+  let securityScopedDirectoryController = SecurityScopedDirectoryController()
   let trayController = TrayController()
 
   override func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

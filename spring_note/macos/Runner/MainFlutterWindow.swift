@@ -14,6 +14,9 @@ class MainFlutterWindow: NSWindow {
 
     RegisterGeneratedPlugins(registry: flutterViewController)
     if let appDelegate = NSApp.delegate as? AppDelegate {
+      appDelegate.securityScopedDirectoryController.attach(
+        messenger: flutterViewController.engine.binaryMessenger
+      )
       appDelegate.trayController.attach(
         window: self,
         messenger: flutterViewController.engine.binaryMessenger

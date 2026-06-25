@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:spring_note/core/models/model_config.dart';
 import 'package:spring_note/core/models/provider_config.dart';
 import 'package:spring_note/core/services/local_data_service.dart';
+import 'package:spring_note/core/services/security_scoped_directory_access.dart';
 
 void main() {
   test('local data service creates first-run data layout', () async {
@@ -50,6 +51,7 @@ void main() {
     final service = LocalDataService(
       appDataPath: temp.path,
       executableDirectoryPath: '${temp.path}${Platform.pathSeparator}bin',
+      securityScopedDirectoryAccess: _RecordingSecurityScopedDirectoryAccess(),
     );
     final state = await service.initialize();
     final provider = ProviderConfig.template('OpenAI');
@@ -92,6 +94,7 @@ void main() {
     final service = LocalDataService(
       appDataPath: temp.path,
       executableDirectoryPath: '${temp.path}${Platform.pathSeparator}bin',
+      securityScopedDirectoryAccess: _RecordingSecurityScopedDirectoryAccess(),
     );
     final state = await service.initialize();
     final dailyNote = File(
@@ -142,6 +145,8 @@ void main() {
       final service = LocalDataService(
         appDataPath: temp.path,
         executableDirectoryPath: executableDir.path,
+        securityScopedDirectoryAccess:
+            _RecordingSecurityScopedDirectoryAccess(),
       );
       final state = await service.initialize();
       final target = Directory(
@@ -203,6 +208,55 @@ void main() {
     expect(await fallbackPointer.exists(), isTrue);
     expect(await fallbackPointer.readAsString(), contains(defaultRoot));
   });
+
+  test(
+    'local data service switches to existing data directory without overwriting config',
+    () async {
+      final temp = await Directory.systemTemp.createTemp(
+        'spring_note_existing_',
+      );
+      addTearDown(() async {
+        if (await temp.exists()) {
+          await temp.delete(recursive: true);
+        }
+      });
+
+      final access = _RecordingSecurityScopedDirectoryAccess();
+      final service = LocalDataService(
+        appDataPath: '${temp.path}${Platform.pathSeparator}app_data',
+        executableDirectoryPath: '${temp.path}${Platform.pathSeparator}bin',
+        securityScopedDirectoryAccess: access,
+      );
+      final state = await service.initialize();
+      final target = Directory(
+        '${temp.path}${Platform.pathSeparator}existing_store',
+      );
+      await target.create(recursive: true);
+      await File(
+        '${target.path}${Platform.pathSeparator}config.json',
+      ).writeAsString('{"dailyWorkHours": 6, "showTrayIcon": false}\n');
+
+      final migrated = await service.migrateDataDirectory(
+        currentState: state.copyWith(
+          config: state.config.copyWith(dailyWorkHours: 9),
+        ),
+        targetDirectory: target.path,
+      );
+
+      expect(migrated.dataDirectory, target.absolute.path);
+      expect(migrated.config.dailyWorkHours, 6);
+      expect(migrated.config.showTrayIcon, isFalse);
+      expect(migrated.config.customDataDirectory, target.absolute.path);
+      expect(access.savedBookmarks, contains(target.absolute.path));
+      expect(
+        await File(
+          '${target.path}${Platform.pathSeparator}config.json',
+        ).readAsString(),
+        contains('"dailyWorkHours": 6'),
+      );
+    },
+  );
+
   test('model config derives FIM mode from completion model type', () {
     const completionModel = ModelConfig(
       modelId: 'fim-model',
@@ -221,4 +275,28 @@ void main() {
     expect(migrated.modelTypes, contains('completion'));
     expect(migrated.fimMode, 'completions');
   });
+}
+
+class _RecordingSecurityScopedDirectoryAccess
+    implements SecurityScopedDirectoryAccess {
+  final List<String> savedBookmarks = [];
+  final List<String> startedAccess = [];
+  final List<String> removedBookmarks = [];
+
+  @override
+  Future<void> removeBookmark(String path) async {
+    removedBookmarks.add(Directory(path).absolute.path);
+  }
+
+  @override
+  Future<bool> saveBookmark(String path) async {
+    savedBookmarks.add(Directory(path).absolute.path);
+    return true;
+  }
+
+  @override
+  Future<bool> startAccessing(String path) async {
+    startedAccess.add(Directory(path).absolute.path);
+    return true;
+  }
 }

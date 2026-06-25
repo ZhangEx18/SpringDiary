@@ -152,3 +152,115 @@ final class TrayController: NSObject {
     exitApplication()
   }
 }
+
+final class SecurityScopedDirectoryController: NSObject {
+  private let defaultsKey = "spring_note.security_scoped_directory_bookmarks"
+  private var channel: FlutterMethodChannel?
+  private var activeUrls: [String: URL] = [:]
+
+  func attach(messenger: FlutterBinaryMessenger) {
+    channel = FlutterMethodChannel(
+      name: "spring_note/security_scoped_directories",
+      binaryMessenger: messenger
+    )
+    channel?.setMethodCallHandler { [weak self] call, result in
+      self?.handle(call: call, result: result)
+    }
+  }
+
+  private func handle(call: FlutterMethodCall, result: FlutterResult) {
+    switch call.method {
+    case "saveBookmark":
+      guard let path = call.arguments as? String else {
+        result(FlutterError(code: "bad_args", message: "saveBookmark expects a path", details: nil))
+        return
+      }
+      result(saveBookmark(path: path))
+    case "startAccessing":
+      guard let path = call.arguments as? String else {
+        result(FlutterError(code: "bad_args", message: "startAccessing expects a path", details: nil))
+        return
+      }
+      result(startAccessing(path: path))
+    case "removeBookmark":
+      guard let path = call.arguments as? String else {
+        result(FlutterError(code: "bad_args", message: "removeBookmark expects a path", details: nil))
+        return
+      }
+      removeBookmark(path: path)
+      result(nil)
+    default:
+      result(FlutterMethodNotImplemented)
+    }
+  }
+
+  private func saveBookmark(path: String) -> Bool {
+    let url = URL(fileURLWithPath: path).standardizedFileURL
+    do {
+      let bookmark = try url.bookmarkData(
+        options: [.withSecurityScope],
+        includingResourceValuesForKeys: nil,
+        relativeTo: nil
+      )
+      var bookmarks = storedBookmarks()
+      bookmarks[normalizedPath(path)] = bookmark.base64EncodedString()
+      UserDefaults.standard.set(bookmarks, forKey: defaultsKey)
+      _ = startAccessing(path: path)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  private func startAccessing(path: String) -> Bool {
+    let key = normalizedPath(path)
+    if activeUrls[key] != nil {
+      return true
+    }
+
+    guard
+      let bookmarkString = storedBookmarks()[key],
+      let bookmark = Data(base64Encoded: bookmarkString)
+    else {
+      return false
+    }
+
+    do {
+      var isStale = false
+      let url = try URL(
+        resolvingBookmarkData: bookmark,
+        options: [.withSecurityScope],
+        relativeTo: nil,
+        bookmarkDataIsStale: &isStale
+      )
+      if isStale {
+        _ = saveBookmark(path: url.path)
+      }
+      if url.startAccessingSecurityScopedResource() {
+        activeUrls[key] = url
+        return true
+      }
+      return false
+    } catch {
+      return false
+    }
+  }
+
+  private func removeBookmark(path: String) {
+    let key = normalizedPath(path)
+    if let url = activeUrls.removeValue(forKey: key) {
+      url.stopAccessingSecurityScopedResource()
+    }
+    var bookmarks = storedBookmarks()
+    bookmarks.removeValue(forKey: key)
+    UserDefaults.standard.set(bookmarks, forKey: defaultsKey)
+  }
+
+  private func storedBookmarks() -> [String: String] {
+    UserDefaults.standard.dictionary(forKey: defaultsKey) as? [String: String] ?? [:]
+  }
+
+  private func normalizedPath(_ path: String) -> String {
+    URL(fileURLWithPath: path).standardizedFileURL.path
+  }
+}
