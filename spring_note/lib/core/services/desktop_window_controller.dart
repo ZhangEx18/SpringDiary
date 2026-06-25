@@ -9,12 +9,19 @@ class DesktopWindowController {
   static const Size defaultSize = Size(1280, 832);
   static const Size minimumSize = Size(960, 640);
 
+  static bool get supportsWindowManager {
+    return !kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.windows ||
+            defaultTargetPlatform == TargetPlatform.macOS ||
+            defaultTargetPlatform == TargetPlatform.linux);
+  }
+
   static bool get supportsCustomTitleBar {
     return !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
   }
 
   static Future<void> initializeAndShow({String title = 'SpringNote'}) async {
-    if (!supportsCustomTitleBar) {
+    if (!supportsWindowManager) {
       return;
     }
 
@@ -24,8 +31,10 @@ class DesktopWindowController {
       minimumSize: minimumSize,
       center: true,
       title: title,
-      titleBarStyle: TitleBarStyle.hidden,
-      windowButtonVisibility: false,
+      titleBarStyle: supportsCustomTitleBar
+          ? TitleBarStyle.hidden
+          : TitleBarStyle.normal,
+      windowButtonVisibility: supportsCustomTitleBar ? false : null,
       backgroundColor: const Color(0xFFFCFCFC),
     );
 

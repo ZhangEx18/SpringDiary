@@ -1,6 +1,6 @@
-import 'dart:io';
-
 import 'package:flutter/services.dart';
+
+import 'platform_feature_support.dart';
 
 class AutoStartService {
   const AutoStartService([
@@ -10,7 +10,7 @@ class AutoStartService {
   final MethodChannel _channel;
 
   Future<bool> setEnabled(bool enabled) async {
-    if (!Platform.isWindows) {
+    if (!PlatformFeatureSupport.supportsAutoStart) {
       return false;
     }
 

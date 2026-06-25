@@ -5,12 +5,13 @@ import '../models/app_config.dart';
 import '../models/local_data_state.dart';
 
 class LocalDataService {
-  const LocalDataService({this.appDataPath});
+  const LocalDataService({this.appDataPath, this.executableDirectoryPath});
 
   static const String _configFileName = 'config.json';
   static const String _directoryPointerFileName = 'data-directory.json';
 
   final String? appDataPath;
+  final String? executableDirectoryPath;
 
   Future<LocalDataState> initialize() async {
     final root = await _resolveDataDirectory();
@@ -155,13 +156,42 @@ class LocalDataService {
   }
 
   Future<Directory> _resolveDefaultDataDirectory() async {
-    final basePath = appDataPath ?? Platform.environment['APPDATA'];
+    final basePath = appDataPath ?? _platformDataDirectoryPath();
     if (basePath == null || basePath.trim().isEmpty) {
       throw StateError(
-        'APPDATA is not available; cannot initialize SpringNote data.',
+        'No user data directory is available; cannot initialize SpringNote data.',
       );
     }
     return Directory(_join(basePath, 'SpringNote'));
+  }
+
+  String? _platformDataDirectoryPath() {
+    if (Platform.isWindows) {
+      return Platform.environment['APPDATA'];
+    }
+    if (Platform.isMacOS) {
+      final home = Platform.environment['HOME'];
+      if (home == null || home.trim().isEmpty) {
+        return null;
+      }
+      return _join(_join(home, 'Library'), 'Application Support');
+    }
+    if (Platform.isLinux) {
+      final xdgDataHome = Platform.environment['XDG_DATA_HOME'];
+      if (xdgDataHome != null && xdgDataHome.trim().isNotEmpty) {
+        return xdgDataHome;
+      }
+      final home = Platform.environment['HOME'];
+      if (home == null || home.trim().isEmpty) {
+        return null;
+      }
+      return _join(_join(home, '.local'), 'share');
+    }
+    final home =
+        Platform.environment['HOME'] ??
+        Platform.environment['USERPROFILE'] ??
+        Directory.systemTemp.path;
+    return home;
   }
 
   Directory _targetDirectory(String? path, Directory defaultRoot) {
@@ -212,13 +242,40 @@ class LocalDataService {
   }
 
   Future<File> _activeDataDirectoryPointerFile() async {
-    return File(
+    final executablePointer = File(
       _join(await _executableDirectoryPath(), _directoryPointerFileName),
     );
+    if (await _canUsePointerFile(executablePointer)) {
+      return executablePointer;
+    }
+
+    final defaultRoot = await _resolveDefaultDataDirectory();
+    return File(_join(defaultRoot.path, _directoryPointerFileName));
   }
 
   Future<String> _executableDirectoryPath() async {
+    final override = executableDirectoryPath?.trim();
+    if (override != null && override.isNotEmpty) {
+      return override;
+    }
     return File(Platform.resolvedExecutable).parent.path;
+  }
+
+  Future<bool> _canUsePointerFile(File file) async {
+    try {
+      await file.parent.create(recursive: true);
+      if (await file.exists()) {
+        final content = await file.readAsString();
+        await file.writeAsString(content);
+        return true;
+      }
+      final probe = File(_join(file.parent.path, '.spring_note_write_test'));
+      await probe.writeAsString('ok');
+      await probe.delete();
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<void> _copyDirectoryContents(

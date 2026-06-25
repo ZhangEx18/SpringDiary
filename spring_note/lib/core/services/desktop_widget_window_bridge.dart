@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import 'platform_feature_support.dart';
+
 class DesktopWidgetWindowSnapshot {
   const DesktopWidgetWindowSnapshot({
     required this.running,
@@ -50,7 +52,7 @@ class DesktopWidgetWindowBridge {
   bool _initialized = false;
 
   bool get isSupported {
-    return !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+    return !kIsWeb && PlatformFeatureSupport.supportsDesktopWidget;
   }
 
   Future<void> initialize({

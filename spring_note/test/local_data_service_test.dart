@@ -14,7 +14,11 @@ void main() {
       }
     });
 
-    final state = await LocalDataService(appDataPath: temp.path).initialize();
+    final executableDir = Directory('${temp.path}${Platform.pathSeparator}bin');
+    final state = await LocalDataService(
+      appDataPath: temp.path,
+      executableDirectoryPath: executableDir.path,
+    ).initialize();
 
     expect(await File(state.configPath).exists(), isTrue);
     expect(await Directory(state.dailyNotesDirectory).exists(), isTrue);
@@ -27,6 +31,12 @@ void main() {
     expect(state.config.defaultModels.keys, contains('editCompletionModel'));
     expect(state.config.defaultModels.keys, contains('memoryBookModel'));
     expect(state.config.apiLogEnabled, isFalse);
+    expect(
+      await File(
+        '${executableDir.path}${Platform.pathSeparator}data-directory.json',
+      ).exists(),
+      isTrue,
+    );
   });
 
   test('local data service saves and reads provider model config', () async {
@@ -37,7 +47,10 @@ void main() {
       }
     });
 
-    final service = LocalDataService(appDataPath: temp.path);
+    final service = LocalDataService(
+      appDataPath: temp.path,
+      executableDirectoryPath: '${temp.path}${Platform.pathSeparator}bin',
+    );
     final state = await service.initialize();
     final provider = ProviderConfig.template('OpenAI');
     final config = state.config.copyWith(
@@ -76,7 +89,10 @@ void main() {
       }
     });
 
-    final service = LocalDataService(appDataPath: temp.path);
+    final service = LocalDataService(
+      appDataPath: temp.path,
+      executableDirectoryPath: '${temp.path}${Platform.pathSeparator}bin',
+    );
     final state = await service.initialize();
     final dailyNote = File(
       '${state.dailyNotesDirectory}${Platform.pathSeparator}2026-06-24.md',
@@ -120,7 +136,13 @@ void main() {
         }
       });
 
-      final service = LocalDataService(appDataPath: temp.path);
+      final executableDir = Directory(
+        '${temp.path}${Platform.pathSeparator}bin',
+      );
+      final service = LocalDataService(
+        appDataPath: temp.path,
+        executableDirectoryPath: executableDir.path,
+      );
       final state = await service.initialize();
       final target = Directory(
         '${temp.path}${Platform.pathSeparator}custom_store',
@@ -144,11 +166,43 @@ void main() {
         ).exists(),
         isFalse,
       );
+      expect(
+        await File(
+          '${executableDir.path}${Platform.pathSeparator}data-directory.json',
+        ).readAsString(),
+        contains(defaultRoot),
+      );
 
       final reinitialized = await service.initialize();
       expect(reinitialized.dataDirectory, defaultRoot);
     },
   );
+  test('local data service falls back to data directory pointer', () async {
+    final temp = await Directory.systemTemp.createTemp('spring_note_pointer_');
+    addTearDown(() async {
+      if (await temp.exists()) {
+        await temp.delete(recursive: true);
+      }
+    });
+
+    final executablePath =
+        '${temp.path}${Platform.pathSeparator}not-a-directory';
+    await File(executablePath).writeAsString('blocked');
+    final service = LocalDataService(
+      appDataPath: temp.path,
+      executableDirectoryPath: executablePath,
+    );
+
+    final state = await service.initialize();
+    final defaultRoot = '${temp.path}${Platform.pathSeparator}SpringNote';
+    final fallbackPointer = File(
+      '$defaultRoot${Platform.pathSeparator}data-directory.json',
+    );
+
+    expect(state.dataDirectory, defaultRoot);
+    expect(await fallbackPointer.exists(), isTrue);
+    expect(await fallbackPointer.readAsString(), contains(defaultRoot));
+  });
   test('model config derives FIM mode from completion model type', () {
     const completionModel = ModelConfig(
       modelId: 'fim-model',
