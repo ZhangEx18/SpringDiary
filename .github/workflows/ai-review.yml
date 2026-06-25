@@ -134,7 +134,7 @@ jobs:
 
           max_chars = 250000
           if len(diff) > max_chars:
-              diff = diff[:max_chars] + "\n\n[Diff 已截断，仅审查前 60000 字符。]"
+              diff = diff[:max_chars] + "\n\n[Diff 已截断，仅审查前 250000 字符。]"
 
           payload = {
               "model": model,
