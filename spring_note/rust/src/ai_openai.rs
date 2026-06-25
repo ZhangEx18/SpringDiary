@@ -2101,6 +2101,23 @@ mod tests {
     }
 
     #[test]
+    fn fim_keeps_deepseek_beta_base_url() {
+        let provider = AiProvider {
+            id: "deepseek".to_string(),
+            name: "DeepSeek".to_string(),
+            protocol: "openaiCompatible".to_string(),
+            api_key: "key".to_string(),
+            base_url: "https://api.deepseek.com/beta".to_string(),
+            api_path: "/chat/completions".to_string(),
+        };
+
+        assert_eq!(
+            completions_url(&provider),
+            "https://api.deepseek.com/beta/completions"
+        );
+    }
+
+    #[test]
     fn endpoint_base_strips_configured_chat_endpoint() {
         let provider = AiProvider {
             id: "p".to_string(),
