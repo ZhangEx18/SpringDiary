@@ -21,7 +21,7 @@ class TrayService {
         'closeToTray': closeToTray,
       });
     } on PlatformException {
-      // Tray integration is optional and Windows-only.
+      // Tray integration is optional and platform-dependent.
     }
   }
 
@@ -33,7 +33,7 @@ class TrayService {
     try {
       await _channel.invokeMethod<void>('dispose');
     } on PlatformException {
-      // Tray integration is optional and Windows-only.
+      // Tray integration is optional and platform-dependent.
     }
   }
 }
