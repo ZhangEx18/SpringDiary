@@ -21,6 +21,14 @@ class AppDelegate: FlutterAppDelegate {
     trayController.showMainWindow()
   }
 
+  override func applicationShouldHandleReopen(
+    _ sender: NSApplication,
+    hasVisibleWindows flag: Bool
+  ) -> Bool {
+    trayController.showMainWindow()
+    return true
+  }
+
   override func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
     return true
   }

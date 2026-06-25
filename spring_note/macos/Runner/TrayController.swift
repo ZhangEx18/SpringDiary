@@ -37,7 +37,6 @@ private func stringValue(_ arguments: [String: Any], _ key: String, fallback: St
   arguments[key] as? String ?? fallback
 }
 
-
 final class TrayController: NSObject {
   private var statusItem: NSStatusItem?
   private var channel: FlutterMethodChannel?
@@ -66,14 +65,16 @@ final class TrayController: NSObject {
   }
 
   func showMainWindow() {
-    NSApp.activate(ignoringOtherApps: true)
     guard let window else {
+      NSApp.activate(ignoringOtherApps: true)
       return
     }
-    window.makeKeyAndOrderFront(nil)
     if window.isMiniaturized {
       window.deminiaturize(nil)
     }
+    window.orderFrontRegardless()
+    window.makeKeyAndOrderFront(nil)
+    NSApp.activate(ignoringOtherApps: true)
   }
 
   func hideMainWindow() {
@@ -189,6 +190,7 @@ final class TrayController: NSObject {
     exitApplication()
   }
 }
+
 final class AutoStartController: NSObject {
   private var channel: FlutterMethodChannel?
 
@@ -352,6 +354,7 @@ final class SecurityScopedDirectoryController: NSObject {
     URL(fileURLWithPath: path).standardizedFileURL.path
   }
 }
+
 final class GlobalHotkeyController: NSObject {
   private var channel: FlutterMethodChannel?
   private weak var mainWindow: NSWindow?
