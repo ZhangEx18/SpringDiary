@@ -183,8 +183,8 @@ jobs:
                   body = response.read().decode("utf-8", errors="replace")
               data = json.loads(body)
               content = data["choices"][0]["message"]["content"].strip()
-          except (urllib.error.URLError, urllib.error.HTTPError, KeyError, IndexError, json.JSONDecodeError) as exc:
-              content = f"AI 审查请求失败：`{exc}`"
+          except Exception as exc:
+              content = f"AI 审查请求失败：`{type(exc).__name__}: {exc}`"
 
           review_path.write_text(content + "\n", encoding="utf-8")
           print(content)
