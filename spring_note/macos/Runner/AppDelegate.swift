@@ -3,7 +3,29 @@ import FlutterMacOS
 
 @main
 class AppDelegate: FlutterAppDelegate {
+  let autoStartController = AutoStartController()
+  let desktopWidgetController = DesktopWidgetWindowController()
+  let globalHotkeyController = GlobalHotkeyController()
+  let securityScopedDirectoryController = SecurityScopedDirectoryController()
+  let trayController = TrayController()
+
   override func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+    if trayController.shouldCloseToTray {
+      trayController.hideMainWindow()
+      return false
+    }
+    return true
+  }
+
+  override func applicationDidBecomeActive(_ notification: Notification) {
+    trayController.showMainWindow()
+  }
+
+  override func applicationShouldHandleReopen(
+    _ sender: NSApplication,
+    hasVisibleWindows flag: Bool
+  ) -> Bool {
+    trayController.showMainWindow()
     return true
   }
 

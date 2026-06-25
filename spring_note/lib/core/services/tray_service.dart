@@ -1,8 +1,7 @@
-import 'dart:io';
-
 import 'package:flutter/services.dart';
 
 import '../models/app_config.dart';
+import 'platform_feature_support.dart';
 
 class TrayService {
   const TrayService([this._channel = const MethodChannel('spring_note/tray')]);
@@ -10,7 +9,7 @@ class TrayService {
   final MethodChannel _channel;
 
   Future<void> sync(AppConfig config) async {
-    if (!Platform.isWindows) {
+    if (!PlatformFeatureSupport.supportsTray) {
       return;
     }
 
@@ -22,19 +21,19 @@ class TrayService {
         'closeToTray': closeToTray,
       });
     } on PlatformException {
-      // Tray integration is optional and Windows-only.
+      // Tray integration is optional and platform-dependent.
     }
   }
 
   Future<void> dispose() async {
-    if (!Platform.isWindows) {
+    if (!PlatformFeatureSupport.supportsTray) {
       return;
     }
 
     try {
       await _channel.invokeMethod<void>('dispose');
     } on PlatformException {
-      // Tray integration is optional and Windows-only.
+      // Tray integration is optional and platform-dependent.
     }
   }
 }

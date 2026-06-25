@@ -1,6 +1,6 @@
-import 'dart:io';
-
 import 'package:flutter/services.dart';
+
+import 'platform_feature_support.dart';
 
 class GlobalHotkeyService {
   const GlobalHotkeyService([
@@ -10,7 +10,7 @@ class GlobalHotkeyService {
   final MethodChannel _channel;
 
   Future<bool> setToggleWindowHotkey(String? hotkey) async {
-    if (!Platform.isWindows) {
+    if (!PlatformFeatureSupport.supportsGlobalHotkeys) {
       return false;
     }
 
@@ -32,7 +32,7 @@ class GlobalHotkeyService {
   }
 
   Future<void> unregisterToggleWindowHotkey() async {
-    if (!Platform.isWindows) {
+    if (!PlatformFeatureSupport.supportsGlobalHotkeys) {
       return;
     }
 

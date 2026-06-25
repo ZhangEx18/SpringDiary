@@ -14,6 +14,7 @@ import '../../core/models/provider_config.dart';
 import '../../core/services/ai_client_service.dart';
 import '../../core/services/external_link_service.dart';
 import '../../core/services/local_data_service.dart';
+import '../../core/services/platform_feature_support.dart';
 import '../../core/services/stats_service.dart';
 import '../../core/services/system_font_service.dart';
 import '../../core/theme/app_theme.dart';
@@ -774,6 +775,7 @@ class _PreferencesPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final windowsOnlyLabel = _platformFeatureMessage();
     return _SettingsScrollFrame(
       maxWidth: 1080,
       children: [
@@ -826,8 +828,13 @@ class _PreferencesPanel extends StatelessWidget {
             _SwitchSettingRow(
               label: '开机自启动',
               value: config.autoStart,
-              onChanged: (value) =>
-                  onChanged(config.copyWith(autoStart: value)),
+              enabled: PlatformFeatureSupport.supportsAutoStart,
+              description: PlatformFeatureSupport.supportsAutoStart
+                  ? null
+                  : windowsOnlyLabel,
+              onChanged: PlatformFeatureSupport.supportsAutoStart
+                  ? (value) => onChanged(config.copyWith(autoStart: value))
+                  : null,
             ),
             _SwitchSettingRow(
               label: '显示更新',
@@ -848,19 +855,33 @@ class _PreferencesPanel extends StatelessWidget {
           children: [
             _SwitchSettingRow(
               label: '显示托盘图标',
-              value: config.showTrayIcon,
-              onChanged: (value) => onChanged(
-                config.copyWith(
-                  showTrayIcon: value,
-                  closeToTray: value ? config.closeToTray : false,
-                ),
-              ),
+              value: PlatformFeatureSupport.supportsTray && config.showTrayIcon,
+              enabled: PlatformFeatureSupport.supportsTray,
+              description: PlatformFeatureSupport.supportsTray
+                  ? null
+                  : windowsOnlyLabel,
+              onChanged: PlatformFeatureSupport.supportsTray
+                  ? (value) => onChanged(
+                      config.copyWith(
+                        showTrayIcon: value,
+                        closeToTray: value ? config.closeToTray : false,
+                      ),
+                    )
+                  : null,
             ),
             _SwitchSettingRow(
               label: '关闭时最小化到托盘',
-              value: config.showTrayIcon && config.closeToTray,
-              enabled: config.showTrayIcon,
-              onChanged: config.showTrayIcon
+              value:
+                  PlatformFeatureSupport.supportsTray &&
+                  config.showTrayIcon &&
+                  config.closeToTray,
+              enabled:
+                  PlatformFeatureSupport.supportsTray && config.showTrayIcon,
+              description: PlatformFeatureSupport.supportsTray
+                  ? null
+                  : windowsOnlyLabel,
+              onChanged:
+                  PlatformFeatureSupport.supportsTray && config.showTrayIcon
                   ? (value) => onChanged(config.copyWith(closeToTray: value))
                   : null,
             ),
@@ -882,9 +903,17 @@ class _PreferencesPanel extends StatelessWidget {
           children: [
             _SwitchSettingRow(
               label: '显示桌面组件',
-              value: config.showDesktopWidget,
-              onChanged: (value) =>
-                  onChanged(config.copyWith(showDesktopWidget: value)),
+              value:
+                  PlatformFeatureSupport.supportsDesktopWidget &&
+                  config.showDesktopWidget,
+              enabled: PlatformFeatureSupport.supportsDesktopWidget,
+              description: PlatformFeatureSupport.supportsDesktopWidget
+                  ? null
+                  : windowsOnlyLabel,
+              onChanged: PlatformFeatureSupport.supportsDesktopWidget
+                  ? (value) =>
+                        onChanged(config.copyWith(showDesktopWidget: value))
+                  : null,
             ),
             _NumberSettingRow(
               label: '回忆书单轮最大搜索次数',
@@ -906,6 +935,13 @@ class _PreferencesPanel extends StatelessWidget {
       ],
     );
   }
+}
+
+String _platformFeatureMessage() {
+  if (Platform.isWindows) {
+    return '';
+  }
+  return '当前平台暂不支持';
 }
 
 class _DataMigrationCompleteDialog extends StatelessWidget {
@@ -3458,7 +3494,9 @@ class _HotkeysPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final toggleWindow = config.hotkeys['toggleWindow'] ?? '';
-    final toggleWindowEnabled = toggleWindow.trim().isNotEmpty;
+    final hotkeysSupported = PlatformFeatureSupport.supportsGlobalHotkeys;
+    final toggleWindowEnabled =
+        hotkeysSupported && toggleWindow.trim().isNotEmpty;
     return _SettingsScrollFrame(
       maxWidth: 1120,
       children: [
@@ -3469,43 +3507,59 @@ class _HotkeysPanel extends StatelessWidget {
             _TextSettingRow(
               label: '显示/隐藏页面',
               value: toggleWindow,
-              onChanged: (value) {
-                final hotkeys = Map<String, String?>.from(config.hotkeys);
-                hotkeys['toggleWindow'] = value;
-                onChanged(config.copyWith(hotkeys: hotkeys));
-              },
+              enabled: hotkeysSupported,
+              description: hotkeysSupported ? null : _platformFeatureMessage(),
+              onChanged: hotkeysSupported
+                  ? (value) {
+                      final hotkeys = Map<String, String?>.from(config.hotkeys);
+                      hotkeys['toggleWindow'] = value;
+                      onChanged(config.copyWith(hotkeys: hotkeys));
+                    }
+                  : null,
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   IconButton(
                     tooltip: '重置',
-                    onPressed: () {
-                      final hotkeys = Map<String, String?>.from(config.hotkeys);
-                      hotkeys['toggleWindow'] = 'Ctrl+Shift+S';
-                      onChanged(config.copyWith(hotkeys: hotkeys));
-                    },
+                    onPressed: hotkeysSupported
+                        ? () {
+                            final hotkeys = Map<String, String?>.from(
+                              config.hotkeys,
+                            );
+                            hotkeys['toggleWindow'] = 'Ctrl+Shift+S';
+                            onChanged(config.copyWith(hotkeys: hotkeys));
+                          }
+                        : null,
                     icon: const Icon(Icons.restart_alt_rounded, size: 17),
                   ),
                   IconButton(
                     tooltip: '清除',
-                    onPressed: () {
-                      final hotkeys = Map<String, String?>.from(config.hotkeys);
-                      hotkeys['toggleWindow'] = '';
-                      onChanged(config.copyWith(hotkeys: hotkeys));
-                    },
+                    onPressed: hotkeysSupported
+                        ? () {
+                            final hotkeys = Map<String, String?>.from(
+                              config.hotkeys,
+                            );
+                            hotkeys['toggleWindow'] = '';
+                            onChanged(config.copyWith(hotkeys: hotkeys));
+                          }
+                        : null,
                     icon: const Icon(Icons.close_rounded, size: 17),
                   ),
                   Switch(
                     value: toggleWindowEnabled,
-                    onChanged: (enabled) {
-                      final hotkeys = Map<String, String?>.from(config.hotkeys);
-                      hotkeys['toggleWindow'] = enabled
-                          ? (toggleWindow.trim().isEmpty
-                                ? 'Ctrl+Shift+S'
-                                : toggleWindow.trim())
-                          : '';
-                      onChanged(config.copyWith(hotkeys: hotkeys));
-                    },
+                    onChanged: hotkeysSupported
+                        ? (enabled) {
+                            final hotkeys = Map<String, String?>.from(
+                              config.hotkeys,
+                            );
+                            hotkeys['toggleWindow'] = enabled
+                                ? (toggleWindow.trim().isEmpty
+                                      ? 'Ctrl+Shift+S'
+                                      : toggleWindow.trim())
+                                : '';
+                            onChanged(config.copyWith(hotkeys: hotkeys));
+                          }
+                        : null,
                   ),
                 ],
               ),
@@ -4974,24 +5028,34 @@ class _TextSettingRow extends StatelessWidget {
     required this.label,
     required this.value,
     required this.onChanged,
+    this.enabled = true,
+    this.description,
     this.trailing,
   });
 
   final String label;
   final String value;
-  final ValueChanged<String> onChanged;
+  final ValueChanged<String>? onChanged;
+  final bool enabled;
+  final String? description;
   final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
     return _SettingRowShell(
       label: label,
+      enabled: enabled,
+      description: description,
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           SizedBox(
             width: 220,
-            child: _CommittedTextField(value: value, onChanged: onChanged),
+            child: _CommittedTextField(
+              value: value,
+              enabled: enabled,
+              onChanged: onChanged,
+            ),
           ),
           ?trailing,
         ],
@@ -5820,18 +5884,21 @@ class _SwitchSettingRow extends StatelessWidget {
     required this.value,
     required this.onChanged,
     this.enabled = true,
+    this.description,
   });
 
   final String label;
   final bool value;
   final ValueChanged<bool>? onChanged;
   final bool enabled;
+  final String? description;
 
   @override
   Widget build(BuildContext context) {
     return _SettingRowShell(
       label: label,
       enabled: enabled,
+      description: description,
       child: Switch(value: value, onChanged: enabled ? onChanged : null),
     );
   }
@@ -5842,11 +5909,13 @@ class _SettingRowShell extends StatelessWidget {
     required this.label,
     required this.child,
     this.enabled = true,
+    this.description,
   });
 
   final String label;
   final Widget child;
   final bool enabled;
+  final String? description;
 
   @override
   Widget build(BuildContext context) {
@@ -5858,13 +5927,32 @@ class _SettingRowShell extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Text(
-            label,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: enabled ? AppTheme.text : AppTheme.textSubtle,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  label,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: enabled ? AppTheme.text : AppTheme.textSubtle,
+                  ),
+                ),
+                if (description != null && description!.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 3),
+                    child: Text(
+                      description!,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppTheme.textSubtle,
+                        height: 1.15,
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
-          const Spacer(),
+          const SizedBox(width: 16),
           child,
         ],
       ),
@@ -5876,6 +5964,7 @@ class _CommittedTextField extends StatefulWidget {
   const _CommittedTextField({
     required this.value,
     required this.onChanged,
+    this.enabled = true,
     this.textAlign = TextAlign.start,
     this.keyboardType,
     this.obscureText = false,
@@ -5883,7 +5972,8 @@ class _CommittedTextField extends StatefulWidget {
   });
 
   final String value;
-  final ValueChanged<String> onChanged;
+  final ValueChanged<String>? onChanged;
+  final bool enabled;
   final TextAlign textAlign;
   final TextInputType? keyboardType;
   final bool obscureText;
@@ -5916,13 +6006,16 @@ class _CommittedTextFieldState extends State<_CommittedTextField> {
   Widget build(BuildContext context) {
     return TextField(
       controller: _controller,
+      enabled: widget.enabled,
       textAlign: widget.textAlign,
       textAlignVertical: widget.compact ? TextAlignVertical.center : null,
       keyboardType: widget.keyboardType,
       obscureText: widget.obscureText,
-      onChanged: widget.onChanged,
-      onSubmitted: widget.onChanged,
-      onEditingComplete: () => widget.onChanged(_controller.text),
+      onChanged: widget.enabled ? widget.onChanged : null,
+      onSubmitted: widget.enabled ? widget.onChanged : null,
+      onEditingComplete: widget.enabled && widget.onChanged != null
+          ? () => widget.onChanged!(_controller.text)
+          : null,
       decoration: widget.compact
           ? const InputDecoration(
               isDense: true,

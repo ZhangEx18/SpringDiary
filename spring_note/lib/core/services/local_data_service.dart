@@ -3,14 +3,22 @@ import 'dart:io';
 
 import '../models/app_config.dart';
 import '../models/local_data_state.dart';
+import 'security_scoped_directory_access.dart';
 
 class LocalDataService {
-  const LocalDataService({this.appDataPath});
+  const LocalDataService({
+    this.appDataPath,
+    this.executableDirectoryPath,
+    this.securityScopedDirectoryAccess =
+        const MethodChannelSecurityScopedDirectoryAccess(),
+  });
 
   static const String _configFileName = 'config.json';
   static const String _directoryPointerFileName = 'data-directory.json';
 
   final String? appDataPath;
+  final String? executableDirectoryPath;
+  final SecurityScopedDirectoryAccess securityScopedDirectoryAccess;
 
   Future<LocalDataState> initialize() async {
     final root = await _resolveDataDirectory();
@@ -44,6 +52,7 @@ class LocalDataService {
       final config = currentState.config.copyWith(
         customDataDirectory: await _customDirectoryFor(targetRoot),
       );
+      await _syncSecurityScopedAccess(targetRoot);
       await _writeActiveDataDirectoryPointer(config.customDataDirectory);
       return _buildState(targetRoot, config: config);
     }
@@ -56,14 +65,26 @@ class LocalDataService {
       throw ArgumentError('保存目录不能是一个文件。');
     }
 
-    await targetRoot.create(recursive: true);
-    await _copyDirectoryContents(currentRoot, targetRoot);
+    final targetConfigFile = File(_join(targetRoot.path, _configFileName));
+    final targetAlreadyHasData = await targetConfigFile.exists();
 
-    final config = currentState.config.copyWith(
-      customDataDirectory: await _customDirectoryFor(targetRoot),
+    await targetRoot.create(recursive: true);
+    if (!targetAlreadyHasData) {
+      await _copyDirectoryContents(currentRoot, targetRoot);
+    }
+
+    await _syncSecurityScopedAccess(targetRoot, previousRoot: currentRoot);
+    final config = targetAlreadyHasData
+        ? null
+        : currentState.config.copyWith(
+            customDataDirectory: await _customDirectoryFor(targetRoot),
+          );
+    if (config != null) {
+      await _writeConfig(targetConfigFile, config);
+    }
+    await _writeActiveDataDirectoryPointer(
+      await _customDirectoryFor(targetRoot),
     );
-    await _writeConfig(File(_join(targetRoot.path, _configFileName)), config);
-    await _writeActiveDataDirectoryPointer(config.customDataDirectory);
 
     return _buildState(targetRoot, config: config);
   }
@@ -140,14 +161,22 @@ class LocalDataService {
     final defaultRoot = await _resolveDefaultDataDirectory();
     final pointerPath = await _readActiveDataDirectoryPointer(defaultRoot);
     if (pointerPath != null) {
-      return Directory(pointerPath);
+      final pointerRoot = Directory(pointerPath);
+      if (await _ensureDirectoryAccess(pointerRoot)) {
+        return pointerRoot;
+      }
+      await _writeActiveDataDirectoryPointer(null);
+      return defaultRoot;
     }
 
     final defaultConfigFile = File(_join(defaultRoot.path, _configFileName));
     if (await defaultConfigFile.exists()) {
       final config = await _readOrCreateConfig(defaultConfigFile);
       if (config.customDataDirectory != null) {
-        return Directory(config.customDataDirectory!);
+        final customRoot = Directory(config.customDataDirectory!);
+        if (await _ensureDirectoryAccess(customRoot)) {
+          return customRoot;
+        }
       }
     }
 
@@ -155,13 +184,42 @@ class LocalDataService {
   }
 
   Future<Directory> _resolveDefaultDataDirectory() async {
-    final basePath = appDataPath ?? Platform.environment['APPDATA'];
+    final basePath = appDataPath ?? _platformDataDirectoryPath();
     if (basePath == null || basePath.trim().isEmpty) {
       throw StateError(
-        'APPDATA is not available; cannot initialize SpringNote data.',
+        'No user data directory is available; cannot initialize SpringNote data.',
       );
     }
     return Directory(_join(basePath, 'SpringNote'));
+  }
+
+  String? _platformDataDirectoryPath() {
+    if (Platform.isWindows) {
+      return Platform.environment['APPDATA'];
+    }
+    if (Platform.isMacOS) {
+      final home = Platform.environment['HOME'];
+      if (home == null || home.trim().isEmpty) {
+        return null;
+      }
+      return _join(_join(home, 'Library'), 'Application Support');
+    }
+    if (Platform.isLinux) {
+      final xdgDataHome = Platform.environment['XDG_DATA_HOME'];
+      if (xdgDataHome != null && xdgDataHome.trim().isNotEmpty) {
+        return xdgDataHome;
+      }
+      final home = Platform.environment['HOME'];
+      if (home == null || home.trim().isEmpty) {
+        return null;
+      }
+      return _join(_join(home, '.local'), 'share');
+    }
+    final home =
+        Platform.environment['HOME'] ??
+        Platform.environment['USERPROFILE'] ??
+        Directory.systemTemp.path;
+    return home;
   }
 
   Directory _targetDirectory(String? path, Directory defaultRoot) {
@@ -175,6 +233,37 @@ class LocalDataService {
   Future<String?> _customDirectoryFor(Directory root) async {
     final defaultRoot = await _resolveDefaultDataDirectory();
     return _samePath(root.path, defaultRoot.path) ? null : root.path;
+  }
+
+  Future<bool> _ensureDirectoryAccess(Directory root) async {
+    if (await _customDirectoryFor(root) == null) {
+      return true;
+    }
+    if (await securityScopedDirectoryAccess.startAccessing(root.path)) {
+      return true;
+    }
+    return false;
+  }
+
+  Future<void> _syncSecurityScopedAccess(
+    Directory root, {
+    Directory? previousRoot,
+  }) async {
+    final customPath = await _customDirectoryFor(root);
+    if (customPath == null) {
+      if (previousRoot != null) {
+        final previousCustomPath = await _customDirectoryFor(previousRoot);
+        if (previousCustomPath != null) {
+          await securityScopedDirectoryAccess.removeBookmark(previousRoot.path);
+        }
+      }
+      return;
+    }
+
+    if (!await securityScopedDirectoryAccess.saveBookmark(root.path)) {
+      throw FileSystemException('无法保存 macOS 文件夹访问授权，请重新选择保存目录。', root.path);
+    }
+    await securityScopedDirectoryAccess.startAccessing(root.path);
   }
 
   Future<String?> _readActiveDataDirectoryPointer(Directory defaultRoot) async {
@@ -212,13 +301,40 @@ class LocalDataService {
   }
 
   Future<File> _activeDataDirectoryPointerFile() async {
-    return File(
+    final executablePointer = File(
       _join(await _executableDirectoryPath(), _directoryPointerFileName),
     );
+    if (await _canUsePointerFile(executablePointer)) {
+      return executablePointer;
+    }
+
+    final defaultRoot = await _resolveDefaultDataDirectory();
+    return File(_join(defaultRoot.path, _directoryPointerFileName));
   }
 
   Future<String> _executableDirectoryPath() async {
+    final override = executableDirectoryPath?.trim();
+    if (override != null && override.isNotEmpty) {
+      return override;
+    }
     return File(Platform.resolvedExecutable).parent.path;
+  }
+
+  Future<bool> _canUsePointerFile(File file) async {
+    try {
+      await file.parent.create(recursive: true);
+      if (await file.exists()) {
+        final content = await file.readAsString();
+        await file.writeAsString(content);
+        return true;
+      }
+      final probe = File(_join(file.parent.path, '.spring_note_write_test'));
+      await probe.writeAsString('ok');
+      await probe.delete();
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<void> _copyDirectoryContents(
