@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -171,12 +172,13 @@ void main() {
         ).exists(),
         isFalse,
       );
-      expect(
-        await File(
-          '${executableDir.path}${Platform.pathSeparator}data-directory.json',
-        ).readAsString(),
-        contains(defaultRoot),
+      final executablePointer = File(
+        '${executableDir.path}${Platform.pathSeparator}data-directory.json',
       );
+      final executablePointerJson =
+          jsonDecode(await executablePointer.readAsString())
+              as Map<String, Object?>;
+      expect(executablePointerJson['dataDirectory'], defaultRoot);
 
       final reinitialized = await service.initialize();
       expect(reinitialized.dataDirectory, defaultRoot);
@@ -206,7 +208,10 @@ void main() {
 
     expect(state.dataDirectory, defaultRoot);
     expect(await fallbackPointer.exists(), isTrue);
-    expect(await fallbackPointer.readAsString(), contains(defaultRoot));
+    final fallbackPointerJson =
+        jsonDecode(await fallbackPointer.readAsString())
+            as Map<String, Object?>;
+    expect(fallbackPointerJson['dataDirectory'], defaultRoot);
   });
 
   test(

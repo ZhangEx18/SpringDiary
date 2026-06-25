@@ -105,7 +105,7 @@ void main() {
     },
   );
 
-  test('fim validation rejects responses providers', () {
+  test('fim validation accepts responses providers with completion type', () {
     final config = AppConfig.defaults().copyWith(
       providers: const [
         ProviderConfig(
@@ -134,7 +134,7 @@ void main() {
       },
     );
 
-    expect(service.fimUnavailableReason(config), 'FIM 不支持 Responses API 供应商');
+    expect(service.fimUnavailableReason(config), isNull);
   });
 }
 
