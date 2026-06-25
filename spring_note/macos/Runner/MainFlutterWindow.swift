@@ -14,6 +14,17 @@ class MainFlutterWindow: NSWindow {
 
     RegisterGeneratedPlugins(registry: flutterViewController)
     if let appDelegate = NSApp.delegate as? AppDelegate {
+      appDelegate.autoStartController.attach(
+        messenger: flutterViewController.engine.binaryMessenger
+      )
+      appDelegate.desktopWidgetController.attach(
+        mainWindow: self,
+        messenger: flutterViewController.engine.binaryMessenger
+      )
+      appDelegate.globalHotkeyController.attach(
+        mainWindow: self,
+        messenger: flutterViewController.engine.binaryMessenger
+      )
       appDelegate.securityScopedDirectoryController.attach(
         messenger: flutterViewController.engine.binaryMessenger
       )
