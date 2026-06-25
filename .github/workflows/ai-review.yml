@@ -179,7 +179,7 @@ jobs:
           )
 
           try:
-              with urllib.request.urlopen(request, timeout=90) as response:
+              with urllib.request.urlopen(request, timeout=300) as response:
                   body = response.read().decode("utf-8", errors="replace")
               data = json.loads(body)
               content = data["choices"][0]["message"]["content"].strip()
