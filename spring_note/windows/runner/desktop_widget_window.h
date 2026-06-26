@@ -32,6 +32,7 @@ class DesktopWidgetWindow {
     double progress = 0.0;
     std::wstring font_family = L"Segoe UI Variable";
     double font_scale_factor = 1.0;
+    bool orb_mode = false;
   };
 
   struct WidgetPosition {
@@ -45,6 +46,12 @@ class DesktopWidgetWindow {
   void Paint();
   void MoveToDefaultPosition();
   void MoveToSavedOrDefaultPosition();
+  int CurrentWidth() const;
+  int CurrentHeight() const;
+  int CurrentCornerRadius() const;
+  void ApplyWindowShapeAndSize(bool preserve_bottom_right);
+  void SetExpanded(bool expanded);
+  void TrackMouseLeave();
   RECT WorkAreaForMonitor(HMONITOR monitor) const;
   HMONITOR MonitorForPosition(const WidgetPosition& position) const;
   static BOOL CALLBACK FindMonitorById(HMONITOR monitor,
@@ -75,6 +82,8 @@ class DesktopWidgetWindow {
   WidgetState state_;
   std::optional<WidgetPosition> saved_position_;
   bool positioned_ = false;
+  bool expanded_ = true;
+  bool tracking_mouse_leave_ = false;
   bool dragging_ = false;
   bool moved_while_pressed_ = false;
   POINT drag_start_screen_{};

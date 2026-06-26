@@ -13,6 +13,7 @@ class AppConfig {
     required this.showUpdates,
     required this.showDesktopWidget,
     required this.desktopWidgetPosition,
+    required this.desktopWidgetOrbMode,
     required this.showTrayIcon,
     required this.closeToTray,
     required this.memorySearchLimit,
@@ -32,6 +33,7 @@ class AppConfig {
   final bool showUpdates;
   final bool showDesktopWidget;
   final DesktopWidgetPosition? desktopWidgetPosition;
+  final bool desktopWidgetOrbMode;
   final bool showTrayIcon;
   final bool closeToTray;
   final double memorySearchLimit;
@@ -52,6 +54,7 @@ class AppConfig {
       showUpdates: true,
       showDesktopWidget: true,
       desktopWidgetPosition: null,
+      desktopWidgetOrbMode: false,
       showTrayIcon: true,
       closeToTray: true,
       memorySearchLimit: 3,
@@ -80,6 +83,7 @@ class AppConfig {
       desktopWidgetPosition: DesktopWidgetPosition.fromJson(
         json['desktopWidgetPosition'],
       ),
+      desktopWidgetOrbMode: json['desktopWidgetOrbMode'] as bool? ?? false,
       showTrayIcon: json['showTrayIcon'] as bool? ?? true,
       closeToTray:
           (json['showTrayIcon'] as bool? ?? true) &&
@@ -107,6 +111,7 @@ class AppConfig {
       'showUpdates': showUpdates,
       'showDesktopWidget': showDesktopWidget,
       'desktopWidgetPosition': desktopWidgetPosition?.toJson(),
+      'desktopWidgetOrbMode': desktopWidgetOrbMode,
       'showTrayIcon': showTrayIcon,
       'closeToTray': closeToTray,
       'memorySearchLimit': memorySearchLimit,
@@ -128,6 +133,7 @@ class AppConfig {
     bool? showUpdates,
     bool? showDesktopWidget,
     Object? desktopWidgetPosition = _sentinel,
+    bool? desktopWidgetOrbMode,
     bool? showTrayIcon,
     bool? closeToTray,
     double? memorySearchLimit,
@@ -154,6 +160,7 @@ class AppConfig {
       desktopWidgetPosition: desktopWidgetPosition == _sentinel
           ? this.desktopWidgetPosition
           : desktopWidgetPosition as DesktopWidgetPosition?,
+      desktopWidgetOrbMode: desktopWidgetOrbMode ?? this.desktopWidgetOrbMode,
       showTrayIcon: nextShowTrayIcon,
       closeToTray: nextCloseToTray,
       memorySearchLimit: memorySearchLimit ?? this.memorySearchLimit,

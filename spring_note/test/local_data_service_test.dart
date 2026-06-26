@@ -40,6 +40,15 @@ void main() {
     );
   });
 
+  test('app config round trips desktop widget orb mode', () {
+    final config = AppConfig.defaults().copyWith(desktopWidgetOrbMode: true);
+
+    final reloaded = AppConfig.fromJson(config.toJson());
+
+    expect(reloaded.desktopWidgetOrbMode, isTrue);
+    expect(AppConfig.fromJson({}).desktopWidgetOrbMode, isFalse);
+  });
+
   test('local data service creates first-run data layout', () async {
     final temp = await Directory.systemTemp.createTemp('spring_note_test_');
     addTearDown(() async {

@@ -280,6 +280,7 @@ class _AppShellState extends State<AppShell> {
           appFont: config.appFont,
           fontScaleFactor: AppTheme.fontScaleFactor(config.fontScale),
           position: config.desktopWidgetPosition,
+          orbMode: config.desktopWidgetOrbMode,
         ),
       ),
     );

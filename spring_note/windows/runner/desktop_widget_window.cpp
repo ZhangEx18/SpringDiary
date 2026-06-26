@@ -13,9 +13,10 @@
 namespace {
 
 constexpr wchar_t kWidgetWindowClassName[] = L"SPRING_NOTE_DESKTOP_WIDGET";
-constexpr int kWindowWidth = 260;
-constexpr int kWindowHeight = 140;
-constexpr int kCornerRadius = 16;
+constexpr int kExpandedWindowWidth = 260;
+constexpr int kExpandedWindowHeight = 140;
+constexpr int kExpandedCornerRadius = 16;
+constexpr int kOrbWindowSize = 64;
 
 struct MonitorSearchContext {
   const std::string* target_id;
@@ -210,6 +211,7 @@ void DesktopWidgetWindow::RegisterChannelHandler() {
 }
 
 void DesktopWidgetWindow::ShowOrUpdate(const flutter::EncodableMap& arguments) {
+  const bool was_orb_mode = state_.orb_mode;
   state_.running = ReadBool(arguments, "running", state_.running);
   state_.work_seconds = ReadInt(arguments, "workSeconds", state_.work_seconds);
   state_.coins = ReadDouble(arguments, "coins", state_.coins);
@@ -228,11 +230,18 @@ void DesktopWidgetWindow::ShowOrUpdate(const flutter::EncodableMap& arguments) {
       std::clamp(ReadDouble(arguments, "fontScaleFactor",
                             state_.font_scale_factor),
                  0.8, 1.4);
+  state_.orb_mode = ReadBool(arguments, "orbMode", state_.orb_mode);
+  if (!state_.orb_mode) {
+    expanded_ = true;
+  } else if (!was_orb_mode || window_ == nullptr) {
+    expanded_ = false;
+  }
   UpdateSavedPosition(arguments);
 
   if (!EnsureWindow()) {
     return;
   }
+  ApplyWindowShapeAndSize(positioned_);
   if (!positioned_) {
     MoveToSavedOrDefaultPosition();
     positioned_ = true;
@@ -269,25 +278,24 @@ bool DesktopWidgetWindow::EnsureWindow() {
   window_ = CreateWindowEx(
       WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
       kWidgetWindowClassName, L"SpringNote Widget", WS_POPUP, CW_USEDEFAULT,
-      CW_USEDEFAULT, kWindowWidth, kWindowHeight, nullptr, nullptr,
+      CW_USEDEFAULT, CurrentWidth(), CurrentHeight(), nullptr, nullptr,
       GetModuleHandle(nullptr), this);
   if (!window_) {
     return false;
   }
 
-  HRGN region =
-      CreateRoundRectRgn(0, 0, kWindowWidth + 1, kWindowHeight + 1,
-                         kCornerRadius * 2, kCornerRadius * 2);
-  SetWindowRgn(window_, region, TRUE);
+  ApplyWindowShapeAndSize(false);
   return true;
 }
 
 void DesktopWidgetWindow::MoveToDefaultPosition() {
   RECT work_area{};
   SystemParametersInfo(SPI_GETWORKAREA, 0, &work_area, 0);
-  const int x = work_area.right - kWindowWidth - 28;
-  const int y = work_area.bottom - kWindowHeight - 28;
-  SetWindowPos(window_, HWND_TOPMOST, x, y, kWindowWidth, kWindowHeight,
+  const int width = CurrentWidth();
+  const int height = CurrentHeight();
+  const int x = work_area.right - width - 28;
+  const int y = work_area.bottom - height - 28;
+  SetWindowPos(window_, HWND_TOPMOST, x, y, width, height,
                SWP_NOACTIVATE);
 }
 
@@ -296,14 +304,83 @@ void DesktopWidgetWindow::MoveToSavedOrDefaultPosition() {
     const HMONITOR monitor = MonitorForPosition(saved_position_.value());
     const RECT next =
         ClampedRectForOrigin(saved_position_->x, saved_position_->y, monitor);
-    SetWindowPos(window_, HWND_TOPMOST, next.left, next.top, kWindowWidth,
-                 kWindowHeight, SWP_NOACTIVATE);
+    SetWindowPos(window_, HWND_TOPMOST, next.left, next.top, CurrentWidth(),
+                 CurrentHeight(), SWP_NOACTIVATE);
     NotifyPositionChanged();
     return;
   }
 
   MoveToDefaultPosition();
   ClampWindowToVisibleMonitor(true);
+}
+
+int DesktopWidgetWindow::CurrentWidth() const {
+  return state_.orb_mode && !expanded_ ? kOrbWindowSize
+                                       : kExpandedWindowWidth;
+}
+
+int DesktopWidgetWindow::CurrentHeight() const {
+  return state_.orb_mode && !expanded_ ? kOrbWindowSize
+                                       : kExpandedWindowHeight;
+}
+
+int DesktopWidgetWindow::CurrentCornerRadius() const {
+  return state_.orb_mode && !expanded_ ? kOrbWindowSize
+                                       : kExpandedCornerRadius;
+}
+
+void DesktopWidgetWindow::ApplyWindowShapeAndSize(bool preserve_bottom_right) {
+  if (!window_) {
+    return;
+  }
+
+  const int width = CurrentWidth();
+  const int height = CurrentHeight();
+  RECT rect{};
+  GetWindowRect(window_, &rect);
+  int x = rect.left;
+  int y = rect.top;
+  if (preserve_bottom_right) {
+    x = rect.right - width;
+    y = rect.bottom - height;
+  }
+  const RECT next =
+      ClampedRectForOrigin(x, y, MonitorFromRect(&rect, MONITOR_DEFAULTTONEAREST));
+  SetWindowPos(window_, HWND_TOPMOST, next.left, next.top, width, height,
+               SWP_NOACTIVATE);
+  const int radius = CurrentCornerRadius();
+  HRGN region =
+      CreateRoundRectRgn(0, 0, width + 1, height + 1, radius * 2, radius * 2);
+  SetWindowRgn(window_, region, TRUE);
+}
+
+void DesktopWidgetWindow::SetExpanded(bool expanded) {
+  if (!state_.orb_mode || expanded_ == expanded) {
+    return;
+  }
+  expanded_ = expanded;
+  ApplyWindowShapeAndSize(true);
+  InvalidateRect(window_, nullptr, FALSE);
+}
+
+void DesktopWidgetWindow::TrackMouseLeave() {
+  if (!window_) {
+    return;
+  }
+  TRACKMOUSEEVENT event{};
+  event.cbSize = sizeof(TRACKMOUSEEVENT);
+  event.dwFlags = TME_QUERY;
+  event.hwndTrack = window_;
+  if (TrackMouseEvent(&event) != 0 && (event.dwFlags & TME_LEAVE) != 0) {
+    tracking_mouse_leave_ = true;
+    return;
+  }
+
+  event = {};
+  event.cbSize = sizeof(TRACKMOUSEEVENT);
+  event.dwFlags = TME_LEAVE;
+  event.hwndTrack = window_;
+  tracking_mouse_leave_ = TrackMouseEvent(&event) != 0;
 }
 
 RECT DesktopWidgetWindow::WorkAreaForMonitor(HMONITOR monitor) const {
@@ -330,8 +407,8 @@ HMONITOR DesktopWidgetWindow::MonitorForPosition(
     }
   }
 
-  const POINT point{position.x + kWindowWidth / 2,
-                    position.y + kWindowHeight / 2};
+  const POINT point{position.x + CurrentWidth() / 2,
+                    position.y + CurrentHeight() / 2};
   return MonitorFromPoint(point, MONITOR_DEFAULTTONEAREST);
 }
 
@@ -355,24 +432,26 @@ RECT DesktopWidgetWindow::ClampedRectForOrigin(
     int y,
     HMONITOR preferred_monitor) const {
   const RECT work_area = WorkAreaForMonitor(preferred_monitor);
+  const int width = CurrentWidth();
+  const int height = CurrentHeight();
   const int min_x = static_cast<int>(work_area.left);
   const int max_x =
-      std::max(min_x, static_cast<int>(work_area.right) - kWindowWidth);
+      std::max(min_x, static_cast<int>(work_area.right) - width);
   const int min_y = static_cast<int>(work_area.top);
   const int max_y =
-      std::max(min_y, static_cast<int>(work_area.bottom) - kWindowHeight);
+      std::max(min_y, static_cast<int>(work_area.bottom) - height);
   const int left = std::clamp(x, min_x, max_x);
   const int top = std::clamp(y, min_y, max_y);
   return RECT{
       left,
       top,
-      left + kWindowWidth,
-      top + kWindowHeight,
+      left + width,
+      top + height,
   };
 }
 
 void DesktopWidgetWindow::SetBoundedWindowOrigin(int x, int y) {
-  const RECT proposed{x, y, x + kWindowWidth, y + kWindowHeight};
+  const RECT proposed{x, y, x + CurrentWidth(), y + CurrentHeight()};
   const HMONITOR monitor = MonitorFromRect(&proposed, MONITOR_DEFAULTTONEAREST);
   const RECT next = ClampedRectForOrigin(x, y, monitor);
   SetWindowPos(window_, HWND_TOPMOST, next.left, next.top, 0, 0,
@@ -410,14 +489,63 @@ void DesktopWidgetWindow::Paint() {
   FillRect(memory_dc, &client,
            static_cast<HBRUSH>(GetStockObject(WHITE_BRUSH)));
 
-  RECT card{0, 0, kWindowWidth, kWindowHeight};
-  FillRoundRect(memory_dc, card, kCornerRadius * 2, RGB(255, 255, 255));
   const auto font_size = [this](int size) {
     return std::max(
         1, static_cast<int>(std::round(size * state_.font_scale_factor)));
   };
 
-  RECT header_rect{16, 14, kWindowWidth - 16, 32};
+  if (state_.orb_mode && !expanded_) {
+    RECT orb{0, 0, kOrbWindowSize, kOrbWindowSize};
+    FillRoundRect(memory_dc, orb, kOrbWindowSize, RGB(255, 255, 255));
+
+    HBRUSH dot_brush = CreateSolidBrush(
+        state_.running ? RGB(16, 185, 129) : RGB(207, 207, 207));
+    HBRUSH old_dot_brush =
+        static_cast<HBRUSH>(SelectObject(memory_dc, dot_brush));
+    HPEN dot_pen = CreatePen(
+        PS_SOLID, 1, state_.running ? RGB(16, 185, 129) : RGB(207, 207, 207));
+    HPEN old_dot_pen = static_cast<HPEN>(SelectObject(memory_dc, dot_pen));
+    Ellipse(memory_dc, 46, 12, 54, 20);
+    SelectObject(memory_dc, old_dot_pen);
+    SelectObject(memory_dc, old_dot_brush);
+    DeleteObject(dot_pen);
+    DeleteObject(dot_brush);
+
+    std::wstringstream coins_stream;
+    coins_stream << std::fixed << std::setprecision(state_.coins >= 100 ? 0 : 1)
+                 << state_.coins;
+    RECT coins_rect{7, 20, kOrbWindowSize - 7, 43};
+    DrawTextLine(memory_dc, coins_stream.str(), coins_rect, font_size(17),
+                 FW_SEMIBOLD, state_.font_family, RGB(23, 23, 23),
+                 DT_CENTER | DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS);
+
+    RECT unit_rect{8, 43, kOrbWindowSize - 8, 56};
+    DrawTextLine(memory_dc, L"coin", unit_rect, font_size(10), FW_SEMIBOLD,
+                 state_.font_family, RGB(102, 102, 102),
+                 DT_CENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+
+    HPEN border_pen = CreatePen(PS_SOLID, 1, RGB(229, 229, 229));
+    HBRUSH hollow = static_cast<HBRUSH>(GetStockObject(HOLLOW_BRUSH));
+    HPEN old_border_pen =
+        static_cast<HPEN>(SelectObject(memory_dc, border_pen));
+    HBRUSH old_hollow = static_cast<HBRUSH>(SelectObject(memory_dc, hollow));
+    Ellipse(memory_dc, 0, 0, kOrbWindowSize, kOrbWindowSize);
+    SelectObject(memory_dc, old_hollow);
+    SelectObject(memory_dc, old_border_pen);
+    DeleteObject(border_pen);
+
+    BitBlt(dc, 0, 0, client.right, client.bottom, memory_dc, 0, 0, SRCCOPY);
+    SelectObject(memory_dc, old_bitmap);
+    DeleteObject(bitmap);
+    DeleteDC(memory_dc);
+    EndPaint(window_, &paint);
+    return;
+  }
+
+  RECT card{0, 0, kExpandedWindowWidth, kExpandedWindowHeight};
+  FillRoundRect(memory_dc, card, kExpandedCornerRadius * 2, RGB(255, 255, 255));
+
+  RECT header_rect{16, 14, kExpandedWindowWidth - 16, 32};
   std::wstringstream header_stream;
   header_stream << L"Lv." << state_.level << L" \u5b9e\u4e60\u751f ("
                 << state_.experience_percent << L"%)";
@@ -425,7 +553,7 @@ void DesktopWidgetWindow::Paint() {
                FW_SEMIBOLD, state_.font_family, RGB(102, 102, 102),
                DT_LEFT | DT_SINGLELINE | DT_END_ELLIPSIS);
 
-  RECT track{16, 39, kWindowWidth - 16, 41};
+  RECT track{16, 39, kExpandedWindowWidth - 16, 41};
   FillRoundRect(memory_dc, track, 2, RGB(237, 237, 237));
   RECT progress = track;
   progress.right =
@@ -437,7 +565,7 @@ void DesktopWidgetWindow::Paint() {
 
   std::wstringstream coins_stream;
   coins_stream << std::fixed << std::setprecision(2) << state_.coins;
-  RECT coins_rect{16, 54, kWindowWidth - 16, 98};
+  RECT coins_rect{16, 54, kExpandedWindowWidth - 16, 98};
   DrawTextLine(memory_dc, coins_stream.str(), coins_rect, font_size(38),
                FW_MEDIUM, state_.font_family, RGB(23, 23, 23),
                DT_LEFT | DT_SINGLELINE | DT_VCENTER);
@@ -457,13 +585,15 @@ void DesktopWidgetWindow::Paint() {
   HPEN dot_pen = CreatePen(
       PS_SOLID, 1, state_.running ? RGB(16, 185, 129) : RGB(207, 207, 207));
   HPEN old_dot_pen = static_cast<HPEN>(SelectObject(memory_dc, dot_pen));
-  Ellipse(memory_dc, kWindowWidth - 96, 118, kWindowWidth - 90, 124);
+  Ellipse(memory_dc, kExpandedWindowWidth - 96, 118,
+          kExpandedWindowWidth - 90, 124);
   SelectObject(memory_dc, old_dot_pen);
   SelectObject(memory_dc, old_dot_brush);
   DeleteObject(dot_pen);
   DeleteObject(dot_brush);
 
-  RECT time_rect{kWindowWidth - 84, 111, kWindowWidth - 16, 130};
+  RECT time_rect{kExpandedWindowWidth - 84, 111, kExpandedWindowWidth - 16,
+                 130};
   DrawTextLine(memory_dc, FormatDuration(), time_rect, font_size(13),
                FW_NORMAL, state_.font_family, RGB(102, 102, 102),
                DT_RIGHT | DT_SINGLELINE);
@@ -472,8 +602,8 @@ void DesktopWidgetWindow::Paint() {
   HBRUSH hollow = static_cast<HBRUSH>(GetStockObject(HOLLOW_BRUSH));
   HPEN old_border_pen = static_cast<HPEN>(SelectObject(memory_dc, border_pen));
   HBRUSH old_hollow = static_cast<HBRUSH>(SelectObject(memory_dc, hollow));
-  RoundRect(memory_dc, 0, 0, kWindowWidth, kWindowHeight, kCornerRadius * 2,
-            kCornerRadius * 2);
+  RoundRect(memory_dc, 0, 0, kExpandedWindowWidth, kExpandedWindowHeight,
+            kExpandedCornerRadius * 2, kExpandedCornerRadius * 2);
   SelectObject(memory_dc, old_hollow);
   SelectObject(memory_dc, old_border_pen);
   DeleteObject(border_pen);
@@ -597,6 +727,10 @@ LRESULT DesktopWidgetWindow::HandleMessage(HWND hwnd,
       SetCapture(hwnd);
       return 0;
     case WM_MOUSEMOVE:
+      if (state_.orb_mode) {
+        SetExpanded(true);
+        TrackMouseLeave();
+      }
       if (dragging_) {
         POINT current{GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
         ClientToScreen(hwnd, &current);
@@ -609,6 +743,23 @@ LRESULT DesktopWidgetWindow::HandleMessage(HWND hwnd,
                                drag_start_rect_.top + dy);
       }
       return 0;
+    case WM_MOUSELEAVE:
+      tracking_mouse_leave_ = false;
+      if (dragging_) {
+        return 0;
+      }
+      if (state_.orb_mode) {
+        POINT cursor{};
+        GetCursorPos(&cursor);
+        RECT window_rect{};
+        GetWindowRect(hwnd, &window_rect);
+        if (PtInRect(&window_rect, cursor)) {
+          TrackMouseLeave();
+          return 0;
+        }
+      }
+      SetExpanded(false);
+      return 0;
     case WM_LBUTTONUP:
       if (dragging_) {
         ReleaseCapture();
@@ -617,6 +768,16 @@ LRESULT DesktopWidgetWindow::HandleMessage(HWND hwnd,
           InvokeFlutterMethod("toggle");
         }
         ClampWindowToVisibleMonitor(true);
+        RECT client{};
+        GetClientRect(hwnd, &client);
+        POINT release_point{GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
+        if (state_.orb_mode) {
+          if (PtInRect(&client, release_point)) {
+            TrackMouseLeave();
+          } else {
+            SetExpanded(false);
+          }
+        }
       }
       return 0;
     case WM_RBUTTONUP:
@@ -626,6 +787,7 @@ LRESULT DesktopWidgetWindow::HandleMessage(HWND hwnd,
     case WM_DESTROY:
       if (hwnd == window_) {
         window_ = nullptr;
+        tracking_mouse_leave_ = false;
       }
       return 0;
   }

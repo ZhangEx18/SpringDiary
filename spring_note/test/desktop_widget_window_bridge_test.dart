@@ -15,6 +15,7 @@ void main() {
       appFont: 'system',
       fontScaleFactor: 1.0,
       position: DesktopWidgetPosition(screenId: 'display-1', x: 10, y: 20),
+      orbMode: true,
     );
 
     expect(snapshot.toJson()['position'], {
@@ -22,6 +23,7 @@ void main() {
       'x': 10.0,
       'y': 20.0,
     });
+    expect(snapshot.toJson()['orbMode'], isTrue);
   });
 
   test('desktop widget position ignores malformed json', () {
