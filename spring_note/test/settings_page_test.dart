@@ -10,6 +10,7 @@ import 'package:spring_note/core/models/model_reference.dart';
 import 'package:spring_note/core/models/provider_config.dart';
 import 'package:spring_note/core/services/ai_client_service.dart';
 import 'package:spring_note/core/services/local_data_service.dart';
+import 'package:spring_note/core/services/platform_feature_support.dart';
 import 'package:spring_note/core/theme/app_theme.dart';
 import 'package:spring_note/features/settings/settings_page.dart';
 import 'package:spring_note/src/rust/ai.dart' as rust_ai;
@@ -97,7 +98,10 @@ void main() {
     );
     await tester.pump();
 
-    expect(service.savedConfig.desktopWidgetOrbMode, isTrue);
+    expect(
+      service.savedConfig.desktopWidgetOrbMode,
+      PlatformFeatureSupport.supportsDesktopWidget,
+    );
   });
 
   testWidgets('settings page persists font size input', (
