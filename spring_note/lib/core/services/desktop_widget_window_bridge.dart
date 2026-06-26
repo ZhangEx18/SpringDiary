@@ -16,6 +16,7 @@ class DesktopWidgetWindowSnapshot {
     required this.progress,
     required this.appFont,
     required this.fontScaleFactor,
+    required this.orbMode,
   });
 
   final bool running;
@@ -27,6 +28,7 @@ class DesktopWidgetWindowSnapshot {
   final double progress;
   final String appFont;
   final double fontScaleFactor;
+  final bool orbMode;
 
   Map<String, Object?> toJson() {
     return {
@@ -39,6 +41,7 @@ class DesktopWidgetWindowSnapshot {
       'progress': progress,
       'appFont': appFont,
       'fontScaleFactor': fontScaleFactor,
+      'orbMode': orbMode,
     };
   }
 }

@@ -915,6 +915,25 @@ class _PreferencesPanel extends StatelessWidget {
                         onChanged(config.copyWith(showDesktopWidget: value))
                   : null,
             ),
+            _SwitchSettingRow(
+              label: '桌面组件圆球模式',
+              value:
+                  PlatformFeatureSupport.supportsDesktopWidget &&
+                  config.showDesktopWidget &&
+                  config.desktopWidgetOrbMode,
+              enabled:
+                  PlatformFeatureSupport.supportsDesktopWidget &&
+                  config.showDesktopWidget,
+              description: PlatformFeatureSupport.supportsDesktopWidget
+                  ? null
+                  : windowsOnlyLabel,
+              onChanged:
+                  PlatformFeatureSupport.supportsDesktopWidget &&
+                      config.showDesktopWidget
+                  ? (value) =>
+                        onChanged(config.copyWith(desktopWidgetOrbMode: value))
+                  : null,
+            ),
             _NumberSettingRow(
               label: '回忆书单轮最大搜索次数',
               value: config.memorySearchLimit,

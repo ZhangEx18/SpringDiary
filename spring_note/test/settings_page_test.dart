@@ -10,6 +10,7 @@ import 'package:spring_note/core/models/model_reference.dart';
 import 'package:spring_note/core/models/provider_config.dart';
 import 'package:spring_note/core/services/ai_client_service.dart';
 import 'package:spring_note/core/services/local_data_service.dart';
+import 'package:spring_note/core/services/platform_feature_support.dart';
 import 'package:spring_note/core/theme/app_theme.dart';
 import 'package:spring_note/features/settings/settings_page.dart';
 import 'package:spring_note/src/rust/ai.dart' as rust_ai;
@@ -60,6 +61,47 @@ void main() {
     await tester.pump();
     expect(service.savedConfig.apiLogEnabled, isTrue);
     expect(latestConfig?.apiLogEnabled, isTrue);
+  });
+
+  testWidgets('settings page persists desktop widget orb mode', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final service = _MemoryLocalDataService(AppConfig.defaults());
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: SettingsPage(
+          localDataState: _state(AppConfig.defaults()),
+          localDataService: service,
+        ),
+      ),
+    );
+
+    await tester.ensureVisible(find.text('桌面组件圆球模式'));
+    await tester.pumpAndSettle();
+
+    final orbModeRow = find.ancestor(
+      of: find.text('桌面组件圆球模式'),
+      matching: find.byWidgetPredicate(
+        (widget) => widget is Row && widget.children.last is Switch,
+      ),
+    );
+    expect(orbModeRow, findsOneWidget);
+
+    await tester.tap(
+      find.descendant(of: orbModeRow, matching: find.byType(Switch)),
+    );
+    await tester.pump();
+
+    expect(
+      service.savedConfig.desktopWidgetOrbMode,
+      PlatformFeatureSupport.supportsDesktopWidget,
+    );
   });
 
   testWidgets('settings page persists font size input', (

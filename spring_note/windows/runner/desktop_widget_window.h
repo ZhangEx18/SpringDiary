@@ -31,12 +31,19 @@ class DesktopWidgetWindow {
     double progress = 0.0;
     std::wstring font_family = L"Segoe UI Variable";
     double font_scale_factor = 1.0;
+    bool orb_mode = false;
   };
 
   bool EnsureWindow();
   void RegisterChannelHandler();
   void Paint();
   void MoveToDefaultPosition();
+  int CurrentWidth() const;
+  int CurrentHeight() const;
+  int CurrentCornerRadius() const;
+  void ApplyWindowShapeAndSize(bool preserve_bottom_right);
+  void SetExpanded(bool expanded);
+  void TrackMouseLeave();
   void InvokeFlutterMethod(const std::string& method);
   void OpenMainWindow();
   std::wstring FormatDuration() const;
@@ -55,6 +62,8 @@ class DesktopWidgetWindow {
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> channel_;
   WidgetState state_;
   bool positioned_ = false;
+  bool expanded_ = true;
+  bool tracking_mouse_leave_ = false;
   bool dragging_ = false;
   bool moved_while_pressed_ = false;
   POINT drag_start_screen_{};
