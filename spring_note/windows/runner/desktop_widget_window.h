@@ -50,6 +50,7 @@ class DesktopWidgetWindow {
   int CurrentHeight() const;
   int CurrentCornerRadius() const;
   void ApplyWindowShapeAndSize(bool preserve_bottom_right);
+  bool UpdateWindowRegion(int width, int height, bool redraw);
   void SetExpanded(bool expanded);
   void TrackMouseLeave();
   RECT WorkAreaForMonitor(HMONITOR monitor) const;
@@ -88,6 +89,9 @@ class DesktopWidgetWindow {
   bool moved_while_pressed_ = false;
   POINT drag_start_screen_{};
   RECT drag_start_rect_{};
+  int region_width_ = -1;
+  int region_height_ = -1;
+  int region_radius_ = -1;
 };
 
 #endif  // RUNNER_DESKTOP_WIDGET_WINDOW_H_

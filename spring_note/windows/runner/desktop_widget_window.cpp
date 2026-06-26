@@ -259,6 +259,9 @@ void DesktopWidgetWindow::Hide() {
     DestroyWindow(window_);
     window_ = nullptr;
     positioned_ = false;
+    region_width_ = -1;
+    region_height_ = -1;
+    region_radius_ = -1;
   }
 }
 
@@ -338,20 +341,50 @@ void DesktopWidgetWindow::ApplyWindowShapeAndSize(bool preserve_bottom_right) {
   const int height = CurrentHeight();
   RECT rect{};
   GetWindowRect(window_, &rect);
+  const int old_width = rect.right - rect.left;
+  const int old_height = rect.bottom - rect.top;
   int x = rect.left;
   int y = rect.top;
   if (preserve_bottom_right) {
     x = rect.right - width;
     y = rect.bottom - height;
   }
-  const RECT next =
-      ClampedRectForOrigin(x, y, MonitorFromRect(&rect, MONITOR_DEFAULTTONEAREST));
+  const RECT next = ClampedRectForOrigin(
+      x, y, MonitorFromRect(&rect, MONITOR_DEFAULTTONEAREST));
+  const bool changed = next.left != rect.left || next.top != rect.top ||
+                       width != old_width || height != old_height;
   SetWindowPos(window_, HWND_TOPMOST, next.left, next.top, width, height,
-               SWP_NOACTIVATE);
+               SWP_NOACTIVATE | SWP_NOCOPYBITS | SWP_DEFERERASE);
+  const bool region_changed = UpdateWindowRegion(width, height, false);
+  if (changed || region_changed) {
+    RedrawWindow(window_, nullptr, nullptr,
+                 RDW_INVALIDATE | RDW_FRAME | RDW_UPDATENOW);
+  }
+}
+
+bool DesktopWidgetWindow::UpdateWindowRegion(int width,
+                                             int height,
+                                             bool redraw) {
+  if (!window_) {
+    return false;
+  }
   const int radius = CurrentCornerRadius();
+  if (region_width_ == width && region_height_ == height &&
+      region_radius_ == radius) {
+    return false;
+  }
   HRGN region =
       CreateRoundRectRgn(0, 0, width + 1, height + 1, radius * 2, radius * 2);
-  SetWindowRgn(window_, region, TRUE);
+  if (SetWindowRgn(window_, region, redraw ? TRUE : FALSE) == 0) {
+    DeleteObject(region);
+    OutputDebugStringW(
+        L"SpringNote: failed to update desktop widget window region.\n");
+    return false;
+  }
+  region_width_ = width;
+  region_height_ = height;
+  region_radius_ = radius;
+  return true;
 }
 
 void DesktopWidgetWindow::SetExpanded(bool expanded) {
@@ -360,7 +393,6 @@ void DesktopWidgetWindow::SetExpanded(bool expanded) {
   }
   expanded_ = expanded;
   ApplyWindowShapeAndSize(true);
-  InvalidateRect(window_, nullptr, FALSE);
 }
 
 void DesktopWidgetWindow::TrackMouseLeave() {
@@ -788,6 +820,9 @@ LRESULT DesktopWidgetWindow::HandleMessage(HWND hwnd,
       if (hwnd == window_) {
         window_ = nullptr;
         tracking_mouse_leave_ = false;
+        region_width_ = -1;
+        region_height_ = -1;
+        region_radius_ = -1;
       }
       return 0;
   }
