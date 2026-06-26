@@ -1636,21 +1636,31 @@ class _ToolIconState extends State<_ToolIcon> {
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: active ? widget.onTap : null,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 120),
-            curve: Curves.easeOut,
+          child: SizedBox(
             width: 32,
             height: 32,
-            decoration: BoxDecoration(
-              color: _hovered && active ? Colors.white : Colors.transparent,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Center(
-              child: _LucideToolbarIcon(
-                type: widget.type,
-                size: 16,
-                color: _iconColor(active),
-              ),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Positioned.fill(
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 160),
+                    curve: Curves.easeOutCubic,
+                    opacity: _hovered && active ? 1 : 0,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+                _LucideToolbarIcon(
+                  type: widget.type,
+                  size: 16,
+                  color: _iconColor(active),
+                ),
+              ],
             ),
           ),
         ),
