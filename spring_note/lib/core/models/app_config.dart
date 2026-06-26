@@ -1,3 +1,4 @@
+import 'desktop_widget_position.dart';
 import 'provider_config.dart';
 
 class AppConfig {
@@ -11,6 +12,7 @@ class AppConfig {
     required this.autoStart,
     required this.showUpdates,
     required this.showDesktopWidget,
+    required this.desktopWidgetPosition,
     required this.showTrayIcon,
     required this.closeToTray,
     required this.memorySearchLimit,
@@ -29,6 +31,7 @@ class AppConfig {
   final bool autoStart;
   final bool showUpdates;
   final bool showDesktopWidget;
+  final DesktopWidgetPosition? desktopWidgetPosition;
   final bool showTrayIcon;
   final bool closeToTray;
   final double memorySearchLimit;
@@ -48,6 +51,7 @@ class AppConfig {
       autoStart: false,
       showUpdates: true,
       showDesktopWidget: true,
+      desktopWidgetPosition: null,
       showTrayIcon: true,
       closeToTray: true,
       memorySearchLimit: 3,
@@ -73,6 +77,9 @@ class AppConfig {
       autoStart: json['autoStart'] as bool? ?? false,
       showUpdates: json['showUpdates'] as bool? ?? true,
       showDesktopWidget: json['showDesktopWidget'] as bool? ?? true,
+      desktopWidgetPosition: DesktopWidgetPosition.fromJson(
+        json['desktopWidgetPosition'],
+      ),
       showTrayIcon: json['showTrayIcon'] as bool? ?? true,
       closeToTray:
           (json['showTrayIcon'] as bool? ?? true) &&
@@ -99,6 +106,7 @@ class AppConfig {
       'autoStart': autoStart,
       'showUpdates': showUpdates,
       'showDesktopWidget': showDesktopWidget,
+      'desktopWidgetPosition': desktopWidgetPosition?.toJson(),
       'showTrayIcon': showTrayIcon,
       'closeToTray': closeToTray,
       'memorySearchLimit': memorySearchLimit,
@@ -119,6 +127,7 @@ class AppConfig {
     bool? autoStart,
     bool? showUpdates,
     bool? showDesktopWidget,
+    Object? desktopWidgetPosition = _sentinel,
     bool? showTrayIcon,
     bool? closeToTray,
     double? memorySearchLimit,
@@ -142,6 +151,9 @@ class AppConfig {
       autoStart: autoStart ?? this.autoStart,
       showUpdates: showUpdates ?? this.showUpdates,
       showDesktopWidget: showDesktopWidget ?? this.showDesktopWidget,
+      desktopWidgetPosition: desktopWidgetPosition == _sentinel
+          ? this.desktopWidgetPosition
+          : desktopWidgetPosition as DesktopWidgetPosition?,
       showTrayIcon: nextShowTrayIcon,
       closeToTray: nextCloseToTray,
       memorySearchLimit: memorySearchLimit ?? this.memorySearchLimit,

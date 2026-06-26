@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <iomanip>
+#include <limits>
 #include <sstream>
 #include <string>
 
@@ -71,6 +72,15 @@ std::string ReadString(const flutter::EncodableMap& map,
   return std::get<std::string>(it->second);
 }
 
+const flutter::EncodableMap* ReadMap(const flutter::EncodableMap& map,
+                                     const char* key) {
+  const auto it = map.find(flutter::EncodableValue(key));
+  if (it == map.end()) {
+    return nullptr;
+  }
+  return std::get_if<flutter::EncodableMap>(&it->second);
+}
+
 std::wstring Utf8ToWide(const std::string& value) {
   if (value.empty()) {
     return L"";
@@ -85,6 +95,22 @@ std::wstring Utf8ToWide(const std::string& value) {
   MultiByteToWideChar(CP_UTF8, 0, value.c_str(),
                       static_cast<int>(value.size()), result.data(),
                       required_size);
+  return result;
+}
+
+std::string WideToUtf8(const wchar_t* value) {
+  const int wide_length = lstrlenW(value);
+  if (wide_length <= 0) {
+    return "";
+  }
+  const int required_size = WideCharToMultiByte(
+      CP_UTF8, 0, value, wide_length, nullptr, 0, nullptr, nullptr);
+  if (required_size <= 0) {
+    return "";
+  }
+  std::string result(required_size, '\0');
+  WideCharToMultiByte(CP_UTF8, 0, value, wide_length, result.data(),
+                      required_size, nullptr, nullptr);
   return result;
 }
 
@@ -194,13 +220,16 @@ void DesktopWidgetWindow::ShowOrUpdate(const flutter::EncodableMap& arguments) {
       std::clamp(ReadDouble(arguments, "fontScaleFactor",
                             state_.font_scale_factor),
                  0.8, 1.4);
+  UpdateSavedPosition(arguments);
 
   if (!EnsureWindow()) {
     return;
   }
   if (!positioned_) {
-    MoveToDefaultPosition();
+    MoveToSavedOrDefaultPosition();
     positioned_ = true;
+  } else {
+    ClampWindowToVisibleMonitor(false);
   }
   ShowWindow(window_, SW_SHOWNOACTIVATE);
   SetWindowPos(window_, HWND_TOPMOST, 0, 0, 0, 0,
@@ -252,6 +281,110 @@ void DesktopWidgetWindow::MoveToDefaultPosition() {
   const int y = work_area.bottom - kWindowHeight - 28;
   SetWindowPos(window_, HWND_TOPMOST, x, y, kWindowWidth, kWindowHeight,
                SWP_NOACTIVATE);
+}
+
+void DesktopWidgetWindow::MoveToSavedOrDefaultPosition() {
+  if (saved_position_.has_value()) {
+    const HMONITOR monitor = MonitorForPosition(saved_position_.value());
+    const RECT next =
+        ClampedRectForOrigin(saved_position_->x, saved_position_->y, monitor);
+    SetWindowPos(window_, HWND_TOPMOST, next.left, next.top, kWindowWidth,
+                 kWindowHeight, SWP_NOACTIVATE);
+    NotifyPositionChanged();
+    return;
+  }
+
+  MoveToDefaultPosition();
+  ClampWindowToVisibleMonitor(true);
+}
+
+RECT DesktopWidgetWindow::WorkAreaForMonitor(HMONITOR monitor) const {
+  MONITORINFO monitor_info{};
+  monitor_info.cbSize = sizeof(MONITORINFO);
+  if (monitor && GetMonitorInfo(monitor, &monitor_info)) {
+    return monitor_info.rcWork;
+  }
+
+  RECT work_area{};
+  SystemParametersInfo(SPI_GETWORKAREA, 0, &work_area, 0);
+  return work_area;
+}
+
+HMONITOR DesktopWidgetWindow::MonitorForPosition(
+    const WidgetPosition& position) const {
+  if (!position.screen_id.empty()) {
+    struct SearchContext {
+      const std::string* target_id;
+      HMONITOR monitor = nullptr;
+    } context{&position.screen_id, nullptr};
+
+    EnumDisplayMonitors(
+        nullptr, nullptr,
+        [](HMONITOR monitor, HDC, LPRECT, LPARAM data) -> BOOL {
+          auto* context = reinterpret_cast<SearchContext*>(data);
+          MONITORINFOEX monitor_info{};
+          monitor_info.cbSize = sizeof(MONITORINFOEX);
+          if (GetMonitorInfo(monitor, &monitor_info)) {
+            if (WideToUtf8(monitor_info.szDevice) == *context->target_id) {
+              context->monitor = monitor;
+              return FALSE;
+            }
+          }
+          return TRUE;
+        },
+        reinterpret_cast<LPARAM>(&context));
+    if (context.monitor) {
+      return context.monitor;
+    }
+  }
+
+  const POINT point{position.x + kWindowWidth / 2, position.y + kWindowHeight / 2};
+  return MonitorFromPoint(point, MONITOR_DEFAULTTONEAREST);
+}
+
+RECT DesktopWidgetWindow::ClampedRectForOrigin(
+    int x,
+    int y,
+    HMONITOR preferred_monitor) const {
+  const RECT work_area = WorkAreaForMonitor(preferred_monitor);
+  const int min_x = work_area.left;
+  const int max_x = std::max(min_x, work_area.right - kWindowWidth);
+  const int min_y = work_area.top;
+  const int max_y = std::max(min_y, work_area.bottom - kWindowHeight);
+  const int left = std::clamp(x, min_x, max_x);
+  const int top = std::clamp(y, min_y, max_y);
+  return RECT{
+      left,
+      top,
+      left + kWindowWidth,
+      top + kWindowHeight,
+  };
+}
+
+void DesktopWidgetWindow::SetBoundedWindowOrigin(int x, int y) {
+  const RECT proposed{x, y, x + kWindowWidth, y + kWindowHeight};
+  const HMONITOR monitor = MonitorFromRect(&proposed, MONITOR_DEFAULTTONEAREST);
+  const RECT next = ClampedRectForOrigin(x, y, monitor);
+  SetWindowPos(window_, HWND_TOPMOST, next.left, next.top, 0, 0,
+               SWP_NOSIZE | SWP_NOACTIVATE);
+}
+
+void DesktopWidgetWindow::ClampWindowToVisibleMonitor(bool notify) {
+  if (!window_) {
+    return;
+  }
+
+  RECT rect{};
+  GetWindowRect(window_, &rect);
+  const HMONITOR monitor = MonitorFromRect(&rect, MONITOR_DEFAULTTONEAREST);
+  const RECT next = ClampedRectForOrigin(rect.left, rect.top, monitor);
+  if (next.left != rect.left || next.top != rect.top) {
+    SetWindowPos(window_, HWND_TOPMOST, next.left, next.top, 0, 0,
+                 SWP_NOSIZE | SWP_NOACTIVATE);
+  }
+  if (notify) {
+    NotifyPositionChanged();
+  }
 }
 
 void DesktopWidgetWindow::Paint() {
@@ -349,6 +482,55 @@ void DesktopWidgetWindow::InvokeFlutterMethod(const std::string& method) {
   channel_->InvokeMethod(method, std::make_unique<flutter::EncodableValue>());
 }
 
+void DesktopWidgetWindow::NotifyPositionChanged() {
+  if (!channel_ || !window_) {
+    return;
+  }
+
+  RECT rect{};
+  GetWindowRect(window_, &rect);
+  const HMONITOR monitor = MonitorFromRect(&rect, MONITOR_DEFAULTTONEAREST);
+  MONITORINFOEX monitor_info{};
+  monitor_info.cbSize = sizeof(MONITORINFOEX);
+  std::string screen_id;
+  if (monitor && GetMonitorInfo(monitor, &monitor_info)) {
+    screen_id = WideToUtf8(monitor_info.szDevice);
+  }
+
+  flutter::EncodableMap arguments;
+  arguments[flutter::EncodableValue("screenId")] =
+      flutter::EncodableValue(screen_id);
+  arguments[flutter::EncodableValue("x")] =
+      flutter::EncodableValue(static_cast<double>(rect.left));
+  arguments[flutter::EncodableValue("y")] =
+      flutter::EncodableValue(static_cast<double>(rect.top));
+  channel_->InvokeMethod(
+      "positionChanged",
+      std::make_unique<flutter::EncodableValue>(std::move(arguments)));
+}
+
+void DesktopWidgetWindow::UpdateSavedPosition(
+    const flutter::EncodableMap& arguments) {
+  const auto* position = ReadMap(arguments, "position");
+  if (!position) {
+    saved_position_.reset();
+    return;
+  }
+
+  const double x = ReadDouble(*position, "x", std::numeric_limits<double>::quiet_NaN());
+  const double y = ReadDouble(*position, "y", std::numeric_limits<double>::quiet_NaN());
+  if (!std::isfinite(x) || !std::isfinite(y)) {
+    saved_position_.reset();
+    return;
+  }
+
+  saved_position_ = WidgetPosition{
+      ReadString(*position, "screenId"),
+      static_cast<int>(std::round(x)),
+      static_cast<int>(std::round(y)),
+  };
+}
+
 void DesktopWidgetWindow::OpenMainWindow() {
   if (!main_window_) {
     return;
@@ -413,9 +595,8 @@ LRESULT DesktopWidgetWindow::HandleMessage(HWND hwnd,
         if (std::abs(dx) > 3 || std::abs(dy) > 3) {
           moved_while_pressed_ = true;
         }
-        SetWindowPos(hwnd, HWND_TOPMOST, drag_start_rect_.left + dx,
-                     drag_start_rect_.top + dy, 0, 0,
-                     SWP_NOSIZE | SWP_NOACTIVATE);
+        SetBoundedWindowOrigin(drag_start_rect_.left + dx,
+                               drag_start_rect_.top + dy);
       }
       return 0;
     case WM_LBUTTONUP:
@@ -425,6 +606,7 @@ LRESULT DesktopWidgetWindow::HandleMessage(HWND hwnd,
         if (!moved_while_pressed_) {
           InvokeFlutterMethod("toggle");
         }
+        ClampWindowToVisibleMonitor(true);
       }
       return 0;
     case WM_RBUTTONUP:

@@ -8,6 +8,7 @@ import '../../features/notes/notes_page.dart';
 import '../../features/settings/settings_page.dart';
 import '../../features/widget/desktop_status_widget.dart';
 import '../models/app_config.dart';
+import '../models/desktop_widget_position.dart';
 import '../models/local_data_state.dart';
 import '../models/note_external_update.dart';
 import '../models/note_file.dart';
@@ -16,6 +17,7 @@ import '../services/desktop_widget_controller.dart';
 import '../services/desktop_widget_window_bridge.dart';
 import '../services/global_hotkey_service.dart';
 import '../services/level_progress_controller.dart';
+import '../services/local_data_service.dart';
 import '../services/startup_report_generation_service.dart';
 import '../services/tray_service.dart';
 import '../services/update_check_service.dart';
@@ -30,12 +32,14 @@ class AppShell extends StatefulWidget {
     this.startupReportGenerationService =
         const StartupReportGenerationService(),
     this.updateCheckService = const UpdateCheckService(),
+    this.localDataService = const LocalDataService(),
     this.onConfigChanged,
   });
 
   final LocalDataState localDataState;
   final StartupReportGenerationService startupReportGenerationService;
   final UpdateCheckService updateCheckService;
+  final LocalDataService localDataService;
   final ValueChanged<AppConfig>? onConfigChanged;
 
   @override
@@ -68,6 +72,7 @@ class _AppShellState extends State<AppShell> {
       _desktopWidgetWindow.initialize(
         onToggle: _desktopWidgetController.toggle,
         onOpenHome: _openHomeFromDesktopWidget,
+        onPositionChanged: _handleDesktopWidgetPositionChanged,
       ),
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -114,6 +119,27 @@ class _AppShellState extends State<AppShell> {
       return;
     }
     _selectSection(AppSection.home);
+  }
+
+  void _handleDesktopWidgetPositionChanged(DesktopWidgetPosition position) {
+    final config = _localDataState.config;
+    if (config.desktopWidgetPosition == position) {
+      return;
+    }
+    final nextConfig = config.copyWith(desktopWidgetPosition: position);
+    setState(() {
+      _localDataState = _localDataState.copyWith(config: nextConfig);
+    });
+    widget.onConfigChanged?.call(nextConfig);
+    unawaited(_saveDesktopWidgetPosition(nextConfig));
+  }
+
+  Future<void> _saveDesktopWidgetPosition(AppConfig config) async {
+    try {
+      await widget.localDataService.saveConfig(config);
+    } catch (_) {
+      // Position persistence is best-effort and should not interrupt dragging.
+    }
   }
 
   void _selectSection(AppSection section) {
@@ -227,6 +253,7 @@ class _AppShellState extends State<AppShell> {
           progress: progress,
           appFont: config.appFont,
           fontScaleFactor: AppTheme.fontScaleFactor(config.fontScale),
+          position: config.desktopWidgetPosition,
         ),
       ),
     );
