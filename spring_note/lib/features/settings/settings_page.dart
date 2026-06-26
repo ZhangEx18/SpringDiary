@@ -934,12 +934,65 @@ class _PreferencesPanel extends StatelessWidget {
                         onChanged(config.copyWith(desktopWidgetOrbMode: value))
                   : null,
             ),
+          ],
+        ),
+        _SettingsCard(
+          title: '回忆书检索',
+          children: [
             _NumberSettingRow(
               label: '回忆书单轮最大搜索次数',
               value: config.memorySearchLimit,
               suffix: '次',
+              minValue: 1,
+              maxValue: 120,
               onChanged: (value) =>
                   onChanged(config.copyWith(memorySearchLimit: value)),
+            ),
+            _NumberSettingRow(
+              label: '单条结果返回最大字符数',
+              value: config.memoryResultMaxCharacters,
+              suffix: '字',
+              minValue: 80,
+              maxValue: 10000,
+              onChanged: (value) =>
+                  onChanged(config.copyWith(memoryResultMaxCharacters: value)),
+            ),
+            _NumberSettingRow(
+              label: '连续日报读取最大数量',
+              value: config.memoryWeekDailyNoteLimit,
+              suffix: '条',
+              minValue: 1,
+              maxValue: 31,
+              onChanged: (value) =>
+                  onChanged(config.copyWith(memoryWeekDailyNoteLimit: value)),
+            ),
+            _NumberSettingRow(
+              label: '关键词搜索结果最大数量',
+              value: config.memoryKeywordSearchResultLimit,
+              suffix: '条',
+              minValue: 1,
+              maxValue: 200,
+              onChanged: (value) => onChanged(
+                config.copyWith(memoryKeywordSearchResultLimit: value),
+              ),
+            ),
+            _NumberSettingRow(
+              label: '命中关键词截取前最大字符数',
+              value: config.memoryKeywordContextBefore,
+              suffix: '字',
+              minValue: 0,
+              maxValue: 4000,
+              onChanged: (value) =>
+                  onChanged(config.copyWith(memoryKeywordContextBefore: value)),
+            ),
+            _NumberSettingRow(
+              label: '命中关键词截取后最大字符数',
+              value: config.memoryKeywordContextAfter,
+              suffix: '字',
+              minValue: 0,
+              maxValue: 6000,
+              onChanged: (value) =>
+                  onChanged(config.copyWith(memoryKeywordContextAfter: value)),
             ),
           ],
         ),
@@ -5864,17 +5917,11 @@ class _NumberSettingRow extends StatelessWidget {
         children: [
           SizedBox(
             width: 96,
-            child: _CommittedTextField(
-              value: _formatNumber(value),
-              textAlign: TextAlign.right,
-              keyboardType: TextInputType.number,
-              onChanged: (text) {
-                final parsed = double.tryParse(text);
-                if (parsed == null) {
-                  return;
-                }
-                onChanged(_clamp(parsed));
-              },
+            child: _BoundedNumberTextField(
+              value: value,
+              minValue: minValue,
+              maxValue: maxValue,
+              onChanged: onChanged,
             ),
           ),
           const SizedBox(width: 8),
@@ -5883,16 +5930,85 @@ class _NumberSettingRow extends StatelessWidget {
       ),
     );
   }
+}
 
-  String _formatNumber(double value) {
-    return value == value.roundToDouble()
-        ? value.toStringAsFixed(0)
-        : value.toString();
+class _BoundedNumberTextField extends StatefulWidget {
+  const _BoundedNumberTextField({
+    required this.value,
+    required this.onChanged,
+    this.minValue,
+    this.maxValue,
+  });
+
+  final double value;
+  final ValueChanged<double> onChanged;
+  final double? minValue;
+  final double? maxValue;
+
+  @override
+  State<_BoundedNumberTextField> createState() =>
+      _BoundedNumberTextFieldState();
+}
+
+class _BoundedNumberTextFieldState extends State<_BoundedNumberTextField> {
+  late final TextEditingController _controller = TextEditingController(
+    text: _formatNumber(widget.value),
+  );
+
+  @override
+  void didUpdateWidget(covariant _BoundedNumberTextField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final text = _formatNumber(widget.value);
+    if (widget.value != oldWidget.value && text != _controller.text) {
+      _setText(text);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: _controller,
+      textAlign: TextAlign.right,
+      keyboardType: TextInputType.number,
+      onChanged: _handleChanged,
+      onSubmitted: _commit,
+      onEditingComplete: () => _commit(_controller.text),
+      decoration: const InputDecoration(isDense: true),
+    );
+  }
+
+  void _handleChanged(String text) {
+    final parsed = double.tryParse(text);
+    if (parsed == null) {
+      return;
+    }
+    final clamped = _clamp(parsed);
+    if (clamped != parsed) {
+      _setText(_formatNumber(clamped));
+    }
+    widget.onChanged(clamped);
+  }
+
+  void _commit(String text) {
+    final parsed = double.tryParse(text);
+    if (parsed == null) {
+      _setText(_formatNumber(widget.value));
+      return;
+    }
+    final clamped = _clamp(parsed);
+    _setText(_formatNumber(clamped));
+    widget.onChanged(clamped);
   }
 
   double _clamp(double value) {
-    final min = minValue;
-    final max = maxValue;
+    final min = widget.minValue;
+    final max = widget.maxValue;
     if (min != null && value < min) {
       return min;
     }
@@ -5900,6 +6016,19 @@ class _NumberSettingRow extends StatelessWidget {
       return max;
     }
     return value;
+  }
+
+  void _setText(String text) {
+    _controller.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
+  }
+
+  String _formatNumber(double value) {
+    return value == value.roundToDouble()
+        ? value.toStringAsFixed(0)
+        : value.toString();
   }
 }
 
@@ -5990,8 +6119,6 @@ class _CommittedTextField extends StatefulWidget {
     required this.value,
     required this.onChanged,
     this.enabled = true,
-    this.textAlign = TextAlign.start,
-    this.keyboardType,
     this.obscureText = false,
     this.compact = false,
   });
@@ -5999,8 +6126,6 @@ class _CommittedTextField extends StatefulWidget {
   final String value;
   final ValueChanged<String>? onChanged;
   final bool enabled;
-  final TextAlign textAlign;
-  final TextInputType? keyboardType;
   final bool obscureText;
   final bool compact;
 
@@ -6032,9 +6157,7 @@ class _CommittedTextFieldState extends State<_CommittedTextField> {
     return TextField(
       controller: _controller,
       enabled: widget.enabled,
-      textAlign: widget.textAlign,
       textAlignVertical: widget.compact ? TextAlignVertical.center : null,
-      keyboardType: widget.keyboardType,
       obscureText: widget.obscureText,
       onChanged: widget.enabled ? widget.onChanged : null,
       onSubmitted: widget.enabled ? widget.onChanged : null,

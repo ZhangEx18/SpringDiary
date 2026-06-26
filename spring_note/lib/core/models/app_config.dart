@@ -17,6 +17,11 @@ class AppConfig {
     required this.showTrayIcon,
     required this.closeToTray,
     required this.memorySearchLimit,
+    required this.memoryResultMaxCharacters,
+    required this.memoryWeekDailyNoteLimit,
+    required this.memoryKeywordSearchResultLimit,
+    required this.memoryKeywordContextBefore,
+    required this.memoryKeywordContextAfter,
     required this.apiLogEnabled,
     required this.providers,
     required this.defaultModels,
@@ -37,6 +42,11 @@ class AppConfig {
   final bool showTrayIcon;
   final bool closeToTray;
   final double memorySearchLimit;
+  final double memoryResultMaxCharacters;
+  final double memoryWeekDailyNoteLimit;
+  final double memoryKeywordSearchResultLimit;
+  final double memoryKeywordContextBefore;
+  final double memoryKeywordContextAfter;
   final bool apiLogEnabled;
   final List<ProviderConfig> providers;
   final Map<String, String?> defaultModels;
@@ -57,7 +67,12 @@ class AppConfig {
       desktopWidgetOrbMode: false,
       showTrayIcon: true,
       closeToTray: true,
-      memorySearchLimit: 3,
+      memorySearchLimit: 12,
+      memoryResultMaxCharacters: 3600,
+      memoryWeekDailyNoteLimit: 31,
+      memoryKeywordSearchResultLimit: 12,
+      memoryKeywordContextBefore: 1400,
+      memoryKeywordContextAfter: 2600,
       apiLogEnabled: false,
       providers: [],
       defaultModels: {
@@ -88,7 +103,27 @@ class AppConfig {
       closeToTray:
           (json['showTrayIcon'] as bool? ?? true) &&
           (json['closeToTray'] as bool? ?? true),
-      memorySearchLimit: _readDouble(json['memorySearchLimit'], 3),
+      memorySearchLimit: _readDouble(json['memorySearchLimit'], 12),
+      memoryResultMaxCharacters: _readDouble(
+        json['memoryResultMaxCharacters'],
+        3600,
+      ),
+      memoryWeekDailyNoteLimit: _readDouble(
+        json['memoryWeekDailyNoteLimit'],
+        31,
+      ),
+      memoryKeywordSearchResultLimit: _readDouble(
+        json['memoryKeywordSearchResultLimit'],
+        12,
+      ),
+      memoryKeywordContextBefore: _readDouble(
+        json['memoryKeywordContextBefore'],
+        1400,
+      ),
+      memoryKeywordContextAfter: _readDouble(
+        json['memoryKeywordContextAfter'],
+        2600,
+      ),
       apiLogEnabled: json['apiLogEnabled'] as bool? ?? false,
       providers: _readProviders(json['providers']),
       defaultModels: _readStringMap(
@@ -115,6 +150,11 @@ class AppConfig {
       'showTrayIcon': showTrayIcon,
       'closeToTray': closeToTray,
       'memorySearchLimit': memorySearchLimit,
+      'memoryResultMaxCharacters': memoryResultMaxCharacters,
+      'memoryWeekDailyNoteLimit': memoryWeekDailyNoteLimit,
+      'memoryKeywordSearchResultLimit': memoryKeywordSearchResultLimit,
+      'memoryKeywordContextBefore': memoryKeywordContextBefore,
+      'memoryKeywordContextAfter': memoryKeywordContextAfter,
       'apiLogEnabled': apiLogEnabled,
       'providers': providers.map((provider) => provider.toJson()).toList(),
       'defaultModels': defaultModels,
@@ -137,6 +177,11 @@ class AppConfig {
     bool? showTrayIcon,
     bool? closeToTray,
     double? memorySearchLimit,
+    double? memoryResultMaxCharacters,
+    double? memoryWeekDailyNoteLimit,
+    double? memoryKeywordSearchResultLimit,
+    double? memoryKeywordContextBefore,
+    double? memoryKeywordContextAfter,
     bool? apiLogEnabled,
     List<ProviderConfig>? providers,
     Map<String, String?>? defaultModels,
@@ -164,6 +209,16 @@ class AppConfig {
       showTrayIcon: nextShowTrayIcon,
       closeToTray: nextCloseToTray,
       memorySearchLimit: memorySearchLimit ?? this.memorySearchLimit,
+      memoryResultMaxCharacters:
+          memoryResultMaxCharacters ?? this.memoryResultMaxCharacters,
+      memoryWeekDailyNoteLimit:
+          memoryWeekDailyNoteLimit ?? this.memoryWeekDailyNoteLimit,
+      memoryKeywordSearchResultLimit:
+          memoryKeywordSearchResultLimit ?? this.memoryKeywordSearchResultLimit,
+      memoryKeywordContextBefore:
+          memoryKeywordContextBefore ?? this.memoryKeywordContextBefore,
+      memoryKeywordContextAfter:
+          memoryKeywordContextAfter ?? this.memoryKeywordContextAfter,
       apiLogEnabled: apiLogEnabled ?? this.apiLogEnabled,
       providers: providers ?? this.providers,
       defaultModels: defaultModels ?? this.defaultModels,

@@ -13,13 +13,12 @@ class MemorySearchService {
     required Map<String, Object?> arguments,
     required int limit,
   }) async {
-    final maxResults = limit.clamp(1, 20);
     final sources = switch (toolName) {
       'get_current_date' => <MemorySource>[],
       'keyword_search' => await search(
         localDataState: localDataState,
         keywords: _readStringList(arguments['keywords']),
-        limit: maxResults,
+        limit: _keywordSearchResultLimit(localDataState),
       ),
       'read_daily_note' => await _executeReadDaily(
         localDataState,
@@ -53,7 +52,7 @@ class MemorySearchService {
     required String question,
     required int limit,
   }) async {
-    final maxSteps = limit.clamp(1, 20);
+    final maxSteps = limit.clamp(1, 120);
     final steps = <MemoryReActStep>[];
     final sources = <MemorySource>[];
 
@@ -72,7 +71,7 @@ class MemorySearchService {
     final keywordSources = await search(
       localDataState: localDataState,
       keywords: _keywordArguments(question),
-      limit: maxSteps,
+      limit: _keywordSearchResultLimit(localDataState),
     );
     final keywordTool = MemoryToolCall(
       name: 'keyword_search',
@@ -134,7 +133,7 @@ class MemorySearchService {
         MemorySource(
           title: _title(file),
           path: file.path,
-          snippet: _snippet(content, terms),
+          snippet: _snippet(content, terms, localDataState),
           score: score,
         ),
       );
@@ -147,7 +146,7 @@ class MemorySearchService {
       }
       return right.path.compareTo(left.path);
     });
-    return scored.take(limit.clamp(1, 20)).toList();
+    return scored.take(limit.clamp(1, 200)).toList();
   }
 
   Future<List<MemorySource>> _executeReadDaily(
@@ -173,6 +172,7 @@ class MemorySearchService {
       return [];
     }
     final sources = <MemorySource>[];
+    final weekLimit = _weekDailyNoteLimit(state);
     for (
       var date = DateTime(start.year, start.month, start.day);
       !date.isAfter(end);
@@ -182,7 +182,7 @@ class MemorySearchService {
       if (source != null) {
         sources.add(source);
       }
-      if (sources.length >= 31) {
+      if (sources.length >= weekLimit) {
         break;
       }
     }
@@ -331,7 +331,7 @@ class MemorySearchService {
     return MemorySource(
       title: '日报 ${_formatDate(date)}',
       path: file.path,
-      snippet: _snippet(content, const []),
+      snippet: _snippet(content, const [], state),
       score: 100,
     );
   }
@@ -348,6 +348,7 @@ class MemorySearchService {
       }
     }
     final weekReport = await _readOptionalFile(
+      state,
       _join(state.weeklyNotesDirectory, '${_formatIsoWeek(start)}.md'),
       title: '周报 ${_formatIsoWeek(start)}',
       score: 120,
@@ -363,6 +364,7 @@ class MemorySearchService {
     DateTime month,
   ) async {
     final monthReport = await _readOptionalFile(
+      state,
       _join(state.monthlyNotesDirectory, '${_formatMonth(month)}.md'),
       title: '月报 ${_formatMonth(month)}',
       score: 140,
@@ -371,6 +373,7 @@ class MemorySearchService {
   }
 
   Future<MemorySource?> _readOptionalFile(
+    LocalDataState state,
     String path, {
     required String title,
     required int score,
@@ -383,7 +386,7 @@ class MemorySearchService {
     return MemorySource(
       title: title,
       path: file.path,
-      snippet: _snippet(content, const []),
+      snippet: _snippet(content, const [], state),
       score: score,
     );
   }
@@ -470,7 +473,27 @@ class MemorySearchService {
     return score;
   }
 
-  String _snippet(String content, List<String> terms) {
+  int _singleResultMaxCharacters(LocalDataState state) {
+    return state.config.memoryResultMaxCharacters.round().clamp(1, 100000);
+  }
+
+  int _weekDailyNoteLimit(LocalDataState state) {
+    return state.config.memoryWeekDailyNoteLimit.round().clamp(1, 31);
+  }
+
+  int _keywordSearchResultLimit(LocalDataState state) {
+    return state.config.memoryKeywordSearchResultLimit.round().clamp(1, 200);
+  }
+
+  int _keywordContextBefore(LocalDataState state) {
+    return state.config.memoryKeywordContextBefore.round().clamp(0, 100000);
+  }
+
+  int _keywordContextAfter(LocalDataState state) {
+    return state.config.memoryKeywordContextAfter.round().clamp(0, 100000);
+  }
+
+  String _snippet(String content, List<String> terms, LocalDataState state) {
     final normalized = content
         .split('\n')
         .map((line) => line.trim())
@@ -479,6 +502,7 @@ class MemorySearchService {
     if (normalized.isEmpty) {
       return '（空文档）';
     }
+    final maxCharacters = _singleResultMaxCharacters(state);
     final lower = normalized.toLowerCase();
     var index = -1;
     for (final term in terms) {
@@ -488,15 +512,24 @@ class MemorySearchService {
       }
     }
     if (index < 0) {
-      return normalized.length > 360
-          ? '${normalized.substring(0, 360)}...'
+      return normalized.length > maxCharacters
+          ? '${normalized.substring(0, maxCharacters)}...'
           : normalized;
     }
-    final start = (index - 140).clamp(0, normalized.length);
-    final end = (index + 260).clamp(0, normalized.length);
+    final contextBefore = _keywordContextBefore(state);
+    final contextAfter = _keywordContextAfter(state);
+    final start = (index - contextBefore).clamp(0, normalized.length);
+    final end = (index + contextAfter).clamp(0, normalized.length);
     final prefix = start > 0 ? '...' : '';
     final suffix = end < normalized.length ? '...' : '';
-    return '$prefix${normalized.substring(start, end)}$suffix';
+    final excerpt = normalized.substring(start, end);
+    final clipped = excerpt.length > maxCharacters
+        ? excerpt.substring(0, maxCharacters)
+        : excerpt;
+    final clippedSuffix = suffix.isNotEmpty || excerpt.length > maxCharacters
+        ? '...'
+        : '';
+    return '$prefix$clipped$clippedSuffix';
   }
 
   String _title(File file) {
