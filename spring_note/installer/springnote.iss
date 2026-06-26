@@ -3,7 +3,7 @@
 ; Non-commercial use only
 
 #define MyAppName "SpringNote"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.0.1"
 #define MyAppPublisher "Radiant303"
 #define MyAppURL "https://github.com/Radiant303/SpringNote"
 #define MyAppExeName "SpringNote.exe"
@@ -33,7 +33,7 @@ DisableProgramGroupPage=yes
 ; Uncomment the following line to run in non administrative install mode (install for current user only).
 ;PrivilegesRequired=lowest
 OutputDir=D:\GitHub\happywork\spring_note\build\windows\x64\runner\Release
-OutputBaseFilename=SpringNote-1.0.0-windows-x64-setup
+OutputBaseFilename=SpringNote-1.0.1-windows-x64-setup
 SolidCompression=yes
 WizardStyle=modern
 
@@ -54,4 +54,3 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
-

@@ -68,7 +68,7 @@ class UpdateCheckService {
 
   static const _timeout = Duration(seconds: 10);
   static const _changelogUrl =
-      'https://raw.githubusercontent.com/Radiant303/SpringNote/main/update/LATESTCHANGELOG.md';
+      'https://gitee.com/radiant303/SpringNote/raw/main/update/LATESTCHANGELOG.md';
 
   Future<UpdateCheckResult> check() async {
     final currentVersion = await loadCurrentVersion();
@@ -145,8 +145,7 @@ class UpdateCheckService {
   }
 
   String? _platformEndpoint() {
-    const base =
-        'https://raw.githubusercontent.com/Radiant303/SpringNote/main/update';
+    const base = 'https://gitee.com/radiant303/SpringNote/raw/main/update';
     if (Platform.isWindows) {
       return '$base/windows.json';
     }
