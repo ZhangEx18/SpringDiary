@@ -11,6 +11,7 @@ class AppConfig {
     required this.autoStart,
     required this.showUpdates,
     required this.showDesktopWidget,
+    required this.desktopWidgetOrbMode,
     required this.showTrayIcon,
     required this.closeToTray,
     required this.memorySearchLimit,
@@ -29,6 +30,7 @@ class AppConfig {
   final bool autoStart;
   final bool showUpdates;
   final bool showDesktopWidget;
+  final bool desktopWidgetOrbMode;
   final bool showTrayIcon;
   final bool closeToTray;
   final double memorySearchLimit;
@@ -48,6 +50,7 @@ class AppConfig {
       autoStart: false,
       showUpdates: true,
       showDesktopWidget: true,
+      desktopWidgetOrbMode: false,
       showTrayIcon: true,
       closeToTray: true,
       memorySearchLimit: 3,
@@ -73,6 +76,7 @@ class AppConfig {
       autoStart: json['autoStart'] as bool? ?? false,
       showUpdates: json['showUpdates'] as bool? ?? true,
       showDesktopWidget: json['showDesktopWidget'] as bool? ?? true,
+      desktopWidgetOrbMode: json['desktopWidgetOrbMode'] as bool? ?? false,
       showTrayIcon: json['showTrayIcon'] as bool? ?? true,
       closeToTray:
           (json['showTrayIcon'] as bool? ?? true) &&
@@ -99,6 +103,7 @@ class AppConfig {
       'autoStart': autoStart,
       'showUpdates': showUpdates,
       'showDesktopWidget': showDesktopWidget,
+      'desktopWidgetOrbMode': desktopWidgetOrbMode,
       'showTrayIcon': showTrayIcon,
       'closeToTray': closeToTray,
       'memorySearchLimit': memorySearchLimit,
@@ -119,6 +124,7 @@ class AppConfig {
     bool? autoStart,
     bool? showUpdates,
     bool? showDesktopWidget,
+    bool? desktopWidgetOrbMode,
     bool? showTrayIcon,
     bool? closeToTray,
     double? memorySearchLimit,
@@ -142,6 +148,7 @@ class AppConfig {
       autoStart: autoStart ?? this.autoStart,
       showUpdates: showUpdates ?? this.showUpdates,
       showDesktopWidget: showDesktopWidget ?? this.showDesktopWidget,
+      desktopWidgetOrbMode: desktopWidgetOrbMode ?? this.desktopWidgetOrbMode,
       showTrayIcon: nextShowTrayIcon,
       closeToTray: nextCloseToTray,
       memorySearchLimit: memorySearchLimit ?? this.memorySearchLimit,

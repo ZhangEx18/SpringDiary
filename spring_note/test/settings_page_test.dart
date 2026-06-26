@@ -62,6 +62,44 @@ void main() {
     expect(latestConfig?.apiLogEnabled, isTrue);
   });
 
+  testWidgets('settings page persists desktop widget orb mode', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final service = _MemoryLocalDataService(AppConfig.defaults());
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: SettingsPage(
+          localDataState: _state(AppConfig.defaults()),
+          localDataService: service,
+        ),
+      ),
+    );
+
+    await tester.ensureVisible(find.text('桌面组件圆球模式'));
+    await tester.pumpAndSettle();
+
+    final orbModeRow = find.ancestor(
+      of: find.text('桌面组件圆球模式'),
+      matching: find.byWidgetPredicate(
+        (widget) => widget is Row && widget.children.last is Switch,
+      ),
+    );
+    expect(orbModeRow, findsOneWidget);
+
+    await tester.tap(
+      find.descendant(of: orbModeRow, matching: find.byType(Switch)),
+    );
+    await tester.pump();
+
+    expect(service.savedConfig.desktopWidgetOrbMode, isTrue);
+  });
+
   testWidgets('settings page persists font size input', (
     WidgetTester tester,
   ) async {

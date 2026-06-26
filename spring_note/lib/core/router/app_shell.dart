@@ -227,6 +227,7 @@ class _AppShellState extends State<AppShell> {
           progress: progress,
           appFont: config.appFont,
           fontScaleFactor: AppTheme.fontScaleFactor(config.fontScale),
+          orbMode: config.desktopWidgetOrbMode,
         ),
       ),
     );

@@ -624,14 +624,18 @@ struct DesktopWidgetState {
   var progress = 0.0
   var fontFamily = "system"
   var fontScaleFactor = 1.0
+  var orbMode = false
 }
 
 final class DesktopWidgetWindowController: NSObject {
+  private let expandedSize = NSSize(width: 260, height: 140)
+  private let orbSize = NSSize(width: 64, height: 64)
   private var channel: FlutterMethodChannel?
   private weak var mainWindow: NSWindow?
   private var panel: DesktopWidgetPanel?
   private var state = DesktopWidgetState()
   private var positioned = false
+  private var expanded = true
 
   func attach(mainWindow: NSWindow, messenger: FlutterBinaryMessenger) {
     self.mainWindow = mainWindow
@@ -662,6 +666,7 @@ final class DesktopWidgetWindowController: NSObject {
   }
 
   private func showOrUpdate(_ arguments: [String: Any]) {
+    let wasOrbMode = state.orbMode
     state.running = boolValue(arguments, "running", fallback: state.running)
     state.workSeconds = intValue(arguments, "workSeconds", fallback: state.workSeconds)
     state.coins = doubleValue(arguments, "coins", fallback: state.coins)
@@ -681,9 +686,17 @@ final class DesktopWidgetWindowController: NSObject {
       1.4,
       max(0.8, doubleValue(arguments, "fontScaleFactor", fallback: state.fontScaleFactor))
     )
+    state.orbMode = boolValue(arguments, "orbMode", fallback: state.orbMode)
+    if !state.orbMode {
+      expanded = true
+    } else if !wasOrbMode || panel == nil {
+      expanded = false
+    }
 
     let panel = ensurePanel()
+    panel.widgetView.expanded = expanded
     panel.widgetView.state = state
+    applyPanelSize(panel, preserveBottomRight: positioned)
     panel.widgetView.needsDisplay = true
     if !positioned {
       moveToDefaultPosition(panel)
@@ -705,10 +718,25 @@ final class DesktopWidgetWindowController: NSObject {
 
     let nextPanel = DesktopWidgetPanel(
       controller: self,
-      contentRect: NSRect(x: 0, y: 0, width: 260, height: 140)
+      contentRect: NSRect(origin: .zero, size: currentSize)
     )
     panel = nextPanel
     return nextPanel
+  }
+
+  private var currentSize: NSSize {
+    state.orbMode && !expanded ? orbSize : expandedSize
+  }
+
+  private func applyPanelSize(_ panel: NSPanel, preserveBottomRight: Bool) {
+    var frame = panel.frame
+    let size = currentSize
+    if preserveBottomRight {
+      frame.origin.x = frame.maxX - size.width
+      frame.origin.y = frame.maxY - size.height
+    }
+    frame.size = size
+    panel.setFrame(frame, display: true)
   }
 
   private func moveToDefaultPosition(_ panel: NSPanel) {
@@ -723,6 +751,16 @@ final class DesktopWidgetWindowController: NSObject {
 
   func toggle() {
     channel?.invokeMethod("toggle", arguments: nil)
+  }
+
+  func setExpanded(_ nextExpanded: Bool) {
+    guard state.orbMode, expanded != nextExpanded, let panel else {
+      return
+    }
+    expanded = nextExpanded
+    panel.widgetView.expanded = nextExpanded
+    applyPanelSize(panel, preserveBottomRight: true)
+    panel.widgetView.needsDisplay = true
   }
 
   func openHome() {
@@ -771,10 +809,12 @@ final class DesktopWidgetPanel: NSPanel {
 
 final class DesktopWidgetView: NSView {
   var state = DesktopWidgetState()
+  var expanded = true
   private weak var controller: DesktopWidgetWindowController?
   private var mouseDownLocation: NSPoint?
   private var windowStartOrigin: NSPoint?
   private var movedWhilePressed = false
+  private var trackingArea: NSTrackingArea?
 
   init(controller: DesktopWidgetWindowController, frame: NSRect) {
     self.controller = controller
@@ -790,6 +830,31 @@ final class DesktopWidgetView: NSView {
     true
   }
 
+  override func updateTrackingAreas() {
+    super.updateTrackingAreas()
+    if let trackingArea {
+      removeTrackingArea(trackingArea)
+    }
+    let nextTrackingArea = NSTrackingArea(
+      rect: bounds,
+      options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+      owner: self,
+      userInfo: nil
+    )
+    addTrackingArea(nextTrackingArea)
+    trackingArea = nextTrackingArea
+  }
+
+  override func mouseEntered(with event: NSEvent) {
+    controller?.setExpanded(true)
+  }
+
+  override func mouseExited(with event: NSEvent) {
+    if mouseDownLocation == nil {
+      controller?.setExpanded(false)
+    }
+  }
+
   override func draw(_ dirtyRect: NSRect) {
     super.draw(dirtyRect)
     guard let context = NSGraphicsContext.current?.cgContext else {
@@ -797,6 +862,46 @@ final class DesktopWidgetView: NSView {
     }
 
     let bounds = self.bounds
+    if state.orbMode && !expanded {
+      let orbPath = CGPath(
+        ellipseIn: bounds.insetBy(dx: 0.5, dy: 0.5),
+        transform: nil
+      )
+      context.setFillColor(NSColor.white.cgColor)
+      context.addPath(orbPath)
+      context.fillPath()
+
+      context.setStrokeColor(NSColor(calibratedWhite: 0.9, alpha: 1).cgColor)
+      context.setLineWidth(1)
+      context.addPath(orbPath)
+      context.strokePath()
+
+      let dotColor = state.running
+        ? NSColor(calibratedRed: 0.06, green: 0.73, blue: 0.51, alpha: 1)
+        : NSColor(calibratedWhite: 0.81, alpha: 1)
+      context.setFillColor(dotColor.cgColor)
+      context.fillEllipse(in: NSRect(x: bounds.width - 18, y: 12, width: 8, height: 8))
+
+      let coinsFormat = state.coins >= 100 ? "%.0f" : "%.1f"
+      drawText(
+        String(format: coinsFormat, state.coins),
+        rect: NSRect(x: 7, y: 20, width: bounds.width - 14, height: 24),
+        size: scaled(17),
+        weight: .semibold,
+        color: NSColor(calibratedWhite: 0.09, alpha: 1),
+        alignment: .center
+      )
+      drawText(
+        "coin",
+        rect: NSRect(x: 8, y: 43, width: bounds.width - 16, height: 14),
+        size: scaled(10),
+        weight: .semibold,
+        color: NSColor(calibratedWhite: 0.4, alpha: 1),
+        alignment: .center
+      )
+      return
+    }
+
     let cardPath = CGPath(
       roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5),
       cornerWidth: 16,
@@ -895,8 +1000,12 @@ final class DesktopWidgetView: NSView {
     if !movedWhilePressed {
       controller?.toggle()
     }
+    let shouldCollapse = state.orbMode && !bounds.contains(convert(event.locationInWindow, from: nil))
     mouseDownLocation = nil
     windowStartOrigin = nil
+    if shouldCollapse {
+      controller?.setExpanded(false)
+    }
   }
 
   override func rightMouseUp(with event: NSEvent) {
