@@ -1,8 +1,10 @@
 use crate::ai::{AiChatRequest, AiTextResult};
 use chrono::{Datelike, Duration, Local, NaiveDate, Weekday};
-use rusqlite::{Connection, OptionalExtension, Result, params};
+use rusqlite::{Connection, OptionalExtension, Result, TransactionBehavior, params};
 use std::fs;
 use std::path::Path;
+
+const DB_FILENAME: &str = "springnote.db";
 
 #[derive(Clone, Debug)]
 pub struct StatsSummary {
@@ -59,7 +61,7 @@ pub fn record_model_call(
     let mut connection = open_connection(app_data_dir)?;
     initialize(&connection)?;
 
-    let tx = connection.transaction()?;
+    let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
 
     tx.execute(
         "INSERT INTO model_call_records (
@@ -142,10 +144,12 @@ pub fn record_model_call_or_warn(
     app_data_dir: &str,
     request: &AiChatRequest,
     result: &AiTextResult,
-) {
+) -> bool {
     if let Err(e) = record_model_call(app_data_dir, request, result) {
         eprintln!("[WARN] record_model_call failed in {caller}: {e}");
+        return false;
     }
+    true
 }
 
 pub fn record_app_startup(app_data_dir: &str) -> Result<()> {
@@ -344,7 +348,7 @@ fn increment_daily_stats(
 
 fn open_connection(app_data_dir: &str) -> Result<Connection> {
     fs::create_dir_all(app_data_dir).ok();
-    let db_path = Path::new(app_data_dir).join("springnote.db");
+    let db_path = Path::new(app_data_dir).join(DB_FILENAME);
     Connection::open(db_path)
 }
 
@@ -557,7 +561,34 @@ fn format_iso_week(date: NaiveDate) -> String {
 mod tests {
     use super::*;
     use crate::ai::{AiModel, AiProvider};
+    use std::path::{Path, PathBuf};
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    struct TestDir {
+        path: PathBuf,
+    }
+
+    impl TestDir {
+        fn new(prefix: &str) -> Self {
+            let suffix = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos();
+            Self {
+                path: std::env::temp_dir().join(format!("{prefix}_{suffix}")),
+            }
+        }
+
+        fn path(&self) -> &Path {
+            &self.path
+        }
+    }
+
+    impl Drop for TestDir {
+        fn drop(&mut self) {
+            fs::remove_dir_all(&self.path).ok();
+        }
+    }
 
     #[test]
     fn writes_model_call_records() {
@@ -712,7 +743,7 @@ mod tests {
         }
     }
 
-    fn temp_dir(prefix: &str) -> std::path::PathBuf {
+    fn temp_dir(prefix: &str) -> PathBuf {
         let suffix = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
@@ -722,14 +753,14 @@ mod tests {
 
     #[test]
     fn record_model_call_writes_all_three_tables() {
-        let dir = temp_dir("spring_note_stats_transaction");
-        let app_data_dir = dir.to_string_lossy().to_string();
+        let dir = TestDir::new("spring_note_stats_transaction");
+        let app_data_dir = dir.path().to_string_lossy().to_string();
         let request = request(&app_data_dir, "fim_edit_completion");
         let result = AiTextResult::success(&request, "ok", 10, 5, 2);
 
         record_model_call(&app_data_dir, &request, &result).unwrap();
 
-        let connection = Connection::open(dir.join("springnote.db")).unwrap();
+        let connection = Connection::open(dir.path().join(DB_FILENAME)).unwrap();
         let model_count: i64 = connection
             .query_row("SELECT COUNT(*) FROM model_call_records", [], |row| {
                 row.get(0)
@@ -762,59 +793,23 @@ mod tests {
             })
             .unwrap();
         assert_eq!(fim, 1);
-
-        fs::remove_dir_all(dir).ok();
     }
 
     #[test]
     fn record_model_call_rollback_on_error() {
-        let dir = temp_dir("spring_note_stats_rollback");
-        let app_data_dir = dir.to_string_lossy().to_string();
-        let db_path = dir.join("springnote.db");
+        let dir = TestDir::new("spring_note_stats_rollback");
+        let app_data_dir = dir.path().to_string_lossy().to_string();
+        let db_path = dir.path().join(DB_FILENAME);
 
         // Set up a trigger that causes an ABORT after the first INSERT, simulating
         // an integrity error during the transaction.
         fs::create_dir_all(&app_data_dir).unwrap();
         {
             let connection = Connection::open(&db_path).unwrap();
+            initialize(&connection).unwrap();
             connection
                 .execute_batch(
-                    "CREATE TABLE IF NOT EXISTS model_call_records (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        created_at TEXT NOT NULL,
-                        provider_id TEXT NOT NULL,
-                        provider_name TEXT NOT NULL,
-                        protocol TEXT NOT NULL,
-                        model_id TEXT NOT NULL,
-                        purpose TEXT NOT NULL,
-                        ok INTEGER NOT NULL,
-                        error_code TEXT NOT NULL,
-                        error_message TEXT NOT NULL,
-                        input_tokens INTEGER NOT NULL DEFAULT 0,
-                        output_tokens INTEGER NOT NULL DEFAULT 0,
-                        cached_tokens INTEGER NOT NULL DEFAULT 0
-                    );
-                    CREATE TABLE IF NOT EXISTS token_usage_daily (
-                        date TEXT PRIMARY KEY,
-                        input_tokens INTEGER NOT NULL DEFAULT 0,
-                        output_tokens INTEGER NOT NULL DEFAULT 0,
-                        cached_tokens INTEGER NOT NULL DEFAULT 0,
-                        call_count INTEGER NOT NULL DEFAULT 0
-                    );
-                    CREATE TABLE IF NOT EXISTS daily_stats (
-                        date TEXT PRIMARY KEY,
-                        home_generations INTEGER NOT NULL DEFAULT 0,
-                        fim_completions INTEGER NOT NULL DEFAULT 0,
-                        work_seconds INTEGER NOT NULL DEFAULT 0,
-                        coins REAL NOT NULL DEFAULT 0,
-                        active_count INTEGER NOT NULL DEFAULT 0,
-                        app_launches INTEGER NOT NULL DEFAULT 0
-                    );
-                    CREATE TABLE IF NOT EXISTS app_counters (
-                        key TEXT PRIMARY KEY,
-                        value INTEGER NOT NULL DEFAULT 0
-                    );
-                    -- Abort on the second INSERT (token_usage_daily) to test rollback
+                    "-- Abort on the second INSERT (token_usage_daily) to test rollback
                     CREATE TRIGGER IF NOT EXISTS test_rollback_trigger
                     AFTER INSERT ON token_usage_daily
                     FOR EACH ROW
@@ -857,7 +852,5 @@ mod tests {
             .query_row("SELECT COUNT(*) FROM daily_stats", [], |row| row.get(0))
             .unwrap();
         assert_eq!(daily_count, 0, "daily_stats should be empty after rollback");
-
-        fs::remove_dir_all(dir).ok();
     }
 }
