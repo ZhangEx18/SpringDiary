@@ -29,9 +29,19 @@ class RegKey {
   RegKey(const RegKey&) = delete;
   RegKey& operator=(const RegKey&) = delete;
 
-  HKEY* operator&() { return &key_; }
   HKEY get() const { return key_; }
   bool valid() const { return key_ != nullptr; }
+
+  LSTATUS Create(HKEY root, const wchar_t* sub_key, REGSAM access) {
+    Close();
+    return RegCreateKeyExW(root, sub_key, 0, nullptr, 0, access, nullptr,
+                           &key_, nullptr);
+  }
+
+  LSTATUS Open(HKEY root, const wchar_t* sub_key, REGSAM access) {
+    Close();
+    return RegOpenKeyExW(root, sub_key, 0, access, &key_);
+  }
 
   void Close() {
     if (key_) {
@@ -43,6 +53,14 @@ class RegKey {
  private:
   HKEY key_ = nullptr;
 };
+
+void LogRegistryError(const wchar_t* operation, LSTATUS status) {
+  std::wstringstream stream;
+  stream << L"SpringNote: desktop widget registry " << operation
+         << L" failed with status " << status << L".\n";
+  OutputDebugStringW(stream.str().c_str());
+}
+
 constexpr int kExpandedWindowWidth = 260;
 constexpr int kExpandedWindowHeight = 140;
 constexpr int kExpandedCornerRadius = 16;
@@ -766,28 +784,42 @@ void DesktopWidgetWindow::SavePositionToRegistry() {
   const WidgetPosition pos = CaptureCurrentPosition();
 
   RegKey key;
-  const LSTATUS status =
-      RegCreateKeyExW(HKEY_CURRENT_USER, kRegistryPath, 0, nullptr, 0,
-                      KEY_SET_VALUE, nullptr, &key, nullptr);
+  const LSTATUS status = key.Create(HKEY_CURRENT_USER, kRegistryPath,
+                                    KEY_SET_VALUE);
   if (status != ERROR_SUCCESS || !key.valid()) {
+    LogRegistryError(L"create", status);
     return;
   }
 
   const std::wstring wide_screen_id = Utf8ToWide(pos.screen_id);
-  RegSetValueExW(key.get(), kRegistryScreenId, 0, REG_SZ,
-                 reinterpret_cast<const BYTE*>(wide_screen_id.c_str()),
-                 static_cast<DWORD>((wide_screen_id.size() + 1) *
-                                    sizeof(wchar_t)));
+  const LSTATUS screen_status =
+      RegSetValueExW(key.get(), kRegistryScreenId, 0, REG_SZ,
+                     reinterpret_cast<const BYTE*>(wide_screen_id.c_str()),
+                     static_cast<DWORD>((wide_screen_id.size() + 1) *
+                                        sizeof(wchar_t)));
+  if (screen_status != ERROR_SUCCESS) {
+    LogRegistryError(L"write screen_id", screen_status);
+    return;
+  }
 
   // Store x and y as REG_SZ strings so negative coordinates survive.
-  const auto write_int_str = [&](const wchar_t* name, int value) {
+  const auto write_int_str = [&](const wchar_t* name, int value,
+                                 const wchar_t* label) -> bool {
     const std::wstring str = std::to_wstring(value);
-    RegSetValueExW(key.get(), name, 0, REG_SZ,
-                   reinterpret_cast<const BYTE*>(str.c_str()),
-                   static_cast<DWORD>((str.size() + 1) * sizeof(wchar_t)));
+    const LSTATUS value_status =
+        RegSetValueExW(key.get(), name, 0, REG_SZ,
+                       reinterpret_cast<const BYTE*>(str.c_str()),
+                       static_cast<DWORD>((str.size() + 1) * sizeof(wchar_t)));
+    if (value_status != ERROR_SUCCESS) {
+      LogRegistryError(label, value_status);
+      return false;
+    }
+    return true;
   };
-  write_int_str(kRegistryX, pos.x);
-  write_int_str(kRegistryY, pos.y);
+  if (!write_int_str(kRegistryX, pos.x, L"write x") ||
+      !write_int_str(kRegistryY, pos.y, L"write y")) {
+    return;
+  }
 
   // Keep the in-memory saved position in sync so same-process hide/show
   // or subsequent showOrUpdate calls see the latest clamped position.
@@ -797,9 +829,11 @@ void DesktopWidgetWindow::SavePositionToRegistry() {
 std::optional<DesktopWidgetWindow::WidgetPosition>
 DesktopWidgetWindow::LoadPositionFromRegistry() {
   RegKey key;
-  const LSTATUS status =
-      RegOpenKeyExW(HKEY_CURRENT_USER, kRegistryPath, 0, KEY_READ, &key);
+  const LSTATUS status = key.Open(HKEY_CURRENT_USER, kRegistryPath, KEY_READ);
   if (status != ERROR_SUCCESS || !key.valid()) {
+    if (status != ERROR_FILE_NOT_FOUND) {
+      LogRegistryError(L"open", status);
+    }
     return std::nullopt;
   }
 
@@ -809,27 +843,38 @@ DesktopWidgetWindow::LoadPositionFromRegistry() {
     // First query the type and size.
     DWORD type = 0;
     DWORD byte_size = 0;
-    if (RegQueryValueExW(key.get(), name, nullptr, &type, nullptr,
-                         &byte_size) != ERROR_SUCCESS) {
+    const LSTATUS query_status =
+        RegQueryValueExW(key.get(), name, nullptr, &type, nullptr,
+                         &byte_size);
+    if (query_status != ERROR_SUCCESS) {
+      if (query_status != ERROR_FILE_NOT_FOUND) {
+        LogRegistryError(L"query value", query_status);
+      }
       return false;
     }
     if (type != REG_SZ) {
+      OutputDebugStringW(
+          L"SpringNote: desktop widget registry value has unexpected type.\n");
       return false;
     }
     // Guard against empty or unreasonably large values (no valid position
     // string should exceed 256 bytes).
     if (byte_size == 0 || byte_size > 256) {
+      OutputDebugStringW(
+          L"SpringNote: desktop widget registry value has invalid size.\n");
       return false;
     }
-    // byte_size includes the null terminator; allocate a buffer and read.
-    // Round up to avoid truncation if byte_size is odd (tampered registry).
-    const DWORD wchar_count =
-        (byte_size + sizeof(wchar_t) - 1) / sizeof(wchar_t);
+    // byte_size includes the null terminator. Add one extra wchar so tampered
+    // odd byte sizes still have room for a terminator without arithmetic wrap.
+    const DWORD wchar_count = byte_size / sizeof(wchar_t) + 1;
     std::vector<wchar_t> buffer(wchar_count, L'\0');
     DWORD read_bytes = byte_size;
-    if (RegQueryValueExW(key.get(), name, nullptr, nullptr,
+    const LSTATUS read_status =
+        RegQueryValueExW(key.get(), name, nullptr, nullptr,
                          reinterpret_cast<BYTE*>(buffer.data()),
-                         &read_bytes) != ERROR_SUCCESS) {
+                         &read_bytes);
+    if (read_status != ERROR_SUCCESS) {
+      LogRegistryError(L"read value", read_status);
       return false;
     }
     // Ensure null-termination regardless of what the registry holds.
@@ -872,6 +917,12 @@ DesktopWidgetWindow::LoadPositionFromRegistry() {
     std::wstring str;
     if (read_string(kRegistryScreenId, str)) {
       position.screen_id = WideToUtf8(str.c_str());
+      MonitorSearchContext context{&position.screen_id, nullptr};
+      EnumDisplayMonitors(nullptr, nullptr, FindMonitorById,
+                          reinterpret_cast<LPARAM>(&context));
+      if (!context.monitor) {
+        position.screen_id.clear();
+      }
     }
   }
 
