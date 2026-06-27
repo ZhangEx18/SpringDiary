@@ -1,14 +1,20 @@
 #include "clipboard_image_manager.h"
 
 #include <windows.h>
+#include <shellapi.h>
 
 #include <gdiplus.h>
 #include <objidl.h>
 
 #include <cstdint>
+#include <cwchar>
+#include <cwctype>
 #include <memory>
 #include <optional>
+#include <string>
 #include <vector>
+
+#include "utils.h"
 
 namespace {
 
@@ -233,6 +239,65 @@ std::optional<std::vector<uint8_t>> EncodeDibClipboardFormat(UINT format) {
   return png;
 }
 
+bool EndsWithImageExtension(const std::wstring& path) {
+  for (const wchar_t* extension : {
+           L".png", L".jpg", L".jpeg", L".gif", L".webp",
+           L".bmp", L".heic", L".svg", L".jfif",
+       }) {
+    const size_t extension_length = wcslen(extension);
+    if (path.length() < extension_length) {
+      continue;
+    }
+    const size_t start = path.length() - extension_length;
+    bool matches = true;
+    for (size_t i = 0; i < extension_length; ++i) {
+      if (std::towlower(path[start + i]) != std::towlower(extension[i])) {
+        matches = false;
+        break;
+      }
+    }
+    if (matches) {
+      return true;
+    }
+  }
+  return false;
+}
+
+std::vector<std::string> ReadClipboardImageFiles() {
+  ClipboardGuard clipboard;
+  if (!clipboard.opened() || !IsClipboardFormatAvailable(CF_HDROP)) {
+    return {};
+  }
+
+  HANDLE handle = GetClipboardData(CF_HDROP);
+  if (!handle) {
+    return {};
+  }
+
+  HDROP drop = static_cast<HDROP>(handle);
+  const UINT count = DragQueryFileW(drop, 0xFFFFFFFF, nullptr, 0);
+  std::vector<std::string> files;
+  for (UINT index = 0; index < count; ++index) {
+    const UINT length = DragQueryFileW(drop, index, nullptr, 0);
+    if (length == 0) {
+      continue;
+    }
+    std::vector<wchar_t> buffer(length + 1, L'\0');
+    if (DragQueryFileW(drop, index, buffer.data(), length + 1) == 0) {
+      continue;
+    }
+    std::wstring path(buffer.data());
+    if (!EndsWithImageExtension(path)) {
+      continue;
+    }
+    auto utf8 = Utf8FromUtf16(path.c_str());
+    if (!utf8.empty()) {
+      files.push_back(std::move(utf8));
+    }
+  }
+  return files;
+}
+
 std::optional<std::vector<uint8_t>> ReadClipboardImageAsPng() {
   ClipboardGuard clipboard;
   if (!clipboard.opened()) {
@@ -289,6 +354,17 @@ void ClipboardImageManager::RegisterChannelHandler() {
       [](const flutter::MethodCall<flutter::EncodableValue>& call,
          std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>
              result) {
+        if (call.method_name() == "readImageFiles") {
+          auto files = ReadClipboardImageFiles();
+          flutter::EncodableList result_files;
+          result_files.reserve(files.size());
+          for (auto& file : files) {
+            result_files.emplace_back(std::move(file));
+          }
+          result->Success(flutter::EncodableValue(std::move(result_files)));
+          return;
+        }
+
         if (call.method_name() == "readPngImage") {
           auto png = ReadClipboardImageAsPng();
           if (!png) {

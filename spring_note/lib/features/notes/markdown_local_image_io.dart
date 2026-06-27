@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/widgets.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 Widget? buildMarkdownLocalImage({
   required String url,
@@ -13,6 +14,15 @@ Widget? buildMarkdownLocalImage({
   final file = _localImageFile(url, baseDirectoryPath);
   if (file == null) {
     return null;
+  }
+  if (_isSvgFile(file.path)) {
+    return SvgPicture.file(
+      file,
+      width: width,
+      height: height,
+      fit: fit,
+      placeholderBuilder: (context) => const SizedBox.shrink(),
+    );
   }
   return Image.file(
     file,
@@ -66,6 +76,10 @@ File? _candidateFile(String value, String baseDirectoryPath) {
   return File(_joinPath(baseDirectoryPath, Uri.decodeComponent(value)));
 }
 
+bool _isSvgFile(String path) {
+  return path.toLowerCase().endsWith('.svg');
+}
+
 bool _hasAllowedImageExtension(String path) {
   final lower = path.toLowerCase();
   return lower.endsWith('.png') ||
@@ -74,6 +88,8 @@ bool _hasAllowedImageExtension(String path) {
       lower.endsWith('.gif') ||
       lower.endsWith('.webp') ||
       lower.endsWith('.heic') ||
+      lower.endsWith('.svg') ||
+      lower.endsWith('.jfif') ||
       lower.endsWith('.bmp');
 }
 

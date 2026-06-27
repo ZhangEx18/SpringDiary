@@ -139,6 +139,8 @@ class PastedImageService {
       '.gif',
       '.webp',
       '.heic',
+      '.svg',
+      '.jfif',
       '.bmp',
     ]) {
       if (lower.endsWith(extension)) {

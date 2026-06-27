@@ -620,11 +620,21 @@ class _NotesPageState extends State<NotesPage> {
 
     _pastingClipboard = true;
     try {
-      final imageBytes = await _readClipboardImage();
+      final imageFiles = await _readClipboardImageFiles();
       if (!mounted || _loading) {
         return;
       }
       final selected = _selectedNote;
+
+      if (selected != null && imageFiles.isNotEmpty) {
+        await _pasteClipboardImageFiles(selected.path, imageFiles);
+        return;
+      }
+
+      final imageBytes = await _readClipboardImage();
+      if (!mounted || _loading) {
+        return;
+      }
 
       if (selected != null && imageBytes != null && imageBytes.isNotEmpty) {
         await _pasteClipboardImage(selected.path, imageBytes);
@@ -637,11 +647,66 @@ class _NotesPageState extends State<NotesPage> {
     }
   }
 
+  Future<List<NoteImageAttachment>> _readClipboardImageFiles() async {
+    try {
+      final files = await widget.clipboardImageService.readImageFiles();
+      return files
+          .map(
+            (path) =>
+                NoteImageAttachment(path: path, name: _fileNameFromPath(path)),
+          )
+          .toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
   Future<Uint8List?> _readClipboardImage() async {
     try {
       return widget.clipboardImageService.readPngImage();
     } catch (_) {
       return null;
+    }
+  }
+
+  Future<void> _pasteClipboardImageFiles(
+    String notePath,
+    List<NoteImageAttachment> imageFiles,
+  ) async {
+    try {
+      final copiedImages = <NoteImageAttachment>[];
+      for (final image in imageFiles) {
+        final saved = await widget.pastedImageService.copyImageFileForNote(
+          notePath: notePath,
+          sourcePath: image.path,
+          sourceName: image.name,
+        );
+        copiedImages.add(
+          NoteImageAttachment(path: saved.path, name: saved.name),
+        );
+      }
+      if (!mounted || copiedImages.isEmpty) {
+        return;
+      }
+      final snippets = copiedImages
+          .map((image) => _markdownImageSnippet(image, notePath: notePath))
+          .toList();
+      _insertPlainText(_insertionTextForBlock(snippets.join('\n')));
+      setState(() {
+        _editorMessage = '已粘贴图片';
+        _fimMessage = null;
+      });
+      _editorFocusNode.requestFocus();
+    } on ArgumentError catch (error, stackTrace) {
+      debugPrint('Unsupported clipboard image file: $error\n$stackTrace');
+      if (mounted) {
+        setState(() => _editorMessage = '图片格式不支持，请重新复制图片文件。');
+      }
+    } catch (error, stackTrace) {
+      debugPrint('Failed to paste clipboard image files: $error\n$stackTrace');
+      if (mounted) {
+        setState(() => _editorMessage = '无法粘贴图片，请重新获取图片后重试。');
+      }
     }
   }
 
@@ -723,11 +788,15 @@ class _NotesPageState extends State<NotesPage> {
     if (name.isNotEmpty) {
       return name;
     }
-    final segments = file.path.split(RegExp(r'[\\/]')).where((item) {
+    return _fileNameFromPath(file.path);
+  }
+
+  String _fileNameFromPath(String path) {
+    final segments = path.split(RegExp(r'[\\/]')).where((item) {
       return item.trim().isNotEmpty;
     }).toList();
     if (segments.isEmpty) {
-      return file.path;
+      return path;
     }
     return segments.last;
   }

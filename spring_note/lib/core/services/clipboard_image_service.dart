@@ -7,6 +7,25 @@ class ClipboardImageService {
 
   final MethodChannel _channel;
 
+  Future<List<String>> readImageFiles() async {
+    try {
+      final files = await _channel.invokeMethod<List<Object?>>(
+        'readImageFiles',
+      );
+      if (files == null || files.isEmpty) {
+        return const [];
+      }
+      return files
+          .whereType<String>()
+          .where((path) => path.trim().isNotEmpty)
+          .toList();
+    } on MissingPluginException {
+      return const [];
+    } on PlatformException {
+      return const [];
+    }
+  }
+
   Future<Uint8List?> readPngImage() async {
     try {
       final bytes = await _channel.invokeMethod<Uint8List>('readPngImage');
