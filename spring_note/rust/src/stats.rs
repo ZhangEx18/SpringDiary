@@ -56,10 +56,12 @@ pub fn record_model_call(
     request: &AiChatRequest,
     result: &AiTextResult,
 ) -> Result<()> {
-    let connection = open_connection(app_data_dir)?;
+    let mut connection = open_connection(app_data_dir)?;
     initialize(&connection)?;
 
-    connection.execute(
+    let tx = connection.transaction()?;
+
+    tx.execute(
         "INSERT INTO model_call_records (
             created_at,
             provider_id,
@@ -90,7 +92,7 @@ pub fn record_model_call(
         ],
     )?;
 
-    connection.execute(
+    tx.execute(
         "INSERT INTO token_usage_daily (
             date,
             input_tokens,
@@ -111,10 +113,39 @@ pub fn record_model_call(
     )?;
 
     if result.ok && request.purpose == "fim_edit_completion" {
-        increment_daily_stats(app_data_dir, 0, 1, 0, 0.0, 1)?;
+        tx.execute(
+            "INSERT INTO daily_stats (
+                date,
+                home_generations,
+                fim_completions,
+                work_seconds,
+                coins,
+                active_count
+            ) VALUES (date('now', 'localtime'), 0, 1, 0, 0.0, 1)
+            ON CONFLICT(date) DO UPDATE SET
+                home_generations = home_generations + excluded.home_generations,
+                fim_completions = fim_completions + excluded.fim_completions,
+                work_seconds = work_seconds + excluded.work_seconds,
+                coins = coins + excluded.coins,
+                active_count = active_count + excluded.active_count",
+            [],
+        )?;
     }
 
+    tx.commit()?;
+
     Ok(())
+}
+
+pub fn record_model_call_or_warn(
+    caller: &str,
+    app_data_dir: &str,
+    request: &AiChatRequest,
+    result: &AiTextResult,
+) {
+    if let Err(e) = record_model_call(app_data_dir, request, result) {
+        eprintln!("[WARN] record_model_call failed in {caller}: {e}");
+    }
 }
 
 pub fn record_app_startup(app_data_dir: &str) -> Result<()> {
@@ -687,5 +718,146 @@ mod tests {
             .unwrap()
             .as_nanos();
         std::env::temp_dir().join(format!("{prefix}_{suffix}"))
+    }
+
+    #[test]
+    fn record_model_call_writes_all_three_tables() {
+        let dir = temp_dir("spring_note_stats_transaction");
+        let app_data_dir = dir.to_string_lossy().to_string();
+        let request = request(&app_data_dir, "fim_edit_completion");
+        let result = AiTextResult::success(&request, "ok", 10, 5, 2);
+
+        record_model_call(&app_data_dir, &request, &result).unwrap();
+
+        let connection = Connection::open(dir.join("springnote.db")).unwrap();
+        let model_count: i64 = connection
+            .query_row("SELECT COUNT(*) FROM model_call_records", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        let token_count: i64 = connection
+            .query_row("SELECT COUNT(*) FROM token_usage_daily", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        let daily_count: i64 = connection
+            .query_row("SELECT COUNT(*) FROM daily_stats", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(model_count, 1, "model_call_records should have 1 row");
+        assert_eq!(token_count, 1, "token_usage_daily should have 1 row");
+        assert_eq!(daily_count, 1, "daily_stats should have 1 row for fim");
+
+        let tokens: (i32, i32, i32, i32) = connection
+            .query_row(
+                "SELECT input_tokens, output_tokens, cached_tokens, call_count FROM token_usage_daily",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .unwrap();
+        assert_eq!(tokens, (10, 5, 2, 1));
+
+        let fim: i32 = connection
+            .query_row("SELECT fim_completions FROM daily_stats", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(fim, 1);
+
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn record_model_call_rollback_on_error() {
+        let dir = temp_dir("spring_note_stats_rollback");
+        let app_data_dir = dir.to_string_lossy().to_string();
+        let db_path = dir.join("springnote.db");
+
+        // Set up a trigger that causes an ABORT after the first INSERT, simulating
+        // an integrity error during the transaction.
+        fs::create_dir_all(&app_data_dir).unwrap();
+        {
+            let connection = Connection::open(&db_path).unwrap();
+            connection
+                .execute_batch(
+                    "CREATE TABLE IF NOT EXISTS model_call_records (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        created_at TEXT NOT NULL,
+                        provider_id TEXT NOT NULL,
+                        provider_name TEXT NOT NULL,
+                        protocol TEXT NOT NULL,
+                        model_id TEXT NOT NULL,
+                        purpose TEXT NOT NULL,
+                        ok INTEGER NOT NULL,
+                        error_code TEXT NOT NULL,
+                        error_message TEXT NOT NULL,
+                        input_tokens INTEGER NOT NULL DEFAULT 0,
+                        output_tokens INTEGER NOT NULL DEFAULT 0,
+                        cached_tokens INTEGER NOT NULL DEFAULT 0
+                    );
+                    CREATE TABLE IF NOT EXISTS token_usage_daily (
+                        date TEXT PRIMARY KEY,
+                        input_tokens INTEGER NOT NULL DEFAULT 0,
+                        output_tokens INTEGER NOT NULL DEFAULT 0,
+                        cached_tokens INTEGER NOT NULL DEFAULT 0,
+                        call_count INTEGER NOT NULL DEFAULT 0
+                    );
+                    CREATE TABLE IF NOT EXISTS daily_stats (
+                        date TEXT PRIMARY KEY,
+                        home_generations INTEGER NOT NULL DEFAULT 0,
+                        fim_completions INTEGER NOT NULL DEFAULT 0,
+                        work_seconds INTEGER NOT NULL DEFAULT 0,
+                        coins REAL NOT NULL DEFAULT 0,
+                        active_count INTEGER NOT NULL DEFAULT 0,
+                        app_launches INTEGER NOT NULL DEFAULT 0
+                    );
+                    CREATE TABLE IF NOT EXISTS app_counters (
+                        key TEXT PRIMARY KEY,
+                        value INTEGER NOT NULL DEFAULT 0
+                    );
+                    -- Abort on the second INSERT (token_usage_daily) to test rollback
+                    CREATE TRIGGER IF NOT EXISTS test_rollback_trigger
+                    AFTER INSERT ON token_usage_daily
+                    FOR EACH ROW
+                    BEGIN
+                        SELECT RAISE(ABORT, 'simulated integrity error');
+                    END;",
+                )
+                .unwrap();
+        }
+
+        // Use fim_edit_completion so the daily_stats INSERT path is also attempted
+        // (but never reached because the trigger aborts on the second INSERT).
+        let request = request(&app_data_dir, "fim_edit_completion");
+        let result = AiTextResult::success(&request, "ok", 3, 5, 1);
+        let call_result = record_model_call(&app_data_dir, &request, &result);
+
+        assert!(call_result.is_err(), "transaction should be rolled back");
+
+        // Verify nothing was committed — all three tables must be empty
+        let connection = Connection::open(&db_path).unwrap();
+        let model_count: i64 = connection
+            .query_row("SELECT COUNT(*) FROM model_call_records", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(
+            model_count, 0,
+            "model_call_records should be empty after rollback"
+        );
+        let token_count: i64 = connection
+            .query_row("SELECT COUNT(*) FROM token_usage_daily", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(
+            token_count, 0,
+            "token_usage_daily should be empty after rollback"
+        );
+        let daily_count: i64 = connection
+            .query_row("SELECT COUNT(*) FROM daily_stats", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(daily_count, 0, "daily_stats should be empty after rollback");
+
+        fs::remove_dir_all(dir).ok();
     }
 }
