@@ -12,8 +12,21 @@ hero:
 ---
 
 <div class="hero-actions">
-  <a class="primary" href="https://github.com/Radiant303/SpringNote/releases/latest">下载最新版</a>
-  <a href="./features">阅读文档</a>
+  <a class="primary" href="https://github.com/Radiant303/SpringNote/releases/latest">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+      <polyline points="7 10 12 15 17 10"/>
+      <line x1="12" x2="12" y1="15" y2="3"/>
+    </svg>
+    下载最新版
+  </a>
+  <a href="./features">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+      <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+    </svg>
+    阅读文档
+  </a>
 </div>
 
 <div class="home-showcase">
@@ -23,14 +36,7 @@ hero:
     <span></span>
   </div>
   <div class="home-preview">
-    <img src="/images/index.png" alt="SpringNote 首页工作台截图">
-    <div class="home-badge">
-      <i class="status-dot"></i>
-      <div>
-        <strong>今日工作台</strong>
-        <span>正在记录</span>
-      </div>
-    </div>
+    <HomeDemo />
   </div>
 </div>
 

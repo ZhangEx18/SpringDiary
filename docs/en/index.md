@@ -23,14 +23,7 @@ hero:
     <span></span>
   </div>
   <div class="home-preview">
-    <img src="/images/index.png" alt="SpringNote home workspace screenshot">
-    <div class="home-badge">
-      <i class="status-dot"></i>
-      <div>
-        <strong>Daily workspace</strong>
-        <span>Live</span>
-      </div>
-    </div>
+    <HomeDemo />
   </div>
 </div>
 
