@@ -1286,11 +1286,19 @@ impl StreamAccumulator {
                 self.tool_calls.push(ToolCallAccumulator::default());
             }
             let target = &mut self.tool_calls[index];
-            if let Some(id) = item.get("id").and_then(Value::as_str) {
+            if let Some(id) = item
+                .get("id")
+                .and_then(Value::as_str)
+                .filter(|id| !id.is_empty())
+            {
                 target.id = id.to_string();
             }
             if let Some(function) = item.get("function") {
-                if let Some(name) = function.get("name").and_then(Value::as_str) {
+                if let Some(name) = function
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .filter(|name| !name.is_empty())
+                {
                     target.name.push_str(name);
                 }
                 if let Some(arguments) = function.get("arguments").and_then(Value::as_str) {
@@ -1895,6 +1903,40 @@ mod tests {
         let body = build_memory_tool_responses_body(&request, "system");
         assert_eq!(body["reasoning"]["effort"], "xhigh");
         assert_eq!(body["reasoning"]["summary"], "auto");
+    }
+
+    #[test]
+    fn preserves_chat_stream_tool_call_id_when_empty_delta_follows() {
+        let mut accumulator = StreamAccumulator::default();
+
+        accumulator.merge_tool_delta(&json!({
+            "tool_calls": [{
+                "id": "call_81c2f75710b04487a7235a76",
+                "type": "function",
+                "index": 0,
+                "function": {
+                    "name": "get_current_date",
+                    "arguments": ""
+                }
+            }]
+        }));
+        accumulator.merge_tool_delta(&json!({
+            "tool_calls": [{
+                "id": "",
+                "type": "function",
+                "index": 0,
+                "function": {
+                    "name": "",
+                    "arguments": "{}"
+                }
+            }]
+        }));
+
+        let tool_calls = accumulator.tool_calls();
+        assert_eq!(tool_calls.len(), 1);
+        assert_eq!(tool_calls[0].id, "call_81c2f75710b04487a7235a76");
+        assert_eq!(tool_calls[0].name, "get_current_date");
+        assert_eq!(tool_calls[0].arguments, "{}");
     }
 
     #[test]
