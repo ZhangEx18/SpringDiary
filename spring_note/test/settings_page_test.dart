@@ -370,11 +370,16 @@ void main() {
     await tester.pumpAndSettle();
 
     final dialog = find.byType(Dialog);
+    expect(
+      find.descendant(of: dialog, matching: find.text('OpenRouter')),
+      findsOneWidget,
+    );
     await tester.tap(
-      find.descendant(
-        of: dialog,
-        matching: find.text('OpenRouter · chat-model'),
-      ),
+      find.descendant(of: dialog, matching: find.text('OpenRouter')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.descendant(of: dialog, matching: find.text('Shared Chat')).last,
     );
     await tester.pumpAndSettle();
 

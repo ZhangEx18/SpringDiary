@@ -188,21 +188,64 @@ class _ModelPickerDialogState extends State<_ModelPickerDialog> {
   late final TextEditingController _controller = TextEditingController();
   String _query = '';
   String? _hoveredOptionKey;
+  String? _hoveredProviderId;
+  final Set<String> _expandedProviderIds = {};
 
-  List<_ProviderModelOption?> get _models {
+  List<_ProviderModelOption> get _filteredModels {
     final normalizedQuery = _query.trim().toLowerCase();
-    final values = <_ProviderModelOption?>[null, ...widget.models];
     if (normalizedQuery.isEmpty) {
-      return values;
+      return widget.models;
     }
-    return values.where((model) {
-      if (model == null) {
-        return '未选择'.contains(normalizedQuery);
-      }
+    return widget.models.where((model) {
       return '${model.model.displayName} ${model.model.modelId} ${model.provider.name}'
           .toLowerCase()
           .contains(normalizedQuery);
     }).toList();
+  }
+
+  bool get _showNoneOption {
+    final normalizedQuery = _query.trim().toLowerCase();
+    return normalizedQuery.isEmpty || '未选择'.contains(normalizedQuery);
+  }
+
+  List<_ModelPickerProviderGroup> get _groups {
+    final groupsByProvider = <String, _ModelPickerProviderGroup>{};
+    for (final option in _filteredModels) {
+      groupsByProvider
+          .putIfAbsent(
+            option.provider.id,
+            () => _ModelPickerProviderGroup(
+              provider: option.provider,
+              models: <_ProviderModelOption>[],
+            ),
+          )
+          .models
+          .add(option);
+    }
+    return groupsByProvider.values.toList();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    final selectedRef = ModelReference.parse(widget.selectedValue);
+    final selectedProviderId = selectedRef == null
+        ? null
+        : widget.models
+              .where(
+                (option) => selectedRef.matches(
+                  providerId: option.provider.id,
+                  modelId: option.model.modelId,
+                ),
+              )
+              .firstOrNull
+              ?.provider
+              .id;
+    final initialProviderId =
+        selectedProviderId ?? widget.models.firstOrNull?.provider.id;
+    if (initialProviderId != null) {
+      _expandedProviderIds.add(initialProviderId);
+    }
   }
 
   @override
@@ -211,28 +254,68 @@ class _ModelPickerDialogState extends State<_ModelPickerDialog> {
     super.dispose();
   }
 
+  bool _providerExpanded(String providerId) {
+    if (_query.trim().isNotEmpty) {
+      return true;
+    }
+    return _expandedProviderIds.contains(providerId);
+  }
+
+  void _toggleProvider(String providerId) {
+    setState(() {
+      if (_expandedProviderIds.contains(providerId)) {
+        _expandedProviderIds.remove(providerId);
+      } else {
+        _expandedProviderIds.add(providerId);
+      }
+    });
+  }
+
+  void _setHoveredOption(String optionKey, bool hovered) {
+    setState(() {
+      if (hovered) {
+        _hoveredOptionKey = optionKey;
+      } else if (_hoveredOptionKey == optionKey) {
+        _hoveredOptionKey = null;
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    final models = _models;
+    final groups = _groups;
+    final showNoneOption = _showNoneOption;
     final selectedRef = ModelReference.parse(widget.selectedValue);
     return Dialog(
       backgroundColor: Colors.white,
       insetPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       child: SizedBox(
-        width: 460,
-        height: 560,
+        width: 720,
+        height: 660,
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(22, 20, 14, 14),
+              padding: const EdgeInsets.fromLTRB(24, 22, 16, 14),
               child: Row(
                 children: [
                   Expanded(
-                    child: Text(
-                      '选择${widget.title}',
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '选择${widget.title}',
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(color: AppTheme.text),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          '按供应商选择默认模型',
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: AppTheme.textSubtle),
+                        ),
+                      ],
                     ),
                   ),
                   IconButton(
@@ -244,7 +327,7 @@ class _ModelPickerDialogState extends State<_ModelPickerDialog> {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 14),
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
               child: _SettingsSearchField(
                 controller: _controller,
                 autofocus: true,
@@ -253,43 +336,89 @@ class _ModelPickerDialogState extends State<_ModelPickerDialog> {
               ),
             ),
             Expanded(
-              child: models.isEmpty
+              child: groups.isEmpty && !showNoneOption
                   ? Center(
                       child: Text(
                         '没有匹配的模型',
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                     )
-                  : ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 14),
-                      itemCount: models.length,
-                      itemBuilder: (context, index) {
-                        final model = models[index];
-                        final optionKey = model?.value ?? '__none__';
-                        return _ModelOptionTile(
-                          model: model,
-                          selected: model == null
-                              ? selectedRef == null
-                              : selectedRef?.matches(
-                                      providerId: model.provider.id,
-                                      modelId: model.model.modelId,
-                                    ) ??
-                                    false,
-                          hovered: optionKey == _hoveredOptionKey,
-                          onHoverChanged: (hovered) {
-                            setState(() {
-                              if (hovered) {
-                                _hoveredOptionKey = optionKey;
-                              } else if (_hoveredOptionKey == optionKey) {
-                                _hoveredOptionKey = null;
-                              }
-                            });
-                          },
-                          onTap: () => Navigator.of(
-                            context,
-                          ).pop(_ModelSelectionResult(model?.value)),
-                        );
-                      },
+                  : ListView(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
+                      children: [
+                        if (showNoneOption)
+                          _ModelOptionTile(
+                            model: null,
+                            selected: selectedRef == null,
+                            hovered: _hoveredOptionKey == '__none__',
+                            onHoverChanged: (hovered) =>
+                                _setHoveredOption('__none__', hovered),
+                            onTap: () => Navigator.of(
+                              context,
+                            ).pop(const _ModelSelectionResult(null)),
+                          ),
+                        for (final group in groups) ...[
+                          _ProviderModelGroupHeader(
+                            name: group.provider.name,
+                            count: group.models.length,
+                            expanded: _providerExpanded(group.provider.id),
+                            hovered: _hoveredProviderId == group.provider.id,
+                            onHoverChanged: (hovered) {
+                              setState(() {
+                                if (hovered) {
+                                  _hoveredProviderId = group.provider.id;
+                                } else if (_hoveredProviderId ==
+                                    group.provider.id) {
+                                  _hoveredProviderId = null;
+                                }
+                              });
+                            },
+                            onTap: () => _toggleProvider(group.provider.id),
+                          ),
+                          ClipRect(
+                            child: AnimatedSize(
+                              duration: const Duration(milliseconds: 280),
+                              reverseDuration: const Duration(
+                                milliseconds: 190,
+                              ),
+                              curve: Curves.easeOutCubic,
+                              alignment: Alignment.topCenter,
+                              child: _providerExpanded(group.provider.id)
+                                  ? Column(
+                                      children: [
+                                        const SizedBox(height: 6),
+                                        for (final model in group.models)
+                                          _ModelOptionTile(
+                                            model: model,
+                                            selected:
+                                                selectedRef?.matches(
+                                                  providerId: model.provider.id,
+                                                  modelId: model.model.modelId,
+                                                ) ??
+                                                false,
+                                            hovered:
+                                                _hoveredOptionKey ==
+                                                model.value,
+                                            onHoverChanged: (hovered) =>
+                                                _setHoveredOption(
+                                                  model.value,
+                                                  hovered,
+                                                ),
+                                            onTap: () =>
+                                                Navigator.of(context).pop(
+                                                  _ModelSelectionResult(
+                                                    model.value,
+                                                  ),
+                                                ),
+                                          ),
+                                      ],
+                                    )
+                                  : const SizedBox(width: double.infinity),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                        ],
+                      ],
                     ),
             ),
           ],
@@ -297,6 +426,16 @@ class _ModelPickerDialogState extends State<_ModelPickerDialog> {
       ),
     );
   }
+}
+
+class _ModelPickerProviderGroup {
+  const _ModelPickerProviderGroup({
+    required this.provider,
+    required this.models,
+  });
+
+  final ProviderConfig provider;
+  final List<_ProviderModelOption> models;
 }
 
 class _ModelOptionTile extends StatelessWidget {
@@ -322,9 +461,6 @@ class _ModelOptionTile extends StatelessWidget {
         : const Color(0xFFF5F5F5);
     final option = model;
     final title = option?.model.displayName ?? '未选择';
-    final subtitle = option == null
-        ? null
-        : '${option.provider.name} · ${option.model.modelId}';
     final contentColor = active ? AppTheme.text : AppTheme.textMuted;
 
     return MouseRegion(
@@ -335,14 +471,14 @@ class _ModelOptionTile extends StatelessWidget {
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
         child: SizedBox(
-          height: 48,
+          height: option == null ? 48 : 50,
           child: Stack(
             children: [
               Positioned(
-                left: 0,
+                left: option == null ? 0 : 28,
                 top: 0,
                 right: 0,
-                bottom: 4,
+                bottom: option == null ? 4 : 5,
                 child: AnimatedOpacity(
                   duration: const Duration(milliseconds: 120),
                   curve: Curves.easeOutCubic,
@@ -350,48 +486,36 @@ class _ModelOptionTile extends StatelessWidget {
                   child: DecoratedBox(
                     decoration: BoxDecoration(
                       color: backgroundColor,
-                      borderRadius: BorderRadius.circular(13),
+                      borderRadius: BorderRadius.circular(
+                        option == null ? 13 : 14,
+                      ),
                     ),
                   ),
                 ),
               ),
               Positioned(
-                left: 0,
+                left: option == null ? 0 : 28,
                 top: 0,
                 right: 0,
-                bottom: 4,
+                bottom: option == null ? 4 : 5,
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  padding: option == null
+                      ? const EdgeInsets.symmetric(horizontal: 12)
+                      : const EdgeInsets.only(left: 14, right: 10),
                   child: Row(
                     children: [
                       Expanded(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              title,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.bodyMedium
-                                  ?.copyWith(
-                                    color: contentColor,
-                                    fontWeight: selected
-                                        ? FontWeight.w600
-                                        : FontWeight.w400,
-                                    height: 1.1,
-                                  ),
-                            ),
-                            if (subtitle != null)
-                              Text(
-                                subtitle,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(
-                                      color: AppTheme.textSubtle,
-                                      height: 1.1,
-                                    ),
+                        child: Text(
+                          title,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: contentColor,
+                                fontWeight: selected
+                                    ? FontWeight.w600
+                                    : FontWeight.w400,
+                                height: 1.2,
                               ),
-                          ],
                         ),
                       ),
                       if (selected)
