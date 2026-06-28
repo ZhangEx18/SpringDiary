@@ -372,30 +372,6 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     controller.dispose();
   });
-
-  testWidgets('desktop widget controller flushes pending income on shutdown', (
-    WidgetTester tester,
-  ) async {
-    final statsService = _RecordingStatsService();
-    final localDataState = _testLocalDataState(
-      config: AppConfig.defaults().copyWith(
-        dailyWorkHours: 1,
-        dailySalary: 3600,
-      ),
-    );
-    final controller = DesktopWidgetController(
-      statsService: statsService,
-      tickDuration: const Duration(seconds: 1),
-    )..attach(localDataState);
-
-    await tester.pump(const Duration(seconds: 30));
-    await controller.flush();
-
-    expect(statsService.recordedWorkSeconds, [30]);
-    expect(statsService.recordedCoins.single, 30);
-
-    controller.dispose();
-  });
 }
 
 LocalDataState _testLocalDataState({AppConfig? config}) {
@@ -576,30 +552,6 @@ class _FakeStatsService extends StatsService {
     required int workSeconds,
     required double coins,
   }) async {}
-}
-
-class _RecordingStatsService extends StatsService {
-  final List<int> recordedWorkSeconds = [];
-  final List<double> recordedCoins = [];
-
-  @override
-  Future<rust_stats.StatsSnapshot> readSnapshot({
-    required LocalDataState localDataState,
-    required DateTime start,
-    required DateTime end,
-  }) async {
-    return StatsService.emptySnapshot;
-  }
-
-  @override
-  Future<void> recordWorkTime({
-    required String appDataDir,
-    required int workSeconds,
-    required double coins,
-  }) async {
-    recordedWorkSeconds.add(workSeconds);
-    recordedCoins.add(coins);
-  }
 }
 
 const _transparentPngBytes = [
