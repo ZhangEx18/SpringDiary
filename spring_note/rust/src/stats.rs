@@ -3,8 +3,10 @@ use chrono::{Datelike, Duration, Local, NaiveDate, Weekday};
 use rusqlite::{Connection, OptionalExtension, Result, TransactionBehavior, params};
 use std::fs;
 use std::path::Path;
+use std::time::Duration as StdDuration;
 
 const DB_FILENAME: &str = "springnote.db";
+const DB_BUSY_TIMEOUT: StdDuration = StdDuration::from_secs(5);
 
 #[derive(Clone, Debug)]
 pub struct StatsSummary {
@@ -349,7 +351,9 @@ fn increment_daily_stats(
 fn open_connection(app_data_dir: &str) -> Result<Connection> {
     fs::create_dir_all(app_data_dir).ok();
     let db_path = Path::new(app_data_dir).join(DB_FILENAME);
-    Connection::open(db_path)
+    let connection = Connection::open(db_path)?;
+    connection.busy_timeout(DB_BUSY_TIMEOUT)?;
+    Ok(connection)
 }
 
 fn initialize(connection: &Connection) -> Result<()> {
