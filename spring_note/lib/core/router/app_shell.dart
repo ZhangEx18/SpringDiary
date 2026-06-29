@@ -49,7 +49,14 @@ class AppShell extends StatefulWidget {
   State<AppShell> createState() => _AppShellState();
 }
 
-class _AppShellState extends State<AppShell> {
+class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
+  static const _updateCheckRetryDelays = [
+    Duration(seconds: 2),
+    Duration(seconds: 5),
+    Duration(seconds: 15),
+  ];
+  static const _updateCheckResumeInterval = Duration(hours: 1);
+
   AppSection _section = AppSection.home;
   late LocalDataState _localDataState = widget.localDataState;
   late final DesktopWidgetController _desktopWidgetController =
@@ -66,13 +73,18 @@ class _AppShellState extends State<AppShell> {
   UpdateCheckResult _updateCheckResult = UpdateCheckResult.idle;
   int _noteExternalUpdateRevision = 0;
   Timer? _desktopWidgetPositionSaveTimer;
+  Timer? _updateCheckRetryTimer;
   AppConfig? _pendingDesktopWidgetPositionConfig;
   bool _syncingOnStartup = false;
+  bool _checkingForUpdates = false;
+  int _updateCheckRetryAttempt = 0;
+  DateTime? _lastUpdateCheckAttemptAt;
   String? _startupCloudSyncMessage;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _desktopWidgetController.addListener(_syncDesktopWidgetWindow);
     _levelProgressController.addListener(_handleLevelProgressChanged);
     unawaited(
@@ -89,7 +101,7 @@ class _AppShellState extends State<AppShell> {
       _syncGlobalHotkey(_localDataState.config);
       unawaited(_runStartupCloudSync(_localDataState));
       unawaited(_runStartupReportGeneration(_localDataState));
-      unawaited(_runUpdateCheck(_localDataState.config));
+      unawaited(_runUpdateCheck(_localDataState.config, resetRetry: true));
     });
   }
 
@@ -105,15 +117,17 @@ class _AppShellState extends State<AppShell> {
       _syncTray(_localDataState.config);
       _syncGlobalHotkey(_localDataState.config);
       unawaited(_runStartupReportGeneration(_localDataState));
-      unawaited(_runUpdateCheck(_localDataState.config));
+      unawaited(_runUpdateCheck(_localDataState.config, resetRetry: true));
     }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _desktopWidgetController.removeListener(_syncDesktopWidgetWindow);
     _levelProgressController.removeListener(_handleLevelProgressChanged);
     _flushDesktopWidgetPositionSave();
+    _cancelUpdateCheckRetry();
     unawaited(_globalHotkeyService.unregisterToggleWindowHotkey());
     unawaited(_trayService.dispose());
     unawaited(_desktopWidgetWindow.dispose());
@@ -121,6 +135,14 @@ class _AppShellState extends State<AppShell> {
     _desktopWidgetController.dispose();
     _levelProgressController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) {
+      return;
+    }
+    _runUpdateCheckAfterResume();
   }
 
   void _openHomeFromDesktopWidget() {
@@ -205,7 +227,7 @@ class _AppShellState extends State<AppShell> {
       unawaited(_runStartupCloudSync(state));
     }
     unawaited(_runStartupReportGeneration(state));
-    unawaited(_runUpdateCheck(state.config));
+    unawaited(_runUpdateCheck(state.config, resetRetry: true));
   }
 
   void _notifyNoteSaved(NoteKind kind, String path) {
@@ -327,19 +349,91 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
-  Future<void> _runUpdateCheck(AppConfig config) async {
+  void _runUpdateCheckAfterResume() {
+    if (!_localDataState.config.showUpdates || _checkingForUpdates) {
+      return;
+    }
+    final lastAttempt = _lastUpdateCheckAttemptAt;
+    if (lastAttempt != null &&
+        DateTime.now().difference(lastAttempt) < _updateCheckResumeInterval) {
+      return;
+    }
+    unawaited(_runUpdateCheck(_localDataState.config, resetRetry: true));
+  }
+
+  Future<void> _runUpdateCheck(
+    AppConfig config, {
+    required bool resetRetry,
+  }) async {
+    if (resetRetry) {
+      _cancelUpdateCheckRetry();
+      _updateCheckRetryAttempt = 0;
+    }
     if (!config.showUpdates) {
+      _cancelUpdateCheckRetry();
       if (mounted) {
         setState(() => _updateCheckResult = UpdateCheckResult.idle);
       }
       return;
     }
+    if (_checkingForUpdates) {
+      return;
+    }
 
-    final result = await widget.updateCheckService.check();
+    _checkingForUpdates = true;
+    _lastUpdateCheckAttemptAt = DateTime.now();
+    late final UpdateCheckResult result;
+    try {
+      result = await widget.updateCheckService.check();
+    } catch (_) {
+      result = UpdateCheckResult.failedWithKind(
+        currentVersion: '',
+        failureKind: UpdateCheckFailureKind.temporary,
+      );
+    } finally {
+      _checkingForUpdates = false;
+    }
     if (!mounted || config != _localDataState.config) {
       return;
     }
-    setState(() => _updateCheckResult = result);
+    switch (result.status) {
+      case UpdateCheckStatus.updateAvailable:
+        _cancelUpdateCheckRetry();
+        setState(() => _updateCheckResult = result);
+      case UpdateCheckStatus.idle:
+        _cancelUpdateCheckRetry();
+        setState(() => _updateCheckResult = UpdateCheckResult.idle);
+      case UpdateCheckStatus.failed:
+        if (_shouldRetryUpdateCheck(result.failureKind)) {
+          _scheduleUpdateCheckRetry();
+        } else if (_updateCheckResult.status !=
+            UpdateCheckStatus.updateAvailable) {
+          setState(() => _updateCheckResult = UpdateCheckResult.idle);
+        }
+    }
+  }
+
+  bool _shouldRetryUpdateCheck(UpdateCheckFailureKind failureKind) {
+    return (failureKind == UpdateCheckFailureKind.offline ||
+            failureKind == UpdateCheckFailureKind.temporary) &&
+        _updateCheckRetryAttempt < _updateCheckRetryDelays.length;
+  }
+
+  void _scheduleUpdateCheckRetry() {
+    final delay = _updateCheckRetryDelays[_updateCheckRetryAttempt];
+    _updateCheckRetryAttempt += 1;
+    _updateCheckRetryTimer?.cancel();
+    _updateCheckRetryTimer = Timer(delay, () {
+      if (!mounted) {
+        return;
+      }
+      unawaited(_runUpdateCheck(_localDataState.config, resetRetry: false));
+    });
+  }
+
+  void _cancelUpdateCheckRetry() {
+    _updateCheckRetryTimer?.cancel();
+    _updateCheckRetryTimer = null;
   }
 
   void _syncDesktopWidgetWindow() {

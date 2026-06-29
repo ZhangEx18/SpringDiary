@@ -28,10 +28,13 @@ class AppUpdateInfo {
 
 enum UpdateCheckStatus { idle, updateAvailable, failed }
 
+enum UpdateCheckFailureKind { none, offline, temporary, permanent }
+
 class UpdateCheckResult {
   const UpdateCheckResult._({
     required this.status,
     required this.currentVersion,
+    this.failureKind = UpdateCheckFailureKind.none,
     this.latest,
   });
 
@@ -50,6 +53,18 @@ class UpdateCheckResult {
     return UpdateCheckResult._(
       status: UpdateCheckStatus.failed,
       currentVersion: currentVersion,
+      failureKind: UpdateCheckFailureKind.permanent,
+    );
+  }
+
+  factory UpdateCheckResult.failedWithKind({
+    required String currentVersion,
+    required UpdateCheckFailureKind failureKind,
+  }) {
+    return UpdateCheckResult._(
+      status: UpdateCheckStatus.failed,
+      currentVersion: currentVersion,
+      failureKind: failureKind,
     );
   }
 
@@ -60,6 +75,7 @@ class UpdateCheckResult {
 
   final UpdateCheckStatus status;
   final String currentVersion;
+  final UpdateCheckFailureKind failureKind;
   final AppUpdateInfo? latest;
 }
 
@@ -105,8 +121,38 @@ class UpdateCheckService {
           changelog: changelog,
         ),
       );
+    } on FormatException {
+      return UpdateCheckResult.failedWithKind(
+        currentVersion: currentVersion,
+        failureKind: UpdateCheckFailureKind.permanent,
+      );
+    } on _UpdateHttpStatusException catch (error) {
+      return UpdateCheckResult.failedWithKind(
+        currentVersion: currentVersion,
+        failureKind: error.temporary
+            ? UpdateCheckFailureKind.temporary
+            : UpdateCheckFailureKind.permanent,
+      );
+    } on SocketException {
+      return UpdateCheckResult.failedWithKind(
+        currentVersion: currentVersion,
+        failureKind: UpdateCheckFailureKind.offline,
+      );
+    } on TimeoutException {
+      return UpdateCheckResult.failedWithKind(
+        currentVersion: currentVersion,
+        failureKind: UpdateCheckFailureKind.temporary,
+      );
+    } on HandshakeException {
+      return UpdateCheckResult.failedWithKind(
+        currentVersion: currentVersion,
+        failureKind: UpdateCheckFailureKind.temporary,
+      );
     } catch (_) {
-      return UpdateCheckResult.failed(currentVersion: currentVersion);
+      return UpdateCheckResult.failedWithKind(
+        currentVersion: currentVersion,
+        failureKind: UpdateCheckFailureKind.temporary,
+      );
     }
   }
 
@@ -136,7 +182,7 @@ class UpdateCheckService {
       final request = await client.getUrl(Uri.parse(url)).timeout(_timeout);
       final response = await request.close().timeout(_timeout);
       if (response.statusCode < 200 || response.statusCode >= 300) {
-        throw const HttpException('Unexpected update response status.');
+        throw _UpdateHttpStatusException(response.statusCode);
       }
       return await response.transform(utf8.decoder).join().timeout(_timeout);
     } finally {
@@ -178,4 +224,12 @@ class UpdateCheckService {
         index < parts.length ? int.tryParse(parts[index]) ?? 0 : 0,
     ];
   }
+}
+
+class _UpdateHttpStatusException implements Exception {
+  const _UpdateHttpStatusException(this.statusCode);
+
+  final int statusCode;
+
+  bool get temporary => statusCode >= 500 && statusCode < 600;
 }

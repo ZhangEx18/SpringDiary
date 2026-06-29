@@ -17,6 +17,7 @@ import 'package:spring_note/core/services/pending_image_clipboard_service.dart';
 import 'package:spring_note/core/services/pending_image_service.dart';
 import 'package:spring_note/core/services/local_data_service.dart';
 import 'package:spring_note/core/services/stats_service.dart';
+import 'package:spring_note/core/services/update_check_service.dart';
 import 'package:spring_note/core/theme/app_theme.dart';
 import 'package:spring_note/features/home/home_page.dart';
 import 'package:spring_note/src/rust/stats.dart' as rust_stats;
@@ -48,7 +49,10 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.light(),
-        home: AppShell(localDataState: state!),
+        home: AppShell(
+          localDataState: state!,
+          updateCheckService: _IdleUpdateCheckService(),
+        ),
       ),
     );
 
@@ -100,6 +104,57 @@ void main() {
 
     expect(cloudSyncService.syncCalls, 1);
     expect(find.text('自动同步遇到问题，请手动同步'), findsOneWidget);
+  });
+
+  testWidgets('startup update check retries offline failure silently', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final updateCheckService = _RetryingUpdateCheckService([
+      UpdateCheckResult.failedWithKind(
+        currentVersion: '1.0.0',
+        failureKind: UpdateCheckFailureKind.offline,
+      ),
+      UpdateCheckResult.updateAvailable(
+        currentVersion: '1.0.0',
+        latest: const AppUpdateInfo(
+          version: '1.0.1',
+          changeTime: '2026-06-30',
+          downloadUrl: 'https://example.com/SpringNote.exe',
+          changelog: '更新内容',
+        ),
+      ),
+    ]);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: AppShell(
+          localDataState: _testLocalDataState(),
+          updateCheckService: updateCheckService,
+        ),
+      ),
+    );
+
+    await _pumpUntil(
+      tester,
+      () => updateCheckService.calls == 1,
+      'initial update check to finish',
+    );
+    expect(find.text('更新检测失败'), findsNothing);
+
+    await tester.pump(const Duration(seconds: 2));
+    await _pumpUntil(
+      tester,
+      () => updateCheckService.calls == 2,
+      'retry update check to finish',
+    );
+
+    expect(find.textContaining('发现新版本 1.0.1'), findsOneWidget);
   });
 
   testWidgets('home input updates overview with mock structured result', (
@@ -617,6 +672,27 @@ class _StartupPendingCloudSyncService extends CloudSyncService {
       needsDeleteConfirmation: true,
       pendingDeleteRemote: ['notes/daily/old.md'],
     );
+  }
+}
+
+class _IdleUpdateCheckService extends UpdateCheckService {
+  @override
+  Future<UpdateCheckResult> check() async {
+    return UpdateCheckResult.idle;
+  }
+}
+
+class _RetryingUpdateCheckService extends UpdateCheckService {
+  _RetryingUpdateCheckService(this.results);
+
+  final List<UpdateCheckResult> results;
+  int calls = 0;
+
+  @override
+  Future<UpdateCheckResult> check() async {
+    final index = calls < results.length ? calls : results.length - 1;
+    calls++;
+    return results[index];
   }
 }
 
