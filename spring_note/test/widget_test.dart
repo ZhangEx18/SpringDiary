@@ -5,9 +5,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:spring_note/core/attachments/pending_image.dart';
 import 'package:spring_note/core/models/app_config.dart';
+import 'package:spring_note/core/models/cloud_sync_config.dart';
 import 'package:spring_note/core/models/local_data_state.dart';
 import 'package:spring_note/core/models/structured_work_note.dart';
 import 'package:spring_note/core/router/app_shell.dart';
+import 'package:spring_note/core/services/cloud_sync_service.dart';
 import 'package:spring_note/core/services/daily_note_service.dart';
 import 'package:spring_note/core/services/desktop_widget_controller.dart';
 import 'package:spring_note/core/services/home_overview_service.dart';
@@ -57,6 +59,47 @@ void main() {
     await tester.tap(find.byIcon(Icons.settings_outlined));
     await tester.pump();
     expect(find.text('偏好设置'), findsOneWidget);
+  });
+
+  testWidgets('startup cloud sync confirmation shows home warning', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final cloudSyncService = _StartupPendingCloudSyncService();
+    final localDataState = _testLocalDataState(
+      config: AppConfig.defaults().copyWith(
+        cloudSync: CloudSyncConfig.defaults().copyWith(
+          enabled: true,
+          serverUrl: 'https://example.com/dav',
+          username: 'me',
+          password: 'token',
+          syncOnStartup: true,
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: AppShell(
+          localDataState: localDataState,
+          cloudSyncService: cloudSyncService,
+        ),
+      ),
+    );
+
+    await _pumpUntil(
+      tester,
+      () => find.text('自动同步遇到问题，请手动同步').evaluate().isNotEmpty,
+      'startup cloud sync warning to be shown',
+    );
+
+    expect(cloudSyncService.syncCalls, 1);
+    expect(find.text('自动同步遇到问题，请手动同步'), findsOneWidget);
   });
 
   testWidgets('home input updates overview with mock structured result', (
@@ -552,6 +595,29 @@ class _FakeStatsService extends StatsService {
     required int workSeconds,
     required double coins,
   }) async {}
+}
+
+class _StartupPendingCloudSyncService extends CloudSyncService {
+  int syncCalls = 0;
+
+  @override
+  Future<CloudSyncResult> sync({
+    required LocalDataState localDataState,
+    required CloudSyncTrigger trigger,
+    List<String> confirmedDeleteLocal = const [],
+    List<String> confirmedDeleteRemote = const [],
+    List<String> confirmedOverwriteLocal = const [],
+    List<String> confirmedOverwriteRemote = const [],
+    List<String> skippedDeleteModifyConflicts = const [],
+  }) async {
+    syncCalls++;
+    return const CloudSyncResult(
+      ok: true,
+      message: '检测到删除项，请确认后继续同步',
+      needsDeleteConfirmation: true,
+      pendingDeleteRemote: ['notes/daily/old.md'],
+    );
+  }
 }
 
 const _transparentPngBytes = [

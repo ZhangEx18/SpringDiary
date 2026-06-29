@@ -73,6 +73,7 @@ class HomePage extends StatefulWidget {
     this.imageAttachmentPicker,
     this.documentAttachmentPicker,
     this.onDailyNoteSaved,
+    this.startupCloudSyncMessage,
   });
 
   final LocalDataState localDataState;
@@ -90,6 +91,7 @@ class HomePage extends StatefulWidget {
   final HomeImagePicker? imageAttachmentPicker;
   final HomeAttachmentPicker? documentAttachmentPicker;
   final ValueChanged<String>? onDailyNoteSaved;
+  final String? startupCloudSyncMessage;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -673,6 +675,10 @@ class _HomePageState extends State<HomePage> {
                   UpdateCheckStatus.idle) ...[
                 const SizedBox(height: 12),
                 _UpdateNoticeBanner(result: widget.updateCheckResult),
+              ],
+              if (widget.startupCloudSyncMessage != null) ...[
+                const SizedBox(height: 12),
+                _CloudSyncIssueBanner(message: widget.startupCloudSyncMessage!),
               ],
             ],
           ),
@@ -2516,6 +2522,42 @@ class _AiNoticeBanner extends StatelessWidget {
               style: Theme.of(
                 context,
               ).textTheme.bodyMedium?.copyWith(color: const Color(0xFF92400E)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CloudSyncIssueBanner extends StatelessWidget {
+  const _CloudSyncIssueBanner({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFEF2F2),
+        border: Border.all(color: const Color(0xFFFECACA)),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.error_outline_rounded,
+            size: 18,
+            color: Color(0xFFDC2626),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: const Color(0xFF991B1B)),
             ),
           ),
         ],

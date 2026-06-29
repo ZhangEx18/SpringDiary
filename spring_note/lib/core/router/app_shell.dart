@@ -68,6 +68,7 @@ class _AppShellState extends State<AppShell> {
   Timer? _desktopWidgetPositionSaveTimer;
   AppConfig? _pendingDesktopWidgetPositionConfig;
   bool _syncingOnStartup = false;
+  String? _startupCloudSyncMessage;
 
   @override
   void initState() {
@@ -257,13 +258,38 @@ class _AppShellState extends State<AppShell> {
           localDataState.dataDirectory != _localDataState.dataDirectory) {
         return;
       }
+      if (!result.ok ||
+          result.needsDeleteConfirmation ||
+          result.needsDeleteModifyConfirmation) {
+        setState(() {
+          _startupCloudSyncMessage = '自动同步遇到问题，请手动同步';
+        });
+        return;
+      }
       if (result.ok) {
         await _markCloudSyncCompleted(result);
+        if (mounted && _startupCloudSyncMessage != null) {
+          setState(() => _startupCloudSyncMessage = null);
+        }
         _notifyAllNotesChanged();
+      }
+    } catch (_) {
+      if (mounted &&
+          localDataState.dataDirectory == _localDataState.dataDirectory) {
+        setState(() {
+          _startupCloudSyncMessage = '自动同步遇到问题，请手动同步';
+        });
       }
     } finally {
       _syncingOnStartup = false;
     }
+  }
+
+  void _handleCloudSyncCompleted() {
+    if (_startupCloudSyncMessage != null) {
+      setState(() => _startupCloudSyncMessage = null);
+    }
+    _notifyAllNotesChanged();
   }
 
   Future<void> _markCloudSyncCompleted(CloudSyncResult result) async {
@@ -368,6 +394,7 @@ class _AppShellState extends State<AppShell> {
                       desktopWidgetController: _desktopWidgetController,
                       levelProgressController: _levelProgressController,
                       updateCheckResult: _updateCheckResult,
+                      startupCloudSyncMessage: _startupCloudSyncMessage,
                       onDailyNoteSaved: (path) =>
                           _notifyNoteSaved(NoteKind.daily, path),
                     ),
@@ -383,7 +410,7 @@ class _AppShellState extends State<AppShell> {
                         _handleLocalDataStateChanged(state);
                       },
                       onLocalDataStateChanged: _handleLocalDataStateChanged,
-                      onCloudSyncCompleted: _notifyAllNotesChanged,
+                      onCloudSyncCompleted: _handleCloudSyncCompleted,
                     ),
                   ],
                 ),
