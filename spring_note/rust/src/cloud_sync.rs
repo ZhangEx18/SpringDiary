@@ -1073,9 +1073,10 @@ async fn read_remote_manifest<C: WebDavClient + Sync>(
         .read_bytes(&context.remote_manifest_url, config)
         .await
     {
-        Ok(bytes) => Ok(serde_json::from_slice(&bytes).unwrap_or_default()),
+        Ok(bytes) => serde_json::from_slice(&bytes)
+            .map_err(|error| CloudSyncError::Parse(format!("远端同步清单解析失败: {error}"))),
         Err(CloudSyncError::NotFound(_)) => Ok(SyncManifest::default()),
-        Err(_) => Ok(SyncManifest::default()),
+        Err(error) => Err(error),
     }
 }
 
@@ -2076,6 +2077,59 @@ mod tests {
         }
     }
 
+    #[derive(Clone, Default)]
+    struct ManifestReadErrorClient {
+        inner: MemoryWebDavClient,
+    }
+
+    impl WebDavClient for ManifestReadErrorClient {
+        async fn ensure_directory(
+            &self,
+            url: &str,
+            config: &CloudSyncConfig,
+        ) -> Result<(), CloudSyncError> {
+            self.inner.ensure_directory(url, config).await
+        }
+
+        async fn list_files(
+            &self,
+            url: &str,
+            config: &CloudSyncConfig,
+        ) -> Result<Vec<WebDavFile>, CloudSyncError> {
+            self.inner.list_files(url, config).await
+        }
+
+        async fn read_bytes(
+            &self,
+            url: &str,
+            config: &CloudSyncConfig,
+        ) -> Result<Vec<u8>, CloudSyncError> {
+            let parsed = Url::parse(url).map_err(|error| CloudSyncError::Url(error.to_string()))?;
+            let path = normalize_path(parsed.path(), false);
+            if path.ends_with(MANIFEST_FILE_NAME) {
+                return Err(CloudSyncError::Network("读取远端同步清单超时".to_string()));
+            }
+            self.inner.read_bytes(url, config).await
+        }
+
+        async fn write_bytes(
+            &self,
+            url: &str,
+            config: &CloudSyncConfig,
+            bytes: &[u8],
+        ) -> Result<(), CloudSyncError> {
+            self.inner.write_bytes(url, config, bytes).await
+        }
+
+        async fn delete_file(
+            &self,
+            url: &str,
+            config: &CloudSyncConfig,
+        ) -> Result<(), CloudSyncError> {
+            self.inner.delete_file(url, config).await
+        }
+    }
+
     struct TestDir {
         path: PathBuf,
     }
@@ -2293,6 +2347,53 @@ mod tests {
             fs::read_to_string(Path::new(&request.daily_notes_directory).join("2026-06-29.md"))
                 .unwrap(),
             "# 远端日报\n"
+        );
+    }
+
+    #[tokio::test]
+    async fn remote_manifest_read_error_aborts_sync() {
+        let dir = TestDir::new("spring_note_manifest_read_error");
+        let request = request(&dir.path);
+        let note_path = Path::new(&request.daily_notes_directory).join("2026-06-29.md");
+        fs::write(&note_path, "# 本地日报\n").unwrap();
+        let client = ManifestReadErrorClient::default();
+
+        let result = sync_with_client(&client, request.clone()).await;
+
+        assert!(matches!(result, Err(CloudSyncError::Network(_))));
+        assert!(note_path.exists());
+        assert_eq!(
+            client.inner.text("/dav/SpringNote/.springnote-sync.json"),
+            None
+        );
+        assert_eq!(
+            client
+                .inner
+                .text("/dav/SpringNote/notes/daily/2026-06-29.md"),
+            None
+        );
+    }
+
+    #[tokio::test]
+    async fn invalid_remote_manifest_aborts_sync() {
+        let dir = TestDir::new("spring_note_invalid_remote_manifest");
+        let request = request(&dir.path);
+        let note_path = Path::new(&request.daily_notes_directory).join("2026-06-29.md");
+        fs::write(&note_path, "# 本地日报\n").unwrap();
+        let client = MemoryWebDavClient::default();
+        client.put_text("/dav/SpringNote/.springnote-sync.json", "{not-json");
+
+        let result = sync_with_client(&client, request.clone()).await;
+
+        assert!(matches!(result, Err(CloudSyncError::Parse(_))));
+        assert!(note_path.exists());
+        assert_eq!(
+            client.text("/dav/SpringNote/.springnote-sync.json"),
+            Some("{not-json".to_string())
+        );
+        assert_eq!(
+            client.text("/dav/SpringNote/notes/daily/2026-06-29.md"),
+            None
         );
     }
 
