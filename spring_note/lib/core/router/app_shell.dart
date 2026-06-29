@@ -26,6 +26,8 @@ import '../theme/app_theme.dart';
 
 enum AppSection { home, notes, memory, settings }
 
+enum _StartupCloudSyncFailureKind { offline, temporary, permanent }
+
 class AppShell extends StatefulWidget {
   const AppShell({
     super.key,
@@ -50,6 +52,11 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
+  static const _startupCloudSyncRetryDelays = [
+    Duration(seconds: 2),
+    Duration(seconds: 5),
+    Duration(seconds: 15),
+  ];
   static const _updateCheckRetryDelays = [
     Duration(seconds: 2),
     Duration(seconds: 5),
@@ -73,9 +80,11 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   UpdateCheckResult _updateCheckResult = UpdateCheckResult.idle;
   int _noteExternalUpdateRevision = 0;
   Timer? _desktopWidgetPositionSaveTimer;
+  Timer? _startupCloudSyncRetryTimer;
   Timer? _updateCheckRetryTimer;
   AppConfig? _pendingDesktopWidgetPositionConfig;
   bool _syncingOnStartup = false;
+  int _startupCloudSyncRetryAttempt = 0;
   bool _checkingForUpdates = false;
   int _updateCheckRetryAttempt = 0;
   DateTime? _lastUpdateCheckAttemptAt;
@@ -127,6 +136,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     _desktopWidgetController.removeListener(_syncDesktopWidgetWindow);
     _levelProgressController.removeListener(_handleLevelProgressChanged);
     _flushDesktopWidgetPositionSave();
+    _cancelStartupCloudSyncRetry();
     _cancelUpdateCheckRetry();
     unawaited(_globalHotkeyService.unregisterToggleWindowHotkey());
     unawaited(_trayService.dispose());
@@ -224,7 +234,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     _syncTray(state.config);
     _syncGlobalHotkey(state.config);
     if (directoryChanged) {
-      unawaited(_runStartupCloudSync(state));
+      unawaited(_runStartupCloudSync(state, resetRetry: true));
     }
     unawaited(_runStartupReportGeneration(state));
     unawaited(_runUpdateCheck(state.config, resetRetry: true));
@@ -265,7 +275,14 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     unawaited(_trayService.sync(config));
   }
 
-  Future<void> _runStartupCloudSync(LocalDataState localDataState) async {
+  Future<void> _runStartupCloudSync(
+    LocalDataState localDataState, {
+    bool resetRetry = true,
+  }) async {
+    if (resetRetry) {
+      _cancelStartupCloudSyncRetry();
+      _startupCloudSyncRetryAttempt = 0;
+    }
     final sync = localDataState.config.cloudSync;
     if (!sync.enabled || !sync.syncOnStartup || _syncingOnStartup) {
       return;
@@ -280,15 +297,21 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           localDataState.dataDirectory != _localDataState.dataDirectory) {
         return;
       }
-      if (!result.ok ||
-          result.needsDeleteConfirmation ||
+      if (result.needsDeleteConfirmation ||
           result.needsDeleteModifyConfirmation) {
-        setState(() {
-          _startupCloudSyncMessage = '自动同步遇到问题，请手动同步';
-        });
+        _showStartupCloudSyncIssue();
+        return;
+      }
+      if (!result.ok) {
+        if (_shouldRetryStartupCloudSync(result)) {
+          _scheduleStartupCloudSyncRetry(localDataState);
+        } else {
+          _showStartupCloudSyncIssue();
+        }
         return;
       }
       if (result.ok) {
+        _cancelStartupCloudSyncRetry();
         await _markCloudSyncCompleted(result);
         if (mounted && _startupCloudSyncMessage != null) {
           setState(() => _startupCloudSyncMessage = null);
@@ -298,13 +321,69 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     } catch (_) {
       if (mounted &&
           localDataState.dataDirectory == _localDataState.dataDirectory) {
-        setState(() {
-          _startupCloudSyncMessage = '自动同步遇到问题，请手动同步';
-        });
+        if (_shouldRetryStartupCloudSyncError()) {
+          _scheduleStartupCloudSyncRetry(localDataState);
+        } else {
+          _showStartupCloudSyncIssue();
+        }
       }
     } finally {
       _syncingOnStartup = false;
     }
+  }
+
+  bool _shouldRetryStartupCloudSync(CloudSyncResult result) {
+    return _startupCloudSyncFailureKind(result) !=
+            _StartupCloudSyncFailureKind.permanent &&
+        _startupCloudSyncRetryAttempt < _startupCloudSyncRetryDelays.length;
+  }
+
+  bool _shouldRetryStartupCloudSyncError() {
+    return _startupCloudSyncRetryAttempt < _startupCloudSyncRetryDelays.length;
+  }
+
+  _StartupCloudSyncFailureKind _startupCloudSyncFailureKind(
+    CloudSyncResult result,
+  ) {
+    switch (result.errorCode) {
+      case 'network':
+        return _StartupCloudSyncFailureKind.offline;
+      case 'webdav':
+        return _isTemporaryWebDavFailure(result.message)
+            ? _StartupCloudSyncFailureKind.temporary
+            : _StartupCloudSyncFailureKind.permanent;
+      default:
+        return _StartupCloudSyncFailureKind.permanent;
+    }
+  }
+
+  bool _isTemporaryWebDavFailure(String message) {
+    final match = RegExp(r'HTTP\s+(\d{3})').firstMatch(message);
+    final status = int.tryParse(match?.group(1) ?? '');
+    return status != null && status >= 500 && status < 600;
+  }
+
+  void _scheduleStartupCloudSyncRetry(LocalDataState localDataState) {
+    final delay = _startupCloudSyncRetryDelays[_startupCloudSyncRetryAttempt];
+    _startupCloudSyncRetryAttempt += 1;
+    _startupCloudSyncRetryTimer?.cancel();
+    _startupCloudSyncRetryTimer = Timer(delay, () {
+      if (!mounted || !identical(localDataState, _localDataState)) {
+        return;
+      }
+      unawaited(_runStartupCloudSync(localDataState, resetRetry: false));
+    });
+  }
+
+  void _cancelStartupCloudSyncRetry() {
+    _startupCloudSyncRetryTimer?.cancel();
+    _startupCloudSyncRetryTimer = null;
+  }
+
+  void _showStartupCloudSyncIssue() {
+    setState(() {
+      _startupCloudSyncMessage = '自动同步遇到问题，请手动同步';
+    });
   }
 
   void _handleCloudSyncCompleted() {

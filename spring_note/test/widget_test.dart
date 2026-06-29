@@ -92,6 +92,7 @@ void main() {
         home: AppShell(
           localDataState: localDataState,
           cloudSyncService: cloudSyncService,
+          updateCheckService: _IdleUpdateCheckService(),
         ),
       ),
     );
@@ -103,6 +104,129 @@ void main() {
     );
 
     expect(cloudSyncService.syncCalls, 1);
+    expect(find.text('自动同步遇到问题，请手动同步'), findsOneWidget);
+  });
+
+  testWidgets('startup cloud sync retries transient failures silently', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final cloudSyncService = _RetryingStartupCloudSyncService([
+      const CloudSyncResult(
+        ok: false,
+        message: '无法连接 WebDAV 服务: DNS lookup failed',
+        errorCode: 'network',
+      ),
+      const CloudSyncResult(
+        ok: false,
+        message: '列出远端文件：HTTP 502',
+        errorCode: 'webdav',
+      ),
+      const CloudSyncResult(ok: true, message: '笔记自动同步完成'),
+    ]);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: AppShell(
+          localDataState: _startupSyncLocalDataState(),
+          cloudSyncService: cloudSyncService,
+          updateCheckService: _IdleUpdateCheckService(),
+        ),
+      ),
+    );
+
+    await _pumpUntil(
+      tester,
+      () => cloudSyncService.syncCalls == 1,
+      'initial startup cloud sync to finish',
+    );
+    expect(find.text('自动同步遇到问题，请手动同步'), findsNothing);
+
+    await tester.pump(const Duration(seconds: 2));
+    await _pumpUntil(
+      tester,
+      () => cloudSyncService.syncCalls == 2,
+      'startup cloud sync retry to finish',
+    );
+    expect(find.text('自动同步遇到问题，请手动同步'), findsNothing);
+
+    await tester.pump(const Duration(seconds: 5));
+    await _pumpUntil(
+      tester,
+      () => cloudSyncService.syncCalls == 3,
+      'second startup cloud sync retry to finish',
+    );
+
+    expect(find.text('自动同步遇到问题，请手动同步'), findsNothing);
+  });
+
+  testWidgets('startup cloud sync shows warning after retry exhaustion', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final cloudSyncService = _RetryingStartupCloudSyncService(
+      List.filled(
+        4,
+        const CloudSyncResult(
+          ok: false,
+          message: '读取远端同步清单超时',
+          errorCode: 'network',
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: AppShell(
+          localDataState: _startupSyncLocalDataState(),
+          cloudSyncService: cloudSyncService,
+          updateCheckService: _IdleUpdateCheckService(),
+        ),
+      ),
+    );
+
+    await _pumpUntil(
+      tester,
+      () => cloudSyncService.syncCalls == 1,
+      'initial startup cloud sync to finish',
+    );
+    expect(find.text('自动同步遇到问题，请手动同步'), findsNothing);
+
+    await tester.pump(const Duration(seconds: 2));
+    await _pumpUntil(
+      tester,
+      () => cloudSyncService.syncCalls == 2,
+      'first startup cloud sync retry to finish',
+    );
+    expect(find.text('自动同步遇到问题，请手动同步'), findsNothing);
+
+    await tester.pump(const Duration(seconds: 5));
+    await _pumpUntil(
+      tester,
+      () => cloudSyncService.syncCalls == 3,
+      'second startup cloud sync retry to finish',
+    );
+    expect(find.text('自动同步遇到问题，请手动同步'), findsNothing);
+
+    await tester.pump(const Duration(seconds: 15));
+    await _pumpUntil(
+      tester,
+      () =>
+          cloudSyncService.syncCalls == 4 &&
+          find.text('自动同步遇到问题，请手动同步').evaluate().isNotEmpty,
+      'startup cloud sync warning to be shown after retries',
+    );
+
     expect(find.text('自动同步遇到问题，请手动同步'), findsOneWidget);
   });
 
@@ -492,6 +616,20 @@ LocalDataState _testLocalDataState({AppConfig? config}) {
   );
 }
 
+LocalDataState _startupSyncLocalDataState() {
+  return _testLocalDataState(
+    config: AppConfig.defaults().copyWith(
+      cloudSync: CloudSyncConfig.defaults().copyWith(
+        enabled: true,
+        serverUrl: 'https://example.com/dav',
+        username: 'me',
+        password: 'token',
+        syncOnStartup: true,
+      ),
+    ),
+  );
+}
+
 Future<void> _pumpUntil(
   WidgetTester tester,
   bool Function() condition,
@@ -672,6 +810,28 @@ class _StartupPendingCloudSyncService extends CloudSyncService {
       needsDeleteConfirmation: true,
       pendingDeleteRemote: ['notes/daily/old.md'],
     );
+  }
+}
+
+class _RetryingStartupCloudSyncService extends CloudSyncService {
+  _RetryingStartupCloudSyncService(this.results);
+
+  final List<CloudSyncResult> results;
+  int syncCalls = 0;
+
+  @override
+  Future<CloudSyncResult> sync({
+    required LocalDataState localDataState,
+    required CloudSyncTrigger trigger,
+    List<String> confirmedDeleteLocal = const [],
+    List<String> confirmedDeleteRemote = const [],
+    List<String> confirmedOverwriteLocal = const [],
+    List<String> confirmedOverwriteRemote = const [],
+    List<String> skippedDeleteModifyConflicts = const [],
+  }) async {
+    final index = syncCalls < results.length ? syncCalls : results.length - 1;
+    syncCalls++;
+    return results[index];
   }
 }
 
