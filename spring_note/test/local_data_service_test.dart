@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:spring_note/core/models/app_config.dart';
+import 'package:spring_note/core/models/cloud_sync_config.dart';
 import 'package:spring_note/core/models/desktop_widget_position.dart';
 import 'package:spring_note/core/models/model_config.dart';
 import 'package:spring_note/core/models/provider_config.dart';
@@ -47,6 +48,33 @@ void main() {
 
     expect(reloaded.desktopWidgetOrbMode, isTrue);
     expect(AppConfig.fromJson({}).desktopWidgetOrbMode, isFalse);
+  });
+
+  test('app config round trips cloud sync config', () {
+    final syncedAt = DateTime.utc(2026, 6, 28, 12, 40);
+    final config = AppConfig.defaults().copyWith(
+      cloudSync: CloudSyncConfig.defaults().copyWith(
+        enabled: true,
+        serverUrl: 'https://dav.example.com/remote.php/dav/files/me/',
+        username: 'me',
+        password: 'token',
+        syncOnStartup: true,
+        realTimeSync: true,
+        lastSyncedAt: syncedAt,
+      ),
+    );
+
+    final reloaded = AppConfig.fromJson(config.toJson());
+
+    expect(reloaded.cloudSync.enabled, isTrue);
+    expect(reloaded.cloudSync.serverUrl, contains('dav.example.com'));
+    expect(reloaded.cloudSync.username, 'me');
+    expect(reloaded.cloudSync.password, 'token');
+    expect(reloaded.cloudSync.syncOnStartup, isTrue);
+    expect(reloaded.cloudSync.realTimeSync, isTrue);
+    expect(reloaded.cloudSync.lastSyncedAt, syncedAt);
+    expect(AppConfig.fromJson({}).cloudSync.enabled, isFalse);
+    expect(AppConfig.fromJson({}).cloudSync.realTimeSync, isFalse);
   });
 
   test('local data service creates first-run data layout', () async {

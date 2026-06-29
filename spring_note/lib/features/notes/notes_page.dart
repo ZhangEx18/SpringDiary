@@ -10,6 +10,7 @@ import '../../core/models/note_external_update.dart';
 import '../../core/models/note_file.dart';
 import '../../core/services/ai_client_service.dart';
 import '../../core/services/clipboard_image_service.dart';
+import '../../core/services/cloud_sync_service.dart';
 import '../../core/services/note_service.dart';
 import '../../core/services/pasted_image_service.dart';
 import '../../core/theme/app_theme.dart';
@@ -32,6 +33,7 @@ class NotesPage extends StatefulWidget {
     this.noteService = const NoteService(),
     this.aiClientService = const AiClientService(),
     this.clipboardImageService = const ClipboardImageService(),
+    this.cloudSyncService = const CloudSyncService(),
     this.pastedImageService = const PastedImageService(),
     this.externalNoteUpdate,
     this.imagePicker,
@@ -41,6 +43,7 @@ class NotesPage extends StatefulWidget {
   final NoteService noteService;
   final AiClientService aiClientService;
   final ClipboardImageService clipboardImageService;
+  final CloudSyncService cloudSyncService;
   final PastedImageService pastedImageService;
   final ValueListenable<NoteExternalUpdate?>? externalNoteUpdate;
   final NoteImagePicker? imagePicker;
@@ -73,14 +76,25 @@ class _NotesPageState extends State<NotesPage> {
   bool _insertingImage = false;
   bool _pastingClipboard = false;
   int _notesLoadGeneration = 0;
+  Timer? _autoCloudSyncTimer;
+  bool _autoCloudUploading = false;
+  bool _autoCloudUploadAfterSave = false;
+  bool _editorFocusedByPointer = false;
+
+  static const Duration _autoCloudSyncInterval = Duration(seconds: 3);
 
   @override
   void initState() {
     super.initState();
     _editorFocusNode = FocusNode(onKeyEvent: _handleEditorKeyEvent);
+    _editorFocusNode.addListener(_handleEditorFocusChanged);
     _editorController.addListener(_handleEditorChanged);
     _searchController.addListener(() => setState(() {}));
     widget.externalNoteUpdate?.addListener(_handleExternalNoteUpdate);
+    _autoCloudSyncTimer = Timer.periodic(
+      _autoCloudSyncInterval,
+      (_) => unawaited(_checkAutoUploadCurrentNote(requireEditorFocus: true)),
+    );
     _loadNotes(kind: _kind);
   }
 
@@ -102,8 +116,10 @@ class _NotesPageState extends State<NotesPage> {
     _editorController
       ..removeListener(_handleEditorChanged)
       ..dispose();
+    _editorFocusNode.removeListener(_handleEditorFocusChanged);
     _editorFocusNode.dispose();
     _fimDebounce?.cancel();
+    _autoCloudSyncTimer?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -144,6 +160,27 @@ class _NotesPageState extends State<NotesPage> {
       return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;
+  }
+
+  void _handleEditorFocusChanged() {
+    if (_editorFocusNode.hasFocus) {
+      _autoCloudUploadAfterSave = false;
+      return;
+    }
+    final wasEditorFocusedByPointer = _editorFocusedByPointer;
+    _editorFocusedByPointer = false;
+    if (!wasEditorFocusedByPointer || !_autoCloudSyncAvailable) {
+      return;
+    }
+    if (_saving) {
+      _autoCloudUploadAfterSave = true;
+      return;
+    }
+    unawaited(_checkAutoUploadCurrentNote(requireEditorFocus: false));
+  }
+
+  void _handleEditorPointerFocus() {
+    _editorFocusedByPointer = true;
   }
 
   bool _isPasteModifierPressed({
@@ -203,10 +240,11 @@ class _NotesPageState extends State<NotesPage> {
           orElse: () => selected,
         );
       }
-      if (selectedContent != null &&
-          selectedContent != _editorController.text) {
-        _setEditorText(selectedContent, preserveSelection: true);
-        _statusText = '已同步';
+      if (selected != null && selectedContent != null) {
+        if (selectedContent != _editorController.text) {
+          _setEditorText(selectedContent, preserveSelection: true);
+          _statusText = '已同步';
+        }
       }
     });
   }
@@ -350,6 +388,70 @@ class _NotesPageState extends State<NotesPage> {
       _saving = false;
       _statusText = '已保存';
     });
+    if (_autoCloudUploadAfterSave && !_editorFocusNode.hasFocus) {
+      _autoCloudUploadAfterSave = false;
+      unawaited(_checkAutoUploadCurrentNote(requireEditorFocus: false));
+    }
+  }
+
+  Future<void> _checkAutoUploadCurrentNote({
+    required bool requireEditorFocus,
+  }) async {
+    final selected = _selectedNote;
+    if (!_autoCloudSyncAvailable ||
+        (requireEditorFocus &&
+            (!_editorFocusNode.hasFocus || !_editorFocusedByPointer)) ||
+        _loading ||
+        _saving ||
+        _autoCloudUploading ||
+        selected == null) {
+      return;
+    }
+
+    final path = selected.path;
+    final text = _editorController.text;
+
+    _autoCloudUploading = true;
+    try {
+      final result = await widget.cloudSyncService.uploadNote(
+        localDataState: widget.localDataState,
+        notePath: path,
+      );
+      if (!mounted || !_isCurrentEditorSnapshot(path: path, text: text)) {
+        return;
+      }
+      if (result.ok) {
+        setState(() {
+          if (result.uploaded > 0) {
+            _statusText = '已自动同步';
+          }
+          _editorMessage = null;
+        });
+      } else {
+        setState(() {
+          _editorMessage = '自动同步失败：${result.message}';
+        });
+      }
+    } catch (error, stackTrace) {
+      debugPrint('Failed to auto upload note: $error\n$stackTrace');
+      if (mounted && _isCurrentEditorSnapshot(path: path, text: text)) {
+        setState(() => _editorMessage = '自动同步失败，请稍后重试。');
+      }
+    } finally {
+      _autoCloudUploading = false;
+    }
+  }
+
+  bool get _autoCloudSyncAvailable {
+    final sync = widget.localDataState.config.cloudSync;
+    return sync.enabled && sync.realTimeSync && sync.hasRequiredFields;
+  }
+
+  bool _isCurrentEditorSnapshot({required String path, required String text}) {
+    final selected = _selectedNote;
+    return selected != null &&
+        _samePath(selected.path, path) &&
+        _editorController.text == text;
   }
 
   void _setEditorText(String value, {bool preserveSelection = false}) {
@@ -964,6 +1066,7 @@ class _NotesPageState extends State<NotesPage> {
               enabled: selected != null && !_loading,
               predicting: _predicting,
               onInsertImage: _insertImageFromPicker,
+              onPointerFocus: _handleEditorPointerFocus,
             ),
           ),
           Expanded(
@@ -1700,6 +1803,7 @@ class _EditorPane extends StatefulWidget {
     required this.enabled,
     required this.predicting,
     required this.onInsertImage,
+    required this.onPointerFocus,
   });
 
   final TextEditingController controller;
@@ -1708,6 +1812,7 @@ class _EditorPane extends StatefulWidget {
   final bool enabled;
   final bool predicting;
   final VoidCallback onInsertImage;
+  final VoidCallback onPointerFocus;
 
   @override
   State<_EditorPane> createState() => _EditorPaneState();
@@ -1794,6 +1899,7 @@ class _EditorPaneState extends State<_EditorPane> {
                       child: TextField(
                         controller: widget.controller,
                         focusNode: widget.focusNode,
+                        onTap: widget.onPointerFocus,
                         scrollController: _scrollController,
                         enabled: widget.enabled,
                         expands: true,

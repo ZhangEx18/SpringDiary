@@ -13,6 +13,7 @@ import '../models/local_data_state.dart';
 import '../models/note_external_update.dart';
 import '../models/note_file.dart';
 import '../services/auto_start_service.dart';
+import '../services/cloud_sync_service.dart';
 import '../services/desktop_widget_controller.dart';
 import '../services/desktop_widget_window_bridge.dart';
 import '../services/global_hotkey_service.dart';
@@ -32,6 +33,7 @@ class AppShell extends StatefulWidget {
     this.startupReportGenerationService =
         const StartupReportGenerationService(),
     this.updateCheckService = const UpdateCheckService(),
+    this.cloudSyncService = const CloudSyncService(),
     this.localDataService = const LocalDataService(),
     this.onConfigChanged,
   });
@@ -39,6 +41,7 @@ class AppShell extends StatefulWidget {
   final LocalDataState localDataState;
   final StartupReportGenerationService startupReportGenerationService;
   final UpdateCheckService updateCheckService;
+  final CloudSyncService cloudSyncService;
   final LocalDataService localDataService;
   final ValueChanged<AppConfig>? onConfigChanged;
 
@@ -64,6 +67,7 @@ class _AppShellState extends State<AppShell> {
   int _noteExternalUpdateRevision = 0;
   Timer? _desktopWidgetPositionSaveTimer;
   AppConfig? _pendingDesktopWidgetPositionConfig;
+  bool _syncingOnStartup = false;
 
   @override
   void initState() {
@@ -82,6 +86,7 @@ class _AppShellState extends State<AppShell> {
       _syncAutoStart(_localDataState.config);
       _syncTray(_localDataState.config);
       _syncGlobalHotkey(_localDataState.config);
+      unawaited(_runStartupCloudSync(_localDataState));
       unawaited(_runStartupReportGeneration(_localDataState));
       unawaited(_runUpdateCheck(_localDataState.config));
     });
@@ -183,6 +188,8 @@ class _AppShellState extends State<AppShell> {
   }
 
   void _handleLocalDataStateChanged(LocalDataState state) {
+    final directoryChanged =
+        state.dataDirectory != _localDataState.dataDirectory;
     setState(() {
       _localDataState = state;
       _desktopWidgetController.attach(_localDataState);
@@ -193,6 +200,9 @@ class _AppShellState extends State<AppShell> {
     _syncAutoStart(state.config);
     _syncTray(state.config);
     _syncGlobalHotkey(state.config);
+    if (directoryChanged) {
+      unawaited(_runStartupCloudSync(state));
+    }
     unawaited(_runStartupReportGeneration(state));
     unawaited(_runUpdateCheck(state.config));
   }
@@ -203,6 +213,17 @@ class _AppShellState extends State<AppShell> {
       path: path,
       revision: ++_noteExternalUpdateRevision,
     );
+  }
+
+  void _notifyAllNotesChanged() {
+    final path = _localDataState.dailyNotesDirectory;
+    for (final kind in NoteKind.values) {
+      _noteExternalUpdate.value = NoteExternalUpdate(
+        kind: kind,
+        path: path,
+        revision: ++_noteExternalUpdateRevision,
+      );
+    }
   }
 
   void _syncGlobalHotkey(AppConfig config) {
@@ -219,6 +240,47 @@ class _AppShellState extends State<AppShell> {
 
   void _syncTray(AppConfig config) {
     unawaited(_trayService.sync(config));
+  }
+
+  Future<void> _runStartupCloudSync(LocalDataState localDataState) async {
+    final sync = localDataState.config.cloudSync;
+    if (!sync.enabled || !sync.syncOnStartup || _syncingOnStartup) {
+      return;
+    }
+    _syncingOnStartup = true;
+    try {
+      final result = await widget.cloudSyncService.sync(
+        localDataState: localDataState,
+        trigger: CloudSyncTrigger.startup,
+      );
+      if (!mounted ||
+          localDataState.dataDirectory != _localDataState.dataDirectory) {
+        return;
+      }
+      if (result.ok) {
+        await _markCloudSyncCompleted(result);
+        _notifyAllNotesChanged();
+      }
+    } finally {
+      _syncingOnStartup = false;
+    }
+  }
+
+  Future<void> _markCloudSyncCompleted(CloudSyncResult result) async {
+    final syncedAt = result.syncedAt;
+    if (syncedAt == null) {
+      return;
+    }
+    final nextConfig = _localDataState.config.copyWith(
+      cloudSync: _localDataState.config.cloudSync.copyWith(
+        lastSyncedAt: syncedAt,
+      ),
+    );
+    setState(() {
+      _localDataState = _localDataState.copyWith(config: nextConfig);
+    });
+    widget.onConfigChanged?.call(nextConfig);
+    await widget.localDataService.saveConfig(nextConfig);
   }
 
   Future<void> _runStartupReportGeneration(
@@ -321,6 +383,7 @@ class _AppShellState extends State<AppShell> {
                         _handleLocalDataStateChanged(state);
                       },
                       onLocalDataStateChanged: _handleLocalDataStateChanged,
+                      onCloudSyncCompleted: _notifyAllNotesChanged,
                     ),
                   ],
                 ),

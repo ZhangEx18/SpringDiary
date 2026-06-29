@@ -5,7 +5,9 @@
 
 import 'ai.dart';
 import 'api/ai_api.dart';
+import 'api/cloud_sync_api.dart';
 import 'api/stats_api.dart';
+import 'cloud_sync.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:ffi' as ffi;
@@ -56,6 +58,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   AiProvider dco_decode_box_autoadd_ai_provider(dynamic raw);
 
   @protected
+  CloudSyncConfig dco_decode_box_autoadd_cloud_sync_config(dynamic raw);
+
+  @protected
+  CloudSyncNoteUploadRequest
+  dco_decode_box_autoadd_cloud_sync_note_upload_request(dynamic raw);
+
+  @protected
+  CloudSyncRequest dco_decode_box_autoadd_cloud_sync_request(dynamic raw);
+
+  @protected
   DailyMergeRequest dco_decode_box_autoadd_daily_merge_request(dynamic raw);
 
   @protected
@@ -76,6 +88,23 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   StructuredNoteRequest dco_decode_box_autoadd_structured_note_request(
     dynamic raw,
   );
+
+  @protected
+  CloudSyncConfig dco_decode_cloud_sync_config(dynamic raw);
+
+  @protected
+  CloudSyncNoteUploadRequest dco_decode_cloud_sync_note_upload_request(
+    dynamic raw,
+  );
+
+  @protected
+  CloudSyncRequest dco_decode_cloud_sync_request(dynamic raw);
+
+  @protected
+  CloudSyncResult dco_decode_cloud_sync_result(dynamic raw);
+
+  @protected
+  DeleteModifyConflict dco_decode_delete_modify_conflict(dynamic raw);
 
   @protected
   DailyActivity dco_decode_daily_activity(dynamic raw);
@@ -112,6 +141,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<DailyTokenUsage> dco_decode_list_daily_token_usage(dynamic raw);
+
+  @protected
+  List<DeleteModifyConflict> dco_decode_list_delete_modify_conflict(
+    dynamic raw,
+  );
 
   @protected
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
@@ -200,6 +234,22 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   AiProvider sse_decode_box_autoadd_ai_provider(SseDeserializer deserializer);
 
   @protected
+  CloudSyncConfig sse_decode_box_autoadd_cloud_sync_config(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  CloudSyncNoteUploadRequest
+  sse_decode_box_autoadd_cloud_sync_note_upload_request(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  CloudSyncRequest sse_decode_box_autoadd_cloud_sync_request(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   DailyMergeRequest sse_decode_box_autoadd_daily_merge_request(
     SseDeserializer deserializer,
   );
@@ -226,6 +276,25 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   StructuredNoteRequest sse_decode_box_autoadd_structured_note_request(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  CloudSyncConfig sse_decode_cloud_sync_config(SseDeserializer deserializer);
+
+  @protected
+  CloudSyncNoteUploadRequest sse_decode_cloud_sync_note_upload_request(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  CloudSyncRequest sse_decode_cloud_sync_request(SseDeserializer deserializer);
+
+  @protected
+  CloudSyncResult sse_decode_cloud_sync_result(SseDeserializer deserializer);
+
+  @protected
+  DeleteModifyConflict sse_decode_delete_modify_conflict(
     SseDeserializer deserializer,
   );
 
@@ -272,6 +341,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<DailyTokenUsage> sse_decode_list_daily_token_usage(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<DeleteModifyConflict> sse_decode_list_delete_modify_conflict(
     SseDeserializer deserializer,
   );
 
@@ -384,6 +458,24 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_cloud_sync_config(
+    CloudSyncConfig self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_cloud_sync_note_upload_request(
+    CloudSyncNoteUploadRequest self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_cloud_sync_request(
+    CloudSyncRequest self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_daily_merge_request(
     DailyMergeRequest self,
     SseSerializer serializer,
@@ -420,6 +512,36 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_cloud_sync_config(
+    CloudSyncConfig self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_cloud_sync_note_upload_request(
+    CloudSyncNoteUploadRequest self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_cloud_sync_request(
+    CloudSyncRequest self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_cloud_sync_result(
+    CloudSyncResult self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_delete_modify_conflict(
+    DeleteModifyConflict self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_daily_activity(DailyActivity self, SseSerializer serializer);
 
   @protected
@@ -448,6 +570,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_list_String(List<String> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_delete_modify_conflict(
+    List<DeleteModifyConflict> self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_list_ai_chat_message(
