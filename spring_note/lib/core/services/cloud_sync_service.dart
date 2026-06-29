@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import '../../src/rust/api/cloud_sync_api.dart' as rust_api;
 import '../../src/rust/cloud_sync.dart' as rust_model;
 import '../models/cloud_sync_config.dart';
@@ -84,6 +86,8 @@ class CloudSyncResult {
 class CloudSyncService {
   const CloudSyncService({this.api = const CloudSyncRustApi()});
 
+  static final Map<String, Future<void>> _syncQueues = <String, Future<void>>{};
+
   final CloudSyncRustApi api;
 
   Future<CloudSyncResult> testConnection(CloudSyncConfig config) async {
@@ -100,41 +104,74 @@ class CloudSyncService {
     List<String> confirmedOverwriteRemote = const [],
     List<String> skippedDeleteModifyConflicts = const [],
   }) async {
-    final config = localDataState.config.cloudSync;
-    final result = await api.sync(
-      rust_model.CloudSyncRequest(
-        config: _rustConfig(config),
-        dataDirectory: localDataState.dataDirectory,
-        dailyNotesDirectory: localDataState.dailyNotesDirectory,
-        weeklyNotesDirectory: localDataState.weeklyNotesDirectory,
-        monthlyNotesDirectory: localDataState.monthlyNotesDirectory,
-        trigger: trigger.name,
-        confirmedDeleteLocal: confirmedDeleteLocal,
-        confirmedDeleteRemote: confirmedDeleteRemote,
-        confirmedOverwriteLocal: confirmedOverwriteLocal,
-        confirmedOverwriteRemote: confirmedOverwriteRemote,
-        skippedDeleteModifyConflicts: skippedDeleteModifyConflicts,
-      ),
-    );
-    return CloudSyncResult.fromRust(result);
+    return _runExclusive(localDataState.dataDirectory, () async {
+      final config = localDataState.config.cloudSync;
+      final result = await api.sync(
+        rust_model.CloudSyncRequest(
+          config: _rustConfig(config),
+          dataDirectory: localDataState.dataDirectory,
+          dailyNotesDirectory: localDataState.dailyNotesDirectory,
+          weeklyNotesDirectory: localDataState.weeklyNotesDirectory,
+          monthlyNotesDirectory: localDataState.monthlyNotesDirectory,
+          trigger: trigger.name,
+          confirmedDeleteLocal: confirmedDeleteLocal,
+          confirmedDeleteRemote: confirmedDeleteRemote,
+          confirmedOverwriteLocal: confirmedOverwriteLocal,
+          confirmedOverwriteRemote: confirmedOverwriteRemote,
+          skippedDeleteModifyConflicts: skippedDeleteModifyConflicts,
+        ),
+      );
+      return CloudSyncResult.fromRust(result);
+    });
   }
 
   Future<CloudSyncResult> uploadNote({
     required LocalDataState localDataState,
     required String notePath,
   }) async {
-    final config = localDataState.config.cloudSync;
-    final result = await api.uploadNote(
-      rust_model.CloudSyncNoteUploadRequest(
-        config: _rustConfig(config),
-        dataDirectory: localDataState.dataDirectory,
-        dailyNotesDirectory: localDataState.dailyNotesDirectory,
-        weeklyNotesDirectory: localDataState.weeklyNotesDirectory,
-        monthlyNotesDirectory: localDataState.monthlyNotesDirectory,
-        notePath: notePath,
-      ),
-    );
-    return CloudSyncResult.fromRust(result);
+    return _runExclusive(localDataState.dataDirectory, () async {
+      final config = localDataState.config.cloudSync;
+      final result = await api.uploadNote(
+        rust_model.CloudSyncNoteUploadRequest(
+          config: _rustConfig(config),
+          dataDirectory: localDataState.dataDirectory,
+          dailyNotesDirectory: localDataState.dailyNotesDirectory,
+          weeklyNotesDirectory: localDataState.weeklyNotesDirectory,
+          monthlyNotesDirectory: localDataState.monthlyNotesDirectory,
+          notePath: notePath,
+        ),
+      );
+      return CloudSyncResult.fromRust(result);
+    });
+  }
+
+  static Future<T> _runExclusive<T>(
+    String dataDirectory,
+    Future<T> Function() action,
+  ) async {
+    final key = _queueKey(dataDirectory);
+    final previous = _syncQueues[key] ?? Future<void>.value();
+    final gate = Completer<void>();
+    _syncQueues[key] = gate.future;
+
+    try {
+      await previous.catchError((_) {});
+      return await action();
+    } finally {
+      gate.complete();
+      if (identical(_syncQueues[key], gate.future)) {
+        _syncQueues.remove(key);
+      }
+    }
+  }
+
+  static String _queueKey(String dataDirectory) {
+    final normalized = dataDirectory.trim().replaceAll(r'\', '/');
+    final withoutTrailingSlashes = normalized.replaceFirst(RegExp(r'/+$'), '');
+    if (RegExp(r'^[A-Za-z]:/').hasMatch(withoutTrailingSlashes)) {
+      return withoutTrailingSlashes.toLowerCase();
+    }
+    return withoutTrailingSlashes;
   }
 
   rust_model.CloudSyncConfig _rustConfig(CloudSyncConfig config) {

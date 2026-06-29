@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -137,6 +138,98 @@ void main() {
     );
     expect(api.noteUploadRequest?.config.enabled, isTrue);
   });
+
+  test(
+    'cloud sync serializes sync and upload for same data directory',
+    () async {
+      final temp = await Directory.systemTemp.createTemp('spring_note_sync_');
+      addTearDown(() async {
+        if (await temp.exists()) {
+          await temp.delete(recursive: true);
+        }
+      });
+      final syncGate = Completer<void>();
+      addTearDown(() {
+        if (!syncGate.isCompleted) {
+          syncGate.complete();
+        }
+      });
+      final state = _state(temp);
+      final api = _FakeCloudSyncRustApi(syncGate: syncGate);
+      final service = CloudSyncService(api: api);
+      final notePath =
+          '${state.dailyNotesDirectory}${Platform.pathSeparator}2026-06-29.md';
+
+      final syncFuture = service.sync(
+        localDataState: state,
+        trigger: CloudSyncTrigger.manual,
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(api.calls, ['sync']);
+
+      final uploadFuture = service.uploadNote(
+        localDataState: state,
+        notePath: notePath,
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(api.calls, ['sync']);
+
+      syncGate.complete();
+      await syncFuture;
+      await Future<void>.delayed(Duration.zero);
+
+      expect(api.calls, ['sync', 'uploadNote']);
+      await uploadFuture;
+    },
+  );
+
+  test(
+    'cloud sync allows different data directories to run concurrently',
+    () async {
+      final firstTemp = await Directory.systemTemp.createTemp(
+        'spring_note_sync_a_',
+      );
+      final secondTemp = await Directory.systemTemp.createTemp(
+        'spring_note_sync_b_',
+      );
+      addTearDown(() async {
+        for (final temp in [firstTemp, secondTemp]) {
+          if (await temp.exists()) {
+            await temp.delete(recursive: true);
+          }
+        }
+      });
+      final syncGate = Completer<void>();
+      addTearDown(() {
+        if (!syncGate.isCompleted) {
+          syncGate.complete();
+        }
+      });
+      final firstState = _state(firstTemp);
+      final secondState = _state(secondTemp);
+      final api = _FakeCloudSyncRustApi(syncGate: syncGate);
+      final service = CloudSyncService(api: api);
+      final notePath =
+          '${secondState.dailyNotesDirectory}${Platform.pathSeparator}2026-06-29.md';
+
+      final syncFuture = service.sync(
+        localDataState: firstState,
+        trigger: CloudSyncTrigger.manual,
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(api.calls, ['sync']);
+
+      final uploadFuture = service.uploadNote(
+        localDataState: secondState,
+        notePath: notePath,
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(api.calls, ['sync', 'uploadNote']);
+      syncGate.complete();
+      await Future.wait([syncFuture, uploadFuture]);
+    },
+  );
 }
 
 CloudSyncConfig _syncConfig() {
@@ -168,6 +261,7 @@ LocalDataState _state(Directory root) {
 
 class _FakeCloudSyncRustApi extends CloudSyncRustApi {
   _FakeCloudSyncRustApi({
+    this.syncGate,
     this.syncResult = const rust_cloud.CloudSyncResult(
       ok: true,
       message: '手动同步完成: 上传 0, 下载 0, 冲突 0',
@@ -198,8 +292,10 @@ class _FakeCloudSyncRustApi extends CloudSyncRustApi {
     ),
   });
 
+  final Completer<void>? syncGate;
   final rust_cloud.CloudSyncResult syncResult;
   final rust_cloud.CloudSyncResult noteUploadResult;
+  final List<String> calls = [];
   rust_cloud.CloudSyncConfig? testedConfig;
   rust_cloud.CloudSyncRequest? syncRequest;
   rust_cloud.CloudSyncNoteUploadRequest? noteUploadRequest;
@@ -229,7 +325,9 @@ class _FakeCloudSyncRustApi extends CloudSyncRustApi {
   Future<rust_cloud.CloudSyncResult> sync(
     rust_cloud.CloudSyncRequest request,
   ) async {
+    calls.add('sync');
     syncRequest = request;
+    await syncGate?.future;
     return syncResult;
   }
 
@@ -237,6 +335,7 @@ class _FakeCloudSyncRustApi extends CloudSyncRustApi {
   Future<rust_cloud.CloudSyncResult> uploadNote(
     rust_cloud.CloudSyncNoteUploadRequest request,
   ) async {
+    calls.add('uploadNote');
     noteUploadRequest = request;
     return noteUploadResult;
   }
