@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -6,7 +7,7 @@ import unittest
 from pathlib import Path
 
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(os.environ.get("GITHUB_WORKSPACE", Path(__file__).resolve().parents[3]))
 PREPARE_RELEASE = ROOT / ".github" / "scripts" / "prepare_release.py"
 WRITE_UPDATE_METADATA = ROOT / ".github" / "scripts" / "write_update_metadata.py"
 VERIFY_UPDATE_METADATA = ROOT / ".github" / "scripts" / "verify_update_metadata.py"
@@ -248,6 +249,83 @@ class ReleaseScriptTests(unittest.TestCase):
 
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("does not match", result.stderr)
+
+    def test_verify_update_metadata_rejects_empty_changelog(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            metadata_dir = tmp_path / "update"
+            metadata_dir.mkdir()
+            release_base = "https://github.com/Radiant303/SpringNote/releases/download/1.2.3"
+            metadata_dir.joinpath("mac.json").write_text(
+                json.dumps(
+                    {
+                        "version": "1.2.3",
+                        "change_time": "2026年6月29日 13:30:00",
+                        "download_url": f"{release_base}/SpringNote-1.2.3-macos-arm64.dmg",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            metadata_dir.joinpath("windows.json").write_text(
+                json.dumps(
+                    {
+                        "version": "1.2.3",
+                        "change_time": "2026年6月29日 13:30:00",
+                        "download_url": f"{release_base}/SpringNote-1.2.3-windows-x64-setup.exe",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            metadata_dir.joinpath("LATESTCHANGELOG.md").write_text(
+                "  \n",
+                encoding="utf-8",
+            )
+
+            result = run_script(
+                str(VERIFY_UPDATE_METADATA),
+                "--version",
+                "1.2.3",
+                "--repo",
+                "Radiant303/SpringNote",
+                "--macos-asset",
+                "SpringNote-1.2.3-macos-arm64.dmg",
+                "--windows-asset",
+                "SpringNote-1.2.3-windows-x64-setup.exe",
+                "--metadata-dir",
+                str(metadata_dir),
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("LATESTCHANGELOG.md is empty", result.stderr)
+
+    def test_verify_update_metadata_rejects_non_object_json(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            metadata_dir = tmp_path / "update"
+            metadata_dir.mkdir()
+            metadata_dir.joinpath("mac.json").write_text("[]", encoding="utf-8")
+            metadata_dir.joinpath("windows.json").write_text("{}", encoding="utf-8")
+            metadata_dir.joinpath("LATESTCHANGELOG.md").write_text(
+                "## ✨ 更新日志\n\n* 内容。\n",
+                encoding="utf-8",
+            )
+
+            result = run_script(
+                str(VERIFY_UPDATE_METADATA),
+                "--version",
+                "1.2.3",
+                "--repo",
+                "Radiant303/SpringNote",
+                "--macos-asset",
+                "SpringNote-1.2.3-macos-arm64.dmg",
+                "--windows-asset",
+                "SpringNote-1.2.3-windows-x64-setup.exe",
+                "--metadata-dir",
+                str(metadata_dir),
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("must contain a JSON object", result.stderr)
 
 
 if __name__ == "__main__":
