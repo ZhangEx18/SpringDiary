@@ -84,7 +84,7 @@ class _CloudSyncPanelState extends State<_CloudSyncPanel> {
                   _updateSync(_sync.copyWith(realTimeSync: value)),
             ),
             _SimpleRow(
-              label: '最近同步',
+              label: '最近一次全量同步',
               value: _formatSyncedAt(_sync.lastSyncedAt),
             ),
             _CloudSyncActionsRow(
