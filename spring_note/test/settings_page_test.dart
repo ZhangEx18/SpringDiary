@@ -4,11 +4,13 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:spring_note/core/models/app_config.dart';
+import 'package:spring_note/core/models/cloud_sync_config.dart';
 import 'package:spring_note/core/models/local_data_state.dart';
 import 'package:spring_note/core/models/model_config.dart';
 import 'package:spring_note/core/models/model_reference.dart';
 import 'package:spring_note/core/models/provider_config.dart';
 import 'package:spring_note/core/services/ai_client_service.dart';
+import 'package:spring_note/core/services/cloud_sync_service.dart';
 import 'package:spring_note/core/services/local_data_service.dart';
 import 'package:spring_note/core/services/platform_feature_support.dart';
 import 'package:spring_note/core/theme/app_theme.dart';
@@ -182,6 +184,144 @@ void main() {
 
     expect(service.savedConfig.hotkeys['toggleWindow'], 'Ctrl+Alt+H');
     expect(find.text('请输入类似 Ctrl+Shift+S 的组合键'), findsNothing);
+  });
+
+  testWidgets('settings page persists WebDAV cloud sync config', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final service = _MemoryLocalDataService(AppConfig.defaults());
+    final cloudSyncService = _FakeCloudSyncService();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: SettingsPage(
+          localDataState: _state(AppConfig.defaults()),
+          localDataService: service,
+          cloudSyncService: cloudSyncService,
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('云同步').first);
+    await tester.pump();
+    expect(find.text('连接设置'), findsOneWidget);
+    expect(find.text('WebDAV 地址'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('cloud-sync-message-slot')),
+      findsOneWidget,
+    );
+    expect(find.textContaining('例如 https://example.com'), findsNothing);
+    expect(find.textContaining('建议使用服务商生成'), findsNothing);
+    expect(find.textContaining('连接测试只验证'), findsNothing);
+    expect(find.text('应用关闭时自动同步'), findsNothing);
+    expect(find.text('实时同步'), findsOneWidget);
+
+    await tester.tap(find.byType(Switch).first);
+    await tester.pump();
+    expect(service.savedConfig.cloudSync.enabled, isTrue);
+
+    await tester.enterText(
+      _cloudSyncTextFieldWithText(''),
+      'https://dav.example.com/remote.php/dav/files/me/',
+    );
+    await tester.pump();
+    await tester.enterText(_cloudSyncTextFieldWithText(''), 'me');
+    await tester.pump();
+    await tester.enterText(_cloudSyncTextFieldWithText(''), 'token');
+    await tester.pump();
+
+    await tester.tap(find.byType(Switch).at(1));
+    await tester.pump();
+    await tester.tap(find.byType(Switch).at(2));
+    await tester.pump();
+
+    expect(
+      service.savedConfig.cloudSync.serverUrl,
+      contains('dav.example.com'),
+    );
+    expect(service.savedConfig.cloudSync.username, 'me');
+    expect(service.savedConfig.cloudSync.password, 'token');
+    expect(service.savedConfig.cloudSync.syncOnStartup, isTrue);
+    expect(service.savedConfig.cloudSync.realTimeSync, isTrue);
+
+    await tester.tap(find.text('测试连接'));
+    await tester.pumpAndSettle();
+    expect(cloudSyncService.tested, isTrue);
+    expect(find.text('连接成功'), findsOneWidget);
+
+    await tester.tap(find.text('手动同步'));
+    await tester.pumpAndSettle();
+    expect(cloudSyncService.synced, isTrue);
+    expect(service.savedConfig.cloudSync.lastSyncedAt, isNotNull);
+    expect(find.textContaining('手动同步完成'), findsOneWidget);
+  });
+
+  testWidgets('settings page confirms cloud sync delete plan', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final initialConfig = AppConfig.defaults().copyWith(
+      cloudSync: CloudSyncConfig.defaults().copyWith(enabled: true),
+    );
+    final service = _MemoryLocalDataService(initialConfig);
+    final cloudSyncService = _FakeCloudSyncService(
+      syncResults: [
+        const CloudSyncResult(
+          ok: true,
+          message: '检测到删除项，请确认后继续同步',
+          needsDeleteConfirmation: true,
+          pendingDeleteLocal: ['notes/daily/old.md'],
+          pendingDeleteRemote: ['notes/daily/images/old.png'],
+        ),
+        CloudSyncResult(
+          ok: true,
+          message: '手动同步完成：上传 0，下载 0，冲突 0',
+          syncedAt: DateTime(2026, 6, 29, 1, 30),
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: SettingsPage(
+          localDataState: _state(initialConfig),
+          localDataService: service,
+          cloudSyncService: cloudSyncService,
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('云同步').first);
+    await tester.pump();
+    await tester.tap(find.text('手动同步'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('cloud-sync-delete-confirm-dialog')),
+      findsOneWidget,
+    );
+    expect(find.text('daily/old.md'), findsOneWidget);
+    expect(find.text('daily/images/old.png'), findsOneWidget);
+
+    await tester.tap(find.text('确认删除并同步'));
+    await tester.pumpAndSettle();
+
+    expect(cloudSyncService.syncCallCount, 2);
+    expect(cloudSyncService.lastConfirmedDeleteLocal, ['notes/daily/old.md']);
+    expect(cloudSyncService.lastConfirmedDeleteRemote, [
+      'notes/daily/images/old.png',
+    ]);
+    expect(service.savedConfig.cloudSync.lastSyncedAt, isNotNull);
+    expect(find.textContaining('手动同步完成'), findsOneWidget);
   });
 
   testWidgets('settings page persists font size input', (
@@ -679,6 +819,14 @@ LocalDataState _state(AppConfig config) {
   );
 }
 
+Finder _cloudSyncTextFieldWithText(String text) {
+  return find
+      .byWidgetPredicate(
+        (widget) => widget is TextField && widget.controller?.text == text,
+      )
+      .first;
+}
+
 class _MemoryLocalDataService extends LocalDataService {
   _MemoryLocalDataService(this.savedConfig);
 
@@ -783,5 +931,49 @@ class _RecordingAiClientService extends AiClientService {
       message: 'stream-ok',
       errorCode: '',
     );
+  }
+}
+
+class _FakeCloudSyncService extends CloudSyncService {
+  _FakeCloudSyncService({List<CloudSyncResult>? syncResults})
+    : syncResults =
+          syncResults ??
+          [
+            CloudSyncResult(
+              ok: true,
+              message: '手动同步完成：上传 1，下载 0，冲突 0',
+              uploaded: 1,
+              syncedAt: DateTime(2026, 6, 28, 22, 0),
+            ),
+          ];
+
+  bool tested = false;
+  bool synced = false;
+  int syncCallCount = 0;
+  final List<CloudSyncResult> syncResults;
+  List<String> lastConfirmedDeleteLocal = const [];
+  List<String> lastConfirmedDeleteRemote = const [];
+
+  @override
+  Future<CloudSyncResult> testConnection(CloudSyncConfig config) async {
+    tested = true;
+    return const CloudSyncResult(ok: true, message: '连接成功');
+  }
+
+  @override
+  Future<CloudSyncResult> sync({
+    required LocalDataState localDataState,
+    required CloudSyncTrigger trigger,
+    List<String> confirmedDeleteLocal = const [],
+    List<String> confirmedDeleteRemote = const [],
+  }) async {
+    synced = true;
+    lastConfirmedDeleteLocal = confirmedDeleteLocal;
+    lastConfirmedDeleteRemote = confirmedDeleteRemote;
+    final index = syncCallCount < syncResults.length
+        ? syncCallCount
+        : syncResults.length - 1;
+    syncCallCount += 1;
+    return syncResults[index];
   }
 }

@@ -38,7 +38,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.12.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 495463959;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -954322426;
 
 // Section: executor
 
@@ -589,6 +589,44 @@ fn wire__crate__api__stats_api__record_work_time_impl(
         },
     )
 }
+fn wire__crate__api__cloud_sync_api__sync_web_dav_notes_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "sync_web_dav_notes",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_request = <crate::cloud_sync::CloudSyncRequest>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, ()>(
+                    (move || async move {
+                        let output_ok = Result::<_, ()>::Ok(
+                            crate::api::cloud_sync_api::sync_web_dav_notes(api_request).await,
+                        )?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__ai_api__test_provider_connection_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -627,6 +665,83 @@ fn wire__crate__api__ai_api__test_provider_connection_impl(
                                 api_api_log_enabled,
                             )
                             .await,
+                        )?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__cloud_sync_api__test_web_dav_connection_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "test_web_dav_connection",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_config = <crate::cloud_sync::CloudSyncConfig>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, ()>(
+                    (move || async move {
+                        let output_ok = Result::<_, ()>::Ok(
+                            crate::api::cloud_sync_api::test_web_dav_connection(api_config).await,
+                        )?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__cloud_sync_api__upload_web_dav_note_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "upload_web_dav_note",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_request =
+                <crate::cloud_sync::CloudSyncNoteUploadRequest>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, ()>(
+                    (move || async move {
+                        let output_ok = Result::<_, ()>::Ok(
+                            crate::api::cloud_sync_api::upload_web_dav_note(api_request).await,
                         )?;
                         Ok(output_ok)
                     })()
@@ -762,6 +877,94 @@ impl SseDecode for bool {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         deserializer.cursor.read_u8().unwrap() != 0
+    }
+}
+
+impl SseDecode for crate::cloud_sync::CloudSyncConfig {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_enabled = <bool>::sse_decode(deserializer);
+        let mut var_serverUrl = <String>::sse_decode(deserializer);
+        let mut var_username = <String>::sse_decode(deserializer);
+        let mut var_password = <String>::sse_decode(deserializer);
+        return crate::cloud_sync::CloudSyncConfig {
+            enabled: var_enabled,
+            server_url: var_serverUrl,
+            username: var_username,
+            password: var_password,
+        };
+    }
+}
+
+impl SseDecode for crate::cloud_sync::CloudSyncNoteUploadRequest {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_config = <crate::cloud_sync::CloudSyncConfig>::sse_decode(deserializer);
+        let mut var_dataDirectory = <String>::sse_decode(deserializer);
+        let mut var_dailyNotesDirectory = <String>::sse_decode(deserializer);
+        let mut var_weeklyNotesDirectory = <String>::sse_decode(deserializer);
+        let mut var_monthlyNotesDirectory = <String>::sse_decode(deserializer);
+        let mut var_notePath = <String>::sse_decode(deserializer);
+        return crate::cloud_sync::CloudSyncNoteUploadRequest {
+            config: var_config,
+            data_directory: var_dataDirectory,
+            daily_notes_directory: var_dailyNotesDirectory,
+            weekly_notes_directory: var_weeklyNotesDirectory,
+            monthly_notes_directory: var_monthlyNotesDirectory,
+            note_path: var_notePath,
+        };
+    }
+}
+
+impl SseDecode for crate::cloud_sync::CloudSyncRequest {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_config = <crate::cloud_sync::CloudSyncConfig>::sse_decode(deserializer);
+        let mut var_dataDirectory = <String>::sse_decode(deserializer);
+        let mut var_dailyNotesDirectory = <String>::sse_decode(deserializer);
+        let mut var_weeklyNotesDirectory = <String>::sse_decode(deserializer);
+        let mut var_monthlyNotesDirectory = <String>::sse_decode(deserializer);
+        let mut var_trigger = <String>::sse_decode(deserializer);
+        let mut var_confirmedDeleteLocal = <Vec<String>>::sse_decode(deserializer);
+        let mut var_confirmedDeleteRemote = <Vec<String>>::sse_decode(deserializer);
+        return crate::cloud_sync::CloudSyncRequest {
+            config: var_config,
+            data_directory: var_dataDirectory,
+            daily_notes_directory: var_dailyNotesDirectory,
+            weekly_notes_directory: var_weeklyNotesDirectory,
+            monthly_notes_directory: var_monthlyNotesDirectory,
+            trigger: var_trigger,
+            confirmed_delete_local: var_confirmedDeleteLocal,
+            confirmed_delete_remote: var_confirmedDeleteRemote,
+        };
+    }
+}
+
+impl SseDecode for crate::cloud_sync::CloudSyncResult {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_ok = <bool>::sse_decode(deserializer);
+        let mut var_message = <String>::sse_decode(deserializer);
+        let mut var_uploaded = <i32>::sse_decode(deserializer);
+        let mut var_downloaded = <i32>::sse_decode(deserializer);
+        let mut var_conflicts = <i32>::sse_decode(deserializer);
+        let mut var_syncedAt = <String>::sse_decode(deserializer);
+        let mut var_errorCode = <String>::sse_decode(deserializer);
+        let mut var_needsDeleteConfirmation = <bool>::sse_decode(deserializer);
+        let mut var_pendingDeleteLocal = <Vec<String>>::sse_decode(deserializer);
+        let mut var_pendingDeleteRemote = <Vec<String>>::sse_decode(deserializer);
+        return crate::cloud_sync::CloudSyncResult {
+            ok: var_ok,
+            message: var_message,
+            uploaded: var_uploaded,
+            downloaded: var_downloaded,
+            conflicts: var_conflicts,
+            synced_at: var_syncedAt,
+            error_code: var_errorCode,
+            needs_delete_confirmation: var_needsDeleteConfirmation,
+            pending_delete_local: var_pendingDeleteLocal,
+            pending_delete_remote: var_pendingDeleteRemote,
+        };
     }
 }
 
@@ -1287,7 +1490,25 @@ fn pde_ffi_dispatcher_primary_impl(
             data_len,
         ),
         14 => wire__crate__api__stats_api__record_work_time_impl(port, ptr, rust_vec_len, data_len),
-        15 => wire__crate__api__ai_api__test_provider_connection_impl(
+        15 => wire__crate__api__cloud_sync_api__sync_web_dav_notes_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        16 => wire__crate__api__ai_api__test_provider_connection_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        17 => wire__crate__api__cloud_sync_api__test_web_dav_connection_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        18 => wire__crate__api__cloud_sync_api__upload_web_dav_note_impl(
             port,
             ptr,
             rust_vec_len,
@@ -1403,6 +1624,110 @@ impl flutter_rust_bridge::IntoDart for crate::ai::AiToolCall {
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::ai::AiToolCall {}
 impl flutter_rust_bridge::IntoIntoDart<crate::ai::AiToolCall> for crate::ai::AiToolCall {
     fn into_into_dart(self) -> crate::ai::AiToolCall {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::cloud_sync::CloudSyncConfig {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.enabled.into_into_dart().into_dart(),
+            self.server_url.into_into_dart().into_dart(),
+            self.username.into_into_dart().into_dart(),
+            self.password.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::cloud_sync::CloudSyncConfig
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::cloud_sync::CloudSyncConfig>
+    for crate::cloud_sync::CloudSyncConfig
+{
+    fn into_into_dart(self) -> crate::cloud_sync::CloudSyncConfig {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::cloud_sync::CloudSyncNoteUploadRequest {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.config.into_into_dart().into_dart(),
+            self.data_directory.into_into_dart().into_dart(),
+            self.daily_notes_directory.into_into_dart().into_dart(),
+            self.weekly_notes_directory.into_into_dart().into_dart(),
+            self.monthly_notes_directory.into_into_dart().into_dart(),
+            self.note_path.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::cloud_sync::CloudSyncNoteUploadRequest
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::cloud_sync::CloudSyncNoteUploadRequest>
+    for crate::cloud_sync::CloudSyncNoteUploadRequest
+{
+    fn into_into_dart(self) -> crate::cloud_sync::CloudSyncNoteUploadRequest {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::cloud_sync::CloudSyncRequest {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.config.into_into_dart().into_dart(),
+            self.data_directory.into_into_dart().into_dart(),
+            self.daily_notes_directory.into_into_dart().into_dart(),
+            self.weekly_notes_directory.into_into_dart().into_dart(),
+            self.monthly_notes_directory.into_into_dart().into_dart(),
+            self.trigger.into_into_dart().into_dart(),
+            self.confirmed_delete_local.into_into_dart().into_dart(),
+            self.confirmed_delete_remote.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::cloud_sync::CloudSyncRequest
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::cloud_sync::CloudSyncRequest>
+    for crate::cloud_sync::CloudSyncRequest
+{
+    fn into_into_dart(self) -> crate::cloud_sync::CloudSyncRequest {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::cloud_sync::CloudSyncResult {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.ok.into_into_dart().into_dart(),
+            self.message.into_into_dart().into_dart(),
+            self.uploaded.into_into_dart().into_dart(),
+            self.downloaded.into_into_dart().into_dart(),
+            self.conflicts.into_into_dart().into_dart(),
+            self.synced_at.into_into_dart().into_dart(),
+            self.error_code.into_into_dart().into_dart(),
+            self.needs_delete_confirmation.into_into_dart().into_dart(),
+            self.pending_delete_local.into_into_dart().into_dart(),
+            self.pending_delete_remote.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::cloud_sync::CloudSyncResult
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::cloud_sync::CloudSyncResult>
+    for crate::cloud_sync::CloudSyncResult
+{
+    fn into_into_dart(self) -> crate::cloud_sync::CloudSyncResult {
         self
     }
 }
@@ -1870,6 +2195,58 @@ impl SseEncode for bool {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         serializer.cursor.write_u8(self as _).unwrap();
+    }
+}
+
+impl SseEncode for crate::cloud_sync::CloudSyncConfig {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.enabled, serializer);
+        <String>::sse_encode(self.server_url, serializer);
+        <String>::sse_encode(self.username, serializer);
+        <String>::sse_encode(self.password, serializer);
+    }
+}
+
+impl SseEncode for crate::cloud_sync::CloudSyncNoteUploadRequest {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <crate::cloud_sync::CloudSyncConfig>::sse_encode(self.config, serializer);
+        <String>::sse_encode(self.data_directory, serializer);
+        <String>::sse_encode(self.daily_notes_directory, serializer);
+        <String>::sse_encode(self.weekly_notes_directory, serializer);
+        <String>::sse_encode(self.monthly_notes_directory, serializer);
+        <String>::sse_encode(self.note_path, serializer);
+    }
+}
+
+impl SseEncode for crate::cloud_sync::CloudSyncRequest {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <crate::cloud_sync::CloudSyncConfig>::sse_encode(self.config, serializer);
+        <String>::sse_encode(self.data_directory, serializer);
+        <String>::sse_encode(self.daily_notes_directory, serializer);
+        <String>::sse_encode(self.weekly_notes_directory, serializer);
+        <String>::sse_encode(self.monthly_notes_directory, serializer);
+        <String>::sse_encode(self.trigger, serializer);
+        <Vec<String>>::sse_encode(self.confirmed_delete_local, serializer);
+        <Vec<String>>::sse_encode(self.confirmed_delete_remote, serializer);
+    }
+}
+
+impl SseEncode for crate::cloud_sync::CloudSyncResult {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.ok, serializer);
+        <String>::sse_encode(self.message, serializer);
+        <i32>::sse_encode(self.uploaded, serializer);
+        <i32>::sse_encode(self.downloaded, serializer);
+        <i32>::sse_encode(self.conflicts, serializer);
+        <String>::sse_encode(self.synced_at, serializer);
+        <String>::sse_encode(self.error_code, serializer);
+        <bool>::sse_encode(self.needs_delete_confirmation, serializer);
+        <Vec<String>>::sse_encode(self.pending_delete_local, serializer);
+        <Vec<String>>::sse_encode(self.pending_delete_remote, serializer);
     }
 }
 

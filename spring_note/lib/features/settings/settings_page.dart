@@ -7,11 +7,13 @@ import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../core/models/app_config.dart';
+import '../../core/models/cloud_sync_config.dart';
 import '../../core/models/local_data_state.dart';
 import '../../core/models/model_config.dart';
 import '../../core/models/model_reference.dart';
 import '../../core/models/provider_config.dart';
 import '../../core/services/ai_client_service.dart';
+import '../../core/services/cloud_sync_service.dart';
 import '../../core/services/external_link_service.dart';
 import '../../core/services/local_data_service.dart';
 import '../../core/services/platform_feature_support.dart';
@@ -23,6 +25,7 @@ part 'settings_preferences_panel.dart';
 part 'settings_providers_panel.dart';
 part 'settings_default_models_panel.dart';
 part 'settings_hotkeys_panel.dart';
+part 'settings_cloud_sync_panel.dart';
 part 'settings_about_panel.dart';
 part 'settings_shared_widgets.dart';
 
@@ -31,6 +34,7 @@ enum _SettingsSection {
   providers('供应商', _SettingsNavIconType.boxes),
   models('默认模型', _SettingsNavIconType.heart),
   hotkeys('快捷键', _SettingsNavIconType.keyboard),
+  cloudSync('云同步', _SettingsNavIconType.cloud),
   stats('统计', _SettingsNavIconType.chart),
   about('关于', _SettingsNavIconType.info);
 
@@ -40,7 +44,15 @@ enum _SettingsSection {
   final _SettingsNavIconType icon;
 }
 
-enum _SettingsNavIconType { monitor, boxes, heart, keyboard, chart, info }
+enum _SettingsNavIconType {
+  monitor,
+  boxes,
+  heart,
+  keyboard,
+  cloud,
+  chart,
+  info,
+}
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({
@@ -48,15 +60,19 @@ class SettingsPage extends StatefulWidget {
     required this.localDataState,
     this.localDataService = const LocalDataService(),
     this.aiClientService = const AiClientService(),
+    this.cloudSyncService = const CloudSyncService(),
     this.onConfigChanged,
     this.onLocalDataStateChanged,
+    this.onCloudSyncCompleted,
   });
 
   final LocalDataState localDataState;
   final LocalDataService localDataService;
   final AiClientService aiClientService;
+  final CloudSyncService cloudSyncService;
   final ValueChanged<AppConfig>? onConfigChanged;
   final ValueChanged<LocalDataState>? onLocalDataStateChanged;
+  final VoidCallback? onCloudSyncCompleted;
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -353,6 +369,13 @@ class _SettingsPageState extends State<SettingsPage> {
         config: _config,
         onChanged: _updateConfig,
       ),
+      _SettingsSection.cloudSync => _CloudSyncPanel(
+        config: _config,
+        localDataState: widget.localDataState.copyWith(config: _config),
+        cloudSyncService: widget.cloudSyncService,
+        onChanged: _updateConfig,
+        onCloudSyncCompleted: widget.onCloudSyncCompleted,
+      ),
       _SettingsSection.stats => SettingsStatsPanel(
         localDataState: widget.localDataState.copyWith(config: _config),
       ),
@@ -617,6 +640,63 @@ class _SettingsNavLucidePainter extends CustomPainter {
           }
         }
         canvas.drawLine(point(8, 16), point(16, 16), paint);
+        break;
+      case _SettingsNavIconType.cloud:
+        final cloud = Path()
+          ..moveTo(point(7.3, 18).dx, point(7.3, 18).dy)
+          ..lineTo(point(18.2, 18).dx, point(18.2, 18).dy)
+          ..cubicTo(
+            point(20.3, 18).dx,
+            point(20.3, 18).dy,
+            point(22, 16.4).dx,
+            point(22, 16.4).dy,
+            point(22, 14.3).dx,
+            point(22, 14.3).dy,
+          )
+          ..cubicTo(
+            point(22, 12.2).dx,
+            point(22, 12.2).dy,
+            point(20.4, 10.6).dx,
+            point(20.4, 10.6).dy,
+            point(18.3, 10.6).dx,
+            point(18.3, 10.6).dy,
+          )
+          ..cubicTo(
+            point(17.5, 7.9).dx,
+            point(17.5, 7.9).dy,
+            point(15.1, 6).dx,
+            point(15.1, 6).dy,
+            point(12.2, 6).dx,
+            point(12.2, 6).dy,
+          )
+          ..cubicTo(
+            point(8.9, 6).dx,
+            point(8.9, 6).dy,
+            point(6.2, 8.5).dx,
+            point(6.2, 8.5).dy,
+            point(5.9, 11.7).dx,
+            point(5.9, 11.7).dy,
+          )
+          ..cubicTo(
+            point(3.8, 12.1).dx,
+            point(3.8, 12.1).dy,
+            point(2.2, 13.8).dx,
+            point(2.2, 13.8).dy,
+            point(2.2, 15.7).dx,
+            point(2.2, 15.7).dy,
+          )
+          ..cubicTo(
+            point(2.2, 17).dx,
+            point(2.2, 17).dy,
+            point(3.3, 18).dx,
+            point(3.3, 18).dy,
+            point(4.6, 18).dx,
+            point(4.6, 18).dy,
+          );
+        canvas.drawPath(cloud, paint);
+        canvas.drawLine(point(12, 11.6), point(12, 15.7), paint);
+        canvas.drawLine(point(9.9, 13.7), point(12, 11.6), paint);
+        canvas.drawLine(point(14.1, 13.7), point(12, 11.6), paint);
         break;
       case _SettingsNavIconType.chart:
         canvas.drawLine(point(4, 20), point(20, 20), paint);

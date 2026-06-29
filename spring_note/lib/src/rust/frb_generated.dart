@@ -5,7 +5,9 @@
 
 import 'ai.dart';
 import 'api/ai_api.dart';
+import 'api/cloud_sync_api.dart';
 import 'api/stats_api.dart';
+import 'cloud_sync.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'frb_generated.dart';
@@ -69,7 +71,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => 495463959;
+  int get rustContentHash => -954322426;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -142,11 +144,23 @@ abstract class RustLibApi extends BaseApi {
     required double coins,
   });
 
+  Future<CloudSyncResult> crateApiCloudSyncApiSyncWebDavNotes({
+    required CloudSyncRequest request,
+  });
+
   Future<ProviderTestResult> crateApiAiApiTestProviderConnection({
     required String appDataDir,
     required AiProvider provider,
     required AiModel model,
     required bool apiLogEnabled,
+  });
+
+  Future<CloudSyncResult> crateApiCloudSyncApiTestWebDavConnection({
+    required CloudSyncConfig config,
+  });
+
+  Future<CloudSyncResult> crateApiCloudSyncApiUploadWebDavNote({
+    required CloudSyncNoteUploadRequest request,
   });
 }
 
@@ -644,6 +658,39 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<CloudSyncResult> crateApiCloudSyncApiSyncWebDavNotes({
+    required CloudSyncRequest request,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_box_autoadd_cloud_sync_request(request, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 15,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_cloud_sync_result,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiCloudSyncApiSyncWebDavNotesConstMeta,
+        argValues: [request],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiCloudSyncApiSyncWebDavNotesConstMeta =>
+      const TaskConstMeta(
+        debugName: "sync_web_dav_notes",
+        argNames: ["request"],
+      );
+
+  @override
   Future<ProviderTestResult> crateApiAiApiTestProviderConnection({
     required String appDataDir,
     required AiProvider provider,
@@ -661,7 +708,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 15,
+            funcId: 16,
             port: port_,
           );
         },
@@ -680,6 +727,75 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(
         debugName: "test_provider_connection",
         argNames: ["appDataDir", "provider", "model", "apiLogEnabled"],
+      );
+
+  @override
+  Future<CloudSyncResult> crateApiCloudSyncApiTestWebDavConnection({
+    required CloudSyncConfig config,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_box_autoadd_cloud_sync_config(config, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 17,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_cloud_sync_result,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiCloudSyncApiTestWebDavConnectionConstMeta,
+        argValues: [config],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiCloudSyncApiTestWebDavConnectionConstMeta =>
+      const TaskConstMeta(
+        debugName: "test_web_dav_connection",
+        argNames: ["config"],
+      );
+
+  @override
+  Future<CloudSyncResult> crateApiCloudSyncApiUploadWebDavNote({
+    required CloudSyncNoteUploadRequest request,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_box_autoadd_cloud_sync_note_upload_request(
+            request,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 18,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_cloud_sync_result,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiCloudSyncApiUploadWebDavNoteConstMeta,
+        argValues: [request],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiCloudSyncApiUploadWebDavNoteConstMeta =>
+      const TaskConstMeta(
+        debugName: "upload_web_dav_note",
+        argNames: ["request"],
       );
 
   @protected
@@ -795,6 +911,25 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  CloudSyncConfig dco_decode_box_autoadd_cloud_sync_config(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_cloud_sync_config(raw);
+  }
+
+  @protected
+  CloudSyncNoteUploadRequest
+  dco_decode_box_autoadd_cloud_sync_note_upload_request(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_cloud_sync_note_upload_request(raw);
+  }
+
+  @protected
+  CloudSyncRequest dco_decode_box_autoadd_cloud_sync_request(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_cloud_sync_request(raw);
+  }
+
+  @protected
   DailyMergeRequest dco_decode_box_autoadd_daily_merge_request(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_daily_merge_request(raw);
@@ -832,6 +967,76 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_structured_note_request(raw);
+  }
+
+  @protected
+  CloudSyncConfig dco_decode_cloud_sync_config(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return CloudSyncConfig(
+      enabled: dco_decode_bool(arr[0]),
+      serverUrl: dco_decode_String(arr[1]),
+      username: dco_decode_String(arr[2]),
+      password: dco_decode_String(arr[3]),
+    );
+  }
+
+  @protected
+  CloudSyncNoteUploadRequest dco_decode_cloud_sync_note_upload_request(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 6)
+      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
+    return CloudSyncNoteUploadRequest(
+      config: dco_decode_cloud_sync_config(arr[0]),
+      dataDirectory: dco_decode_String(arr[1]),
+      dailyNotesDirectory: dco_decode_String(arr[2]),
+      weeklyNotesDirectory: dco_decode_String(arr[3]),
+      monthlyNotesDirectory: dco_decode_String(arr[4]),
+      notePath: dco_decode_String(arr[5]),
+    );
+  }
+
+  @protected
+  CloudSyncRequest dco_decode_cloud_sync_request(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 8)
+      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
+    return CloudSyncRequest(
+      config: dco_decode_cloud_sync_config(arr[0]),
+      dataDirectory: dco_decode_String(arr[1]),
+      dailyNotesDirectory: dco_decode_String(arr[2]),
+      weeklyNotesDirectory: dco_decode_String(arr[3]),
+      monthlyNotesDirectory: dco_decode_String(arr[4]),
+      trigger: dco_decode_String(arr[5]),
+      confirmedDeleteLocal: dco_decode_list_String(arr[6]),
+      confirmedDeleteRemote: dco_decode_list_String(arr[7]),
+    );
+  }
+
+  @protected
+  CloudSyncResult dco_decode_cloud_sync_result(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 10)
+      throw Exception('unexpected arr length: expect 10 but see ${arr.length}');
+    return CloudSyncResult(
+      ok: dco_decode_bool(arr[0]),
+      message: dco_decode_String(arr[1]),
+      uploaded: dco_decode_i_32(arr[2]),
+      downloaded: dco_decode_i_32(arr[3]),
+      conflicts: dco_decode_i_32(arr[4]),
+      syncedAt: dco_decode_String(arr[5]),
+      errorCode: dco_decode_String(arr[6]),
+      needsDeleteConfirmation: dco_decode_bool(arr[7]),
+      pendingDeleteLocal: dco_decode_list_String(arr[8]),
+      pendingDeleteRemote: dco_decode_list_String(arr[9]),
+    );
   }
 
   @protected
@@ -1298,6 +1503,31 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  CloudSyncConfig sse_decode_box_autoadd_cloud_sync_config(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_cloud_sync_config(deserializer));
+  }
+
+  @protected
+  CloudSyncNoteUploadRequest
+  sse_decode_box_autoadd_cloud_sync_note_upload_request(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_cloud_sync_note_upload_request(deserializer));
+  }
+
+  @protected
+  CloudSyncRequest sse_decode_box_autoadd_cloud_sync_request(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_cloud_sync_request(deserializer));
+  }
+
+  @protected
   DailyMergeRequest sse_decode_box_autoadd_daily_merge_request(
     SseDeserializer deserializer,
   ) {
@@ -1343,6 +1573,92 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_structured_note_request(deserializer));
+  }
+
+  @protected
+  CloudSyncConfig sse_decode_cloud_sync_config(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_enabled = sse_decode_bool(deserializer);
+    var var_serverUrl = sse_decode_String(deserializer);
+    var var_username = sse_decode_String(deserializer);
+    var var_password = sse_decode_String(deserializer);
+    return CloudSyncConfig(
+      enabled: var_enabled,
+      serverUrl: var_serverUrl,
+      username: var_username,
+      password: var_password,
+    );
+  }
+
+  @protected
+  CloudSyncNoteUploadRequest sse_decode_cloud_sync_note_upload_request(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_config = sse_decode_cloud_sync_config(deserializer);
+    var var_dataDirectory = sse_decode_String(deserializer);
+    var var_dailyNotesDirectory = sse_decode_String(deserializer);
+    var var_weeklyNotesDirectory = sse_decode_String(deserializer);
+    var var_monthlyNotesDirectory = sse_decode_String(deserializer);
+    var var_notePath = sse_decode_String(deserializer);
+    return CloudSyncNoteUploadRequest(
+      config: var_config,
+      dataDirectory: var_dataDirectory,
+      dailyNotesDirectory: var_dailyNotesDirectory,
+      weeklyNotesDirectory: var_weeklyNotesDirectory,
+      monthlyNotesDirectory: var_monthlyNotesDirectory,
+      notePath: var_notePath,
+    );
+  }
+
+  @protected
+  CloudSyncRequest sse_decode_cloud_sync_request(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_config = sse_decode_cloud_sync_config(deserializer);
+    var var_dataDirectory = sse_decode_String(deserializer);
+    var var_dailyNotesDirectory = sse_decode_String(deserializer);
+    var var_weeklyNotesDirectory = sse_decode_String(deserializer);
+    var var_monthlyNotesDirectory = sse_decode_String(deserializer);
+    var var_trigger = sse_decode_String(deserializer);
+    var var_confirmedDeleteLocal = sse_decode_list_String(deserializer);
+    var var_confirmedDeleteRemote = sse_decode_list_String(deserializer);
+    return CloudSyncRequest(
+      config: var_config,
+      dataDirectory: var_dataDirectory,
+      dailyNotesDirectory: var_dailyNotesDirectory,
+      weeklyNotesDirectory: var_weeklyNotesDirectory,
+      monthlyNotesDirectory: var_monthlyNotesDirectory,
+      trigger: var_trigger,
+      confirmedDeleteLocal: var_confirmedDeleteLocal,
+      confirmedDeleteRemote: var_confirmedDeleteRemote,
+    );
+  }
+
+  @protected
+  CloudSyncResult sse_decode_cloud_sync_result(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_ok = sse_decode_bool(deserializer);
+    var var_message = sse_decode_String(deserializer);
+    var var_uploaded = sse_decode_i_32(deserializer);
+    var var_downloaded = sse_decode_i_32(deserializer);
+    var var_conflicts = sse_decode_i_32(deserializer);
+    var var_syncedAt = sse_decode_String(deserializer);
+    var var_errorCode = sse_decode_String(deserializer);
+    var var_needsDeleteConfirmation = sse_decode_bool(deserializer);
+    var var_pendingDeleteLocal = sse_decode_list_String(deserializer);
+    var var_pendingDeleteRemote = sse_decode_list_String(deserializer);
+    return CloudSyncResult(
+      ok: var_ok,
+      message: var_message,
+      uploaded: var_uploaded,
+      downloaded: var_downloaded,
+      conflicts: var_conflicts,
+      syncedAt: var_syncedAt,
+      errorCode: var_errorCode,
+      needsDeleteConfirmation: var_needsDeleteConfirmation,
+      pendingDeleteLocal: var_pendingDeleteLocal,
+      pendingDeleteRemote: var_pendingDeleteRemote,
+    );
   }
 
   @protected
@@ -1923,6 +2239,33 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_cloud_sync_config(
+    CloudSyncConfig self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_cloud_sync_config(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_cloud_sync_note_upload_request(
+    CloudSyncNoteUploadRequest self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_cloud_sync_note_upload_request(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_cloud_sync_request(
+    CloudSyncRequest self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_cloud_sync_request(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_daily_merge_request(
     DailyMergeRequest self,
     SseSerializer serializer,
@@ -1974,6 +2317,66 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_structured_note_request(self, serializer);
+  }
+
+  @protected
+  void sse_encode_cloud_sync_config(
+    CloudSyncConfig self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_bool(self.enabled, serializer);
+    sse_encode_String(self.serverUrl, serializer);
+    sse_encode_String(self.username, serializer);
+    sse_encode_String(self.password, serializer);
+  }
+
+  @protected
+  void sse_encode_cloud_sync_note_upload_request(
+    CloudSyncNoteUploadRequest self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_cloud_sync_config(self.config, serializer);
+    sse_encode_String(self.dataDirectory, serializer);
+    sse_encode_String(self.dailyNotesDirectory, serializer);
+    sse_encode_String(self.weeklyNotesDirectory, serializer);
+    sse_encode_String(self.monthlyNotesDirectory, serializer);
+    sse_encode_String(self.notePath, serializer);
+  }
+
+  @protected
+  void sse_encode_cloud_sync_request(
+    CloudSyncRequest self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_cloud_sync_config(self.config, serializer);
+    sse_encode_String(self.dataDirectory, serializer);
+    sse_encode_String(self.dailyNotesDirectory, serializer);
+    sse_encode_String(self.weeklyNotesDirectory, serializer);
+    sse_encode_String(self.monthlyNotesDirectory, serializer);
+    sse_encode_String(self.trigger, serializer);
+    sse_encode_list_String(self.confirmedDeleteLocal, serializer);
+    sse_encode_list_String(self.confirmedDeleteRemote, serializer);
+  }
+
+  @protected
+  void sse_encode_cloud_sync_result(
+    CloudSyncResult self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_bool(self.ok, serializer);
+    sse_encode_String(self.message, serializer);
+    sse_encode_i_32(self.uploaded, serializer);
+    sse_encode_i_32(self.downloaded, serializer);
+    sse_encode_i_32(self.conflicts, serializer);
+    sse_encode_String(self.syncedAt, serializer);
+    sse_encode_String(self.errorCode, serializer);
+    sse_encode_bool(self.needsDeleteConfirmation, serializer);
+    sse_encode_list_String(self.pendingDeleteLocal, serializer);
+    sse_encode_list_String(self.pendingDeleteRemote, serializer);
   }
 
   @protected

@@ -4,16 +4,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:spring_note/core/models/app_config.dart';
+import 'package:spring_note/core/models/cloud_sync_config.dart';
 import 'package:spring_note/core/models/local_data_state.dart';
 import 'package:spring_note/core/models/model_config.dart';
 import 'package:spring_note/core/models/note_file.dart';
 import 'package:spring_note/core/models/provider_config.dart';
 import 'package:spring_note/core/services/ai_client_service.dart';
 import 'package:spring_note/core/services/clipboard_image_service.dart';
+import 'package:spring_note/core/services/cloud_sync_service.dart';
 import 'package:spring_note/core/services/note_service.dart';
 import 'package:spring_note/core/services/pasted_image_service.dart';
 import 'package:spring_note/core/theme/app_theme.dart';
 import 'package:spring_note/features/notes/notes_page.dart';
+import 'package:spring_note/src/rust/cloud_sync.dart' as rust_model;
 
 void main() {
   testWidgets('notes page loads edits previews and saves markdown', (
@@ -83,6 +86,129 @@ final value = 1;
     expect(find.text('预览'), findsOneWidget);
     expect(tester.takeException(), isNull);
     expect(noteService.contents.values.single, edited);
+  });
+
+  testWidgets('notes page checks focused note every three seconds', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final notePath = 'D:\\Temp\\SpringNote\\notes\\daily\\2026-06-18.md';
+    final noteService = _MemoryNoteService({notePath: '# 初始日报\n'});
+    final cloudSyncApi = _FakeCloudSyncRustApi();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: NotesPage(
+          localDataState: _cloudSyncLocalDataState,
+          noteService: noteService,
+          cloudSyncService: CloudSyncService(api: cloudSyncApi),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 3));
+
+    expect(cloudSyncApi.uploadCalls, 0);
+
+    const edited = '# 修改后的日报\n\n自动同步这一篇。';
+    await tester.tap(find.byType(TextField).last);
+    await tester.pump();
+    await tester.enterText(find.byType(TextField).last, edited);
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pump();
+
+    expect(cloudSyncApi.uploadCalls, 1);
+    expect(cloudSyncApi.uploadRequests.single.notePath, notePath);
+
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pump();
+
+    expect(cloudSyncApi.uploadCalls, 2);
+  });
+
+  testWidgets('notes page uploads changed note once when editor loses focus', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final notePath = 'D:\\Temp\\SpringNote\\notes\\daily\\2026-06-18.md';
+    final noteService = _MemoryNoteService({notePath: '# 初始日报\n'});
+    final cloudSyncApi = _FakeCloudSyncRustApi();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: NotesPage(
+          localDataState: _cloudSyncLocalDataState,
+          noteService: noteService,
+          cloudSyncService: CloudSyncService(api: cloudSyncApi),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.byType(TextField).last);
+    await tester.pump();
+    await tester.enterText(find.byType(TextField).last, '# 失焦同步\n');
+    await tester.pump();
+    await tester.pump();
+    expect(cloudSyncApi.uploadCalls, 0);
+
+    await tester.tap(find.byType(TextField).first);
+    await tester.pump();
+    await tester.pump();
+
+    expect(cloudSyncApi.uploadCalls, 1);
+    expect(cloudSyncApi.uploadRequests.single.notePath, notePath);
+
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pump();
+
+    expect(cloudSyncApi.uploadCalls, 1);
+  });
+
+  testWidgets('notes page skips auto upload when real-time sync is disabled', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final noteService = _MemoryNoteService({
+      'D:\\Temp\\SpringNote\\notes\\daily\\2026-06-18.md': '# 初始日报\n',
+    });
+    final cloudSyncApi = _FakeCloudSyncRustApi();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: NotesPage(
+          localDataState: _cloudSyncWithoutRealTimeLocalDataState,
+          noteService: noteService,
+          cloudSyncService: CloudSyncService(api: cloudSyncApi),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.enterText(find.byType(TextField).last, '# 本地修改\n');
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pump();
+
+    expect(cloudSyncApi.uploadCalls, 0);
   });
 
   testWidgets('notes page switches note kind from menu', (
@@ -744,6 +870,34 @@ final _localDataState = LocalDataState(
   config: AppConfig.defaults(),
 );
 
+final _cloudSyncLocalDataState = _localDataState.copyWith(
+  config: _localDataState.config.copyWith(
+    cloudSync: const CloudSyncConfig(
+      enabled: true,
+      serverUrl: 'https://example.com/dav/',
+      username: 'user',
+      password: 'token',
+      syncOnStartup: false,
+      realTimeSync: true,
+      lastSyncedAt: null,
+    ),
+  ),
+);
+
+final _cloudSyncWithoutRealTimeLocalDataState = _localDataState.copyWith(
+  config: _localDataState.config.copyWith(
+    cloudSync: const CloudSyncConfig(
+      enabled: true,
+      serverUrl: 'https://example.com/dav/',
+      username: 'user',
+      password: 'token',
+      syncOnStartup: false,
+      realTimeSync: false,
+      lastSyncedAt: null,
+    ),
+  ),
+);
+
 final _fimLocalDataState = LocalDataState(
   dataDirectory: 'D:\\Temp\\SpringNote',
   configPath: 'D:\\Temp\\SpringNote\\config.json',
@@ -835,6 +989,31 @@ class _MemoryNoteService extends NoteService {
       modifiedAt: DateTime(2026, 6, 18, 12, 0),
       kind: kind,
       preview: content.replaceAll('\n', ' '),
+    );
+  }
+}
+
+class _FakeCloudSyncRustApi extends CloudSyncRustApi {
+  int uploadCalls = 0;
+  final List<rust_model.CloudSyncNoteUploadRequest> uploadRequests = [];
+
+  @override
+  Future<rust_model.CloudSyncResult> uploadNote(
+    rust_model.CloudSyncNoteUploadRequest request,
+  ) async {
+    uploadCalls++;
+    uploadRequests.add(request);
+    return const rust_model.CloudSyncResult(
+      ok: true,
+      message: 'ok',
+      uploaded: 1,
+      downloaded: 0,
+      conflicts: 0,
+      syncedAt: '2026-06-29T00:00:00+08:00',
+      errorCode: '',
+      needsDeleteConfirmation: false,
+      pendingDeleteLocal: [],
+      pendingDeleteRemote: [],
     );
   }
 }

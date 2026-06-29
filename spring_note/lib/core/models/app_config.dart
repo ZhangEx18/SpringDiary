@@ -1,3 +1,4 @@
+import 'cloud_sync_config.dart';
 import 'desktop_widget_position.dart';
 import 'provider_config.dart';
 
@@ -47,6 +48,7 @@ class AppConfig {
     required this.memoryKeywordContextAfter,
     required this.dailyMergePrompt,
     required this.apiLogEnabled,
+    required this.cloudSync,
     required this.providers,
     required this.defaultModels,
     required this.hotkeys,
@@ -73,6 +75,7 @@ class AppConfig {
   final double memoryKeywordContextAfter;
   final String dailyMergePrompt;
   final bool apiLogEnabled;
+  final CloudSyncConfig cloudSync;
   final List<ProviderConfig> providers;
   final Map<String, String?> defaultModels;
   final Map<String, String?> hotkeys;
@@ -100,6 +103,7 @@ class AppConfig {
       memoryKeywordContextAfter: 2600,
       dailyMergePrompt: defaultDailyMergePrompt,
       apiLogEnabled: false,
+      cloudSync: CloudSyncConfig.defaultsValue,
       providers: [],
       defaultModels: {
         'intelligentGenerationModel': null,
@@ -155,6 +159,7 @@ class AppConfig {
         defaultDailyMergePrompt,
       ),
       apiLogEnabled: json['apiLogEnabled'] as bool? ?? false,
+      cloudSync: CloudSyncConfig.fromJson(json['cloudSync']),
       providers: _readProviders(json['providers']),
       defaultModels: _readStringMap(
         json['defaultModels'],
@@ -187,6 +192,7 @@ class AppConfig {
       'memoryKeywordContextAfter': memoryKeywordContextAfter,
       'dailyMergePrompt': dailyMergePrompt,
       'apiLogEnabled': apiLogEnabled,
+      'cloudSync': cloudSync.toJson(),
       'providers': providers.map((provider) => provider.toJson()).toList(),
       'defaultModels': defaultModels,
       'hotkeys': hotkeys,
@@ -215,6 +221,7 @@ class AppConfig {
     double? memoryKeywordContextAfter,
     String? dailyMergePrompt,
     bool? apiLogEnabled,
+    CloudSyncConfig? cloudSync,
     List<ProviderConfig>? providers,
     Map<String, String?>? defaultModels,
     Map<String, String?>? hotkeys,
@@ -253,6 +260,7 @@ class AppConfig {
           memoryKeywordContextAfter ?? this.memoryKeywordContextAfter,
       dailyMergePrompt: dailyMergePrompt ?? this.dailyMergePrompt,
       apiLogEnabled: apiLogEnabled ?? this.apiLogEnabled,
+      cloudSync: cloudSync ?? this.cloudSync,
       providers: providers ?? this.providers,
       defaultModels: defaultModels ?? this.defaultModels,
       hotkeys: hotkeys ?? this.hotkeys,

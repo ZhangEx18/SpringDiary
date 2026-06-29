@@ -16,7 +16,6 @@ class _HotkeysPanel extends StatelessWidget {
     return _SettingsScrollFrame(
       maxWidth: 1120,
       children: [
-        Text('快捷键', style: Theme.of(context).textTheme.titleLarge),
         _SettingsCard(
           title: '全局快捷键',
           children: [
