@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import '../../src/rust/ai.dart' as rust_ai;
 import '../../src/rust/api/ai_api.dart' as rust_api;
@@ -10,6 +11,23 @@ import '../models/model_config.dart';
 import '../models/model_reference.dart';
 import '../models/provider_config.dart';
 import '../models/structured_work_note.dart';
+import 'image_file_types.dart';
+
+const int maxAiImageInputs = 4;
+const int maxAiImageInputBytes = 5 * 1024 * 1024;
+const Set<String> supportedAiImageExtensions = {
+  'png',
+  'jpg',
+  'jpeg',
+  'webp',
+  'gif',
+};
+const Set<String> supportedAiImageMimeTypes = {
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+  'image/gif',
+};
 
 class AiClientService {
   const AiClientService();
@@ -18,11 +36,15 @@ class AiClientService {
     required String appDataDir,
     required AppConfig config,
     required String input,
+    List<AiImageInput> images = const [],
   }) async {
     final selection = _selectModel(config, 'intelligentGenerationModel');
     if (selection == null) {
       return null;
     }
+    final safeImages = _imageCapableModel(selection.model)
+        ? images.where(isSupportedAiImageInput).take(maxAiImageInputs).toList()
+        : const <AiImageInput>[];
 
     final response = await rust_api.generateStructuredNote(
       request: rust_ai.StructuredNoteRequest(
@@ -30,6 +52,7 @@ class AiClientService {
         provider: _toRustProvider(selection.provider),
         model: _toRustModel(selection.model),
         input: input,
+        images: safeImages.map(_toRustImageAttachment).toList(),
         industry: config.industry,
         apiLogEnabled: config.apiLogEnabled,
       ),
@@ -519,6 +542,11 @@ class AiClientService {
     return null;
   }
 
+  bool supportsMultimodalImageInput(AppConfig config) {
+    final selection = _selectModel(config, 'intelligentGenerationModel');
+    return selection != null && _imageCapableModel(selection.model);
+  }
+
   _ModelSelection? _findFimModel(AppConfig config, ModelReference modelRef) {
     for (final provider in config.providers) {
       if (modelRef.providerId != null && provider.id != modelRef.providerId) {
@@ -619,6 +647,18 @@ class AiClientService {
     );
   }
 
+  rust_ai.AiImageAttachment _toRustImageAttachment(AiImageInput image) {
+    return rust_ai.AiImageAttachment(
+      name: image.name,
+      mimeType: image.mimeType,
+      dataBase64: base64Encode(image.bytes),
+    );
+  }
+
+  bool _imageCapableModel(ModelConfig model) {
+    return model.inputModes.contains('image');
+  }
+
   rust_ai.AiChatMessage _toRustChatMessage(MemoryMessage message) {
     return rust_ai.AiChatMessage(
       role: message.role == 'ai' ? 'assistant' : message.role,
@@ -677,6 +717,40 @@ class AiClientService {
     }
     return null;
   }
+}
+
+class AiImageInput {
+  const AiImageInput({
+    required this.name,
+    required this.bytes,
+    required this.mimeType,
+  });
+
+  factory AiImageInput.fromBytes({
+    required String name,
+    required Uint8List bytes,
+    required String extension,
+  }) {
+    final mimeType = isSupportedAiImageExtension(extension)
+        ? imageMimeTypeForExtension(extension)
+        : 'application/octet-stream';
+    return AiImageInput(name: name, bytes: bytes, mimeType: mimeType);
+  }
+
+  final String name;
+  final Uint8List bytes;
+  final String mimeType;
+}
+
+bool isSupportedAiImageInput(AiImageInput image) {
+  return image.bytes.isNotEmpty &&
+      image.bytes.length <= maxAiImageInputBytes &&
+      supportedAiImageMimeTypes.contains(image.mimeType.trim().toLowerCase());
+}
+
+bool isSupportedAiImageExtension(String extension) {
+  final normalized = extension.trim().toLowerCase().replaceFirst('.', '');
+  return supportedAiImageExtensions.contains(normalized);
 }
 
 class _ModelSelection {
