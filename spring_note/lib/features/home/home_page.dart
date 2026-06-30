@@ -238,16 +238,20 @@ class _HomePageState extends State<HomePage> {
             notePath: notePath,
             images: _attachmentManager.images,
           );
-      final aiImages = _attachmentManager.images
-          .where(_canSendImageToAi)
-          .map(
-            (image) => AiImageInput.fromBytes(
-              name: image.name,
-              bytes: image.bytes,
-              extension: image.extension,
-            ),
-          )
-          .toList();
+      final modelSupportsImages = widget.aiClientService
+          .supportsMultimodalImageInput(widget.localDataState.config);
+      final aiImages = modelSupportsImages
+          ? _attachmentManager.images
+                .where(_canSendImageToAi)
+                .map(
+                  (image) => AiImageInput.fromBytes(
+                    name: image.name,
+                    bytes: image.bytes,
+                    extension: image.extension,
+                  ),
+                )
+                .toList()
+          : const <AiImageInput>[];
       final submissionInput = _inputWithAttachmentSummary(
         input,
         savedPendingImages,
@@ -324,6 +328,8 @@ class _HomePageState extends State<HomePage> {
         _lastSavedPath = savedPath;
         _aiNotice = aiFailed || !hasConfiguredModel || aiMergedMarkdown == null
             ? '未配置可用模型或 AI 返回不可用，本次已使用本地 mock / 简单合并。'
+            : savedPendingImages.isNotEmpty && !modelSupportsImages
+            ? '当前智能生成模型未标记支持图像输入，图片已保存进日报但未发送给 AI。'
             : null;
         _controller.clear();
         _attachmentManager.clear();

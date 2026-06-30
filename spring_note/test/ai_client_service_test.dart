@@ -75,6 +75,53 @@ void main() {
     );
   });
 
+  test('default templates mark known image-capable models', () {
+    final openAi = ProviderConfig.template('OpenAI');
+    expect(openAi.models.single.inputModes, contains('image'));
+
+    final gemini = ProviderConfig.template('Google');
+    expect(gemini.models.single.inputModes, contains('image'));
+
+    final claude = ProviderConfig.template('Claude');
+    expect(claude.models.single.inputModes, contains('image'));
+
+    final deepSeek = ProviderConfig.template('DeepSeek');
+    expect(deepSeek.models.first.inputModes, isNot(contains('image')));
+  });
+
+  test('multimodal image support follows selected model input modes', () {
+    final config = _duplicateModelConfig().copyWith(
+      providers: [
+        _duplicateModelConfig().providers[0].copyWith(
+          models: const [
+            ModelConfig(
+              modelId: 'shared-chat',
+              displayName: 'DeepSeek Shared',
+              inputModes: ['text', 'image'],
+            ),
+          ],
+        ),
+      ],
+      defaultModels: {
+        ...AppConfig.defaults().defaultModels,
+        'intelligentGenerationModel': 'shared-chat',
+      },
+    );
+
+    expect(service.supportsMultimodalImageInput(config), isTrue);
+
+    final textOnlyConfig = _duplicateModelConfig().copyWith(
+      defaultModels: {
+        ...AppConfig.defaults().defaultModels,
+        'intelligentGenerationModel': ModelReference.encode(
+          providerId: 'openrouter',
+          modelId: 'shared-chat',
+        ),
+      },
+    );
+    expect(service.supportsMultimodalImageInput(textOnlyConfig), isFalse);
+  });
+
   test(
     'memory model label resolves provider-qualified duplicate model ids',
     () {

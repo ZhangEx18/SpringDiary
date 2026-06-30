@@ -67,6 +67,7 @@ class ProviderConfig {
           ModelConfig(
             modelId: 'gemini-2.5-flash',
             displayName: 'Gemini 2.5 Flash',
+            inputModes: ['text', 'image'],
           ),
         ],
       );
@@ -84,6 +85,7 @@ class ProviderConfig {
           ModelConfig(
             modelId: 'claude-sonnet-4',
             displayName: 'Claude Sonnet 4',
+            inputModes: ['text', 'image'],
           ),
         ],
       );
@@ -101,6 +103,7 @@ class ProviderConfig {
           ModelConfig(
             modelId: 'gpt-5-mini',
             displayName: 'GPT-5 Mini',
+            inputModes: ['text', 'image'],
             capabilities: ['tools', 'reasoning'],
           ),
         ],
@@ -177,10 +180,12 @@ class ProviderConfig {
           ModelConfig(
             modelId: 'openai/gpt-4.1-mini',
             displayName: 'GPT-4.1 Mini',
+            inputModes: ['text', 'image'],
           ),
           ModelConfig(
             modelId: 'anthropic/claude-sonnet-4',
             displayName: 'Claude Sonnet 4',
+            inputModes: ['text', 'image'],
           ),
         ],
       );
@@ -230,7 +235,11 @@ class ProviderConfig {
       baseUrl: 'https://api.openai.com/v1',
       apiPath: '/chat/completions',
       models: const [
-        ModelConfig(modelId: 'gpt-4.1-mini', displayName: 'GPT-4.1 Mini'),
+        ModelConfig(
+          modelId: 'gpt-4.1-mini',
+          displayName: 'GPT-4.1 Mini',
+          inputModes: ['text', 'image'],
+        ),
       ],
     );
   }

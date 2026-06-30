@@ -42,10 +42,9 @@ class AiClientService {
     if (selection == null) {
       return null;
     }
-    final safeImages = images
-        .where(isSupportedAiImageInput)
-        .take(maxAiImageInputs)
-        .toList();
+    final safeImages = _imageCapableModel(selection.model)
+        ? images.where(isSupportedAiImageInput).take(maxAiImageInputs).toList()
+        : const <AiImageInput>[];
 
     final response = await rust_api.generateStructuredNote(
       request: rust_ai.StructuredNoteRequest(
@@ -543,6 +542,11 @@ class AiClientService {
     return null;
   }
 
+  bool supportsMultimodalImageInput(AppConfig config) {
+    final selection = _selectModel(config, 'intelligentGenerationModel');
+    return selection != null && _imageCapableModel(selection.model);
+  }
+
   _ModelSelection? _findFimModel(AppConfig config, ModelReference modelRef) {
     for (final provider in config.providers) {
       if (modelRef.providerId != null && provider.id != modelRef.providerId) {
@@ -649,6 +653,10 @@ class AiClientService {
       mimeType: image.mimeType,
       dataBase64: base64Encode(image.bytes),
     );
+  }
+
+  bool _imageCapableModel(ModelConfig model) {
+    return model.inputModes.contains('image');
   }
 
   rust_ai.AiChatMessage _toRustChatMessage(MemoryMessage message) {

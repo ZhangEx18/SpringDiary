@@ -7,6 +7,9 @@ import 'package:spring_note/core/attachments/pending_image.dart';
 import 'package:spring_note/core/models/app_config.dart';
 import 'package:spring_note/core/models/cloud_sync_config.dart';
 import 'package:spring_note/core/models/local_data_state.dart';
+import 'package:spring_note/core/models/model_config.dart';
+import 'package:spring_note/core/models/model_reference.dart';
+import 'package:spring_note/core/models/provider_config.dart';
 import 'package:spring_note/core/models/structured_work_note.dart';
 import 'package:spring_note/core/router/app_shell.dart';
 import 'package:spring_note/core/services/cloud_sync_service.dart';
@@ -463,7 +466,9 @@ void main() {
       MaterialApp(
         theme: AppTheme.light(),
         home: HomePage(
-          localDataState: _testLocalDataState(),
+          localDataState: _testLocalDataState(
+            config: _imageCapableGenerationConfig(),
+          ),
           dailyNoteService: fakeDailyNoteService,
           homeOverviewService: fakeHomeOverviewService,
           pendingImageService: fakePendingImageService,
@@ -521,7 +526,9 @@ void main() {
       MaterialApp(
         theme: AppTheme.light(),
         home: HomePage(
-          localDataState: _testLocalDataState(),
+          localDataState: _testLocalDataState(
+            config: _imageCapableGenerationConfig(),
+          ),
           dailyNoteService: fakeDailyNoteService,
           homeOverviewService: _FakeHomeOverviewService(),
           pendingImageService: fakePendingImageService,
@@ -619,6 +626,67 @@ void main() {
       contains('![diagram.svg](images/diagram.svg)'),
     );
   });
+
+  testWidgets(
+    'home image attachment for text-only model is saved but not sent',
+    (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1440, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final imageBytes = Uint8List.fromList(_transparentPngBytes);
+      final aiClientService = _RecordingAiClientService();
+      final fakeDailyNoteService = _FakeDailyNoteService();
+      final fakePendingImageService = _FakePendingImageService();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light(),
+          home: HomePage(
+            localDataState: _testLocalDataState(
+              config: _textOnlyGenerationConfig(),
+            ),
+            dailyNoteService: fakeDailyNoteService,
+            homeOverviewService: _FakeHomeOverviewService(),
+            pendingImageService: fakePendingImageService,
+            aiClientService: aiClientService,
+            imageAttachmentPicker: () async => [
+              PendingImage(
+                id: 'picked-png',
+                bytes: imageBytes,
+                name: 'screen.png',
+                extension: 'png',
+              ),
+            ],
+          ),
+        ),
+      );
+
+      await tester.tap(find.byTooltip('上传图片'));
+      await tester.pump();
+      expect(find.text('图片 · screen.png'), findsOneWidget);
+
+      await tester.enterText(find.byType(TextField), '整理文本模型截图');
+      await tester.pump();
+      await tester.tap(
+        find.byKey(const ValueKey('home-smart-generate-button')),
+      );
+      await _pumpUntil(
+        tester,
+        () => fakeDailyNoteService.savedNote != null,
+        'daily note for text-only image attachment to be saved',
+      );
+
+      expect(aiClientService.generatedImages, isEmpty);
+      expect(fakePendingImageService.savedBytes.single, imageBytes);
+      expect(
+        fakeDailyNoteService.savedNote?.rawInput,
+        contains('![screen.png](images/screen.png)'),
+      );
+      expect(find.text('当前智能生成模型未标记支持图像输入，图片已保存进日报但未发送给 AI。'), findsOneWidget);
+    },
+  );
 
   testWidgets('home paste image saves markdown path on submit', (
     WidgetTester tester,
@@ -806,6 +874,47 @@ LocalDataState _startupSyncLocalDataState() {
   );
 }
 
+AppConfig _imageCapableGenerationConfig() {
+  return _generationConfig(
+    const ModelConfig(
+      modelId: 'gpt-4.1-mini',
+      displayName: 'GPT-4.1 Mini',
+      inputModes: ['text', 'image'],
+    ),
+  );
+}
+
+AppConfig _textOnlyGenerationConfig() {
+  return _generationConfig(
+    const ModelConfig(modelId: 'qwen-plus', displayName: 'Qwen Plus'),
+  );
+}
+
+AppConfig _generationConfig(ModelConfig model) {
+  const providerId = 'test-provider';
+  return AppConfig.defaults().copyWith(
+    providers: [
+      ProviderConfig(
+        id: providerId,
+        enabled: true,
+        name: 'Test Provider',
+        protocol: 'openaiCompatible',
+        apiKey: 'test-key',
+        baseUrl: 'https://example.com/v1',
+        apiPath: '/chat/completions',
+        models: [model],
+      ),
+    ],
+    defaultModels: {
+      ...AppConfig.defaults().defaultModels,
+      'intelligentGenerationModel': ModelReference.encode(
+        providerId: providerId,
+        modelId: model.modelId,
+      ),
+    },
+  );
+}
+
 Future<void> _pumpUntil(
   WidgetTester tester,
   bool Function() condition,
@@ -947,6 +1056,17 @@ class _RecordingAiClientService extends AiClientService {
       issues: const [],
       plans: const [],
     );
+  }
+
+  @override
+  Future<String?> mergeDailyMarkdown({
+    required String appDataDir,
+    required AppConfig config,
+    required String existingMarkdown,
+    required StructuredWorkNote note,
+    required DateTime date,
+  }) async {
+    return note.rawInput;
   }
 }
 
