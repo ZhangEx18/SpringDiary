@@ -973,7 +973,7 @@ class _NotesPageState extends State<NotesPage> {
           (note) =>
               note.title.toLowerCase().contains(query) ||
               note.name.toLowerCase().contains(query) ||
-              note.preview.toLowerCase().contains(query),
+              note.searchText.toLowerCase().contains(query),
         )
         .toList();
   }

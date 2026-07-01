@@ -36,6 +36,7 @@ class NoteService {
           modifiedAt: stat.modified,
           kind: kind,
           preview: _previewFromContent(content),
+          searchText: _searchTextFromContent(content),
         ),
       );
     }
@@ -70,6 +71,7 @@ class NoteService {
       modifiedAt: stat.modified,
       kind: kind,
       preview: _previewFromContent(content),
+      searchText: _searchTextFromContent(content),
     );
   }
 
@@ -119,16 +121,24 @@ class NoteService {
   }
 
   String _previewFromContent(String content) {
-    final text = content
-        .split(RegExp(r'\r?\n'))
-        .map((line) => line.trim().replaceFirst(RegExp(r'^#{1,6}\s+'), ''))
-        .where((line) => line.isNotEmpty)
-        .skip(1)
-        .join(' ');
+    final text = _bodyTextFromContent(content, skipFirstLine: true);
     if (text.length <= 72) {
       return text;
     }
     return '${text.substring(0, 72)}...';
+  }
+
+  String _searchTextFromContent(String content) {
+    return _bodyTextFromContent(content);
+  }
+
+  String _bodyTextFromContent(String content, {bool skipFirstLine = false}) {
+    final lines = content
+        .split(RegExp(r'\r?\n'))
+        .map((line) => line.trim().replaceFirst(RegExp(r'^#{1,6}\s+'), ''))
+        .where((line) => line.isNotEmpty)
+        .toList();
+    return (skipFirstLine ? lines.skip(1) : lines).join(' ');
   }
 
   String _join(String left, String right) {

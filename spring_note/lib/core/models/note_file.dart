@@ -22,6 +22,7 @@ class NoteFile {
     required this.modifiedAt,
     required this.kind,
     this.preview = '',
+    this.searchText = '',
   });
 
   final String path;
@@ -30,4 +31,5 @@ class NoteFile {
   final DateTime modifiedAt;
   final NoteKind kind;
   final String preview;
+  final String searchText;
 }

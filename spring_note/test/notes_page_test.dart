@@ -88,6 +88,41 @@ final value = 1;
     expect(noteService.contents.values.single, edited);
   });
 
+  testWidgets('notes search matches content beyond the visible preview', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    const hiddenKeyword = '深层搜索关键字';
+    final noteService = _MemoryNoteService({
+      'D:\\Temp\\SpringNote\\notes\\daily\\2026-06-19.md':
+          '# 2026-06-19 日报\n\n普通内容',
+      'D:\\Temp\\SpringNote\\notes\\daily\\2026-06-17.md':
+          '# 2026-06-17 日报\n\n'
+          '这是一段足够长的正文摘要内容，用来占满列表中展示的预览文本，确保后面的关键词不会出现在七十二字符以内。'
+          '$hiddenKeyword',
+    });
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: NotesPage(
+          localDataState: _localDataState,
+          noteService: noteService,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.enterText(find.byType(TextField).first, hiddenKeyword);
+    await tester.pump();
+
+    expect(find.text('2026-06-17 日报'), findsOneWidget);
+  });
+
   testWidgets('notes page checks focused note every three seconds', (
     WidgetTester tester,
   ) async {
@@ -988,8 +1023,30 @@ class _MemoryNoteService extends NoteService {
       title: title,
       modifiedAt: DateTime(2026, 6, 18, 12, 0),
       kind: kind,
-      preview: content.replaceAll('\n', ' '),
+      preview: _previewFromContent(content),
+      searchText: _searchTextFromContent(content),
     );
+  }
+
+  String _previewFromContent(String content) {
+    final text = _bodyTextFromContent(content, skipFirstLine: true);
+    if (text.length <= 72) {
+      return text;
+    }
+    return '${text.substring(0, 72)}...';
+  }
+
+  String _searchTextFromContent(String content) {
+    return _bodyTextFromContent(content);
+  }
+
+  String _bodyTextFromContent(String content, {bool skipFirstLine = false}) {
+    final lines = content
+        .split(RegExp(r'\r?\n'))
+        .map((line) => line.trim().replaceFirst(RegExp(r'^#{1,6}\s+'), ''))
+        .where((line) => line.isNotEmpty)
+        .toList();
+    return (skipFirstLine ? lines.skip(1) : lines).join(' ');
   }
 }
 
