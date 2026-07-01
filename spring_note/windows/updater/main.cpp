@@ -266,7 +266,11 @@ int APIENTRY wWinMain(HINSTANCE, HINSTANCE, wchar_t*, int) {
     return static_cast<int>(installer_exit_code);
   }
 
-  StartApp(options);
+  if (!StartApp(options)) {
+    WriteLog(options, L"helper exiting after app launch failure");
+    return 4;
+  }
+
   WriteLog(options, L"helper finished");
   return 0;
 }

@@ -55,8 +55,8 @@ def verify_appcast(
 ) -> None:
     """Verify the macOS Sparkle appcast.
 
-    Windows updates intentionally use windows.json plus SHA256SUMS.txt and do
-    not consume appcast items.
+    Windows updates intentionally use windows.json plus Authenticode-signed
+    installers and do not consume appcast items.
     """
     namespaces = {"sparkle": "http://www.andymatuschak.org/xml-namespaces/sparkle"}
     root = ET.parse(path).getroot()
