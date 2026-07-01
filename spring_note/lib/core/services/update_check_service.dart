@@ -129,7 +129,7 @@ class UpdateCheckResult {
 }
 
 class UpdateCheckService {
-  UpdateCheckService({
+  const UpdateCheckService({
     this.trayService = const TrayService(),
     this.macUpdateInstaller = const MacUpdateInstaller(),
   });
@@ -275,6 +275,7 @@ class UpdateCheckService {
 
   Future<String> _readUrl(String url) async {
     final client = HttpClient()..connectionTimeout = _timeout;
+    client.badCertificateCallback = (_, _, _) => false;
     try {
       final uri = Uri.parse(url);
       final request = await client.getUrl(uri).timeout(_timeout);
@@ -293,10 +294,23 @@ class UpdateCheckService {
   }
 
   bool _isGitHubContentsApi(Uri uri) {
-    return uri.host == 'api.github.com' &&
-        uri.pathSegments.length >= 5 &&
-        uri.pathSegments[0] == 'repos' &&
-        uri.pathSegments.contains('contents');
+    return _githubContentsRepository(uri) != null;
+  }
+
+  ({String owner, String repo})? _githubContentsRepository(Uri uri) {
+    if (uri.host != 'api.github.com') {
+      return null;
+    }
+    final match = RegExp(
+      r'^/repos/([^/]+)/([^/]+)/contents(?:/|$)',
+    ).firstMatch(uri.path);
+    if (match == null) {
+      return null;
+    }
+    return (
+      owner: Uri.decodeComponent(match.group(1)!),
+      repo: Uri.decodeComponent(match.group(2)!),
+    );
   }
 
   Future<void> _installWindowsUpdate(
@@ -359,6 +373,7 @@ class UpdateCheckService {
     void Function(UpdateInstallProgress progress)? onProgress,
   }) async {
     final client = HttpClient()..connectionTimeout = _timeout;
+    client.badCertificateCallback = (_, _, _) => false;
     IOSink? sink;
     try {
       final request = await client.getUrl(Uri.parse(url)).timeout(_timeout);
@@ -415,8 +430,14 @@ class UpdateCheckService {
 
   Future<String> _readExpectedSha256(AppUpdateInfo latest) async {
     final downloadUri = Uri.parse(latest.downloadUrl);
+    if (downloadUri.scheme != 'https' ||
+        downloadUri.host.toLowerCase() != 'github.com') {
+      throw const UpdateInstallException('无法读取安装包校验信息。');
+    }
     final segments = downloadUri.pathSegments;
-    if (segments.isEmpty) {
+    if (segments.length < 7 ||
+        segments[2] != 'releases' ||
+        segments[3] != 'download') {
       throw const UpdateInstallException('无法读取安装包校验信息。');
     }
     final checksumUri = downloadUri.replace(
@@ -497,16 +518,15 @@ class UpdateCheckService {
     final uri = Uri.tryParse(
       configured.isEmpty ? _defaultUpdateBaseUrl : configured,
     );
-    if (uri == null || !_isGitHubContentsApi(uri)) {
+    if (uri == null) {
       return _updateUrl('appcast.xml');
     }
-    final segments = uri.pathSegments;
-    if (segments.length < 5) {
+    final repository = _githubContentsRepository(uri);
+    if (repository == null) {
       return _updateUrl('appcast.xml');
     }
-    final owner = segments[1];
-    final repo = segments[2];
-    return 'https://github.com/$owner/$repo/releases/download/$version/appcast.xml';
+    return 'https://github.com/${repository.owner}/${repository.repo}'
+        '/releases/download/$version/appcast.xml';
   }
 
   int _compareVersions(String left, String right) {
@@ -602,7 +622,7 @@ class MacUpdateInstaller {
             : 'macOS 更新启动失败，请稍后重试。',
       );
     } finally {
-      await subscription.cancel();
+      await subscription?.cancel();
     }
   }
 

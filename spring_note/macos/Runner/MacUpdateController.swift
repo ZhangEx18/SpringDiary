@@ -297,11 +297,11 @@ private final class MacUpdateUserDriver: NSObject, SPUUserDriver {
   }
 
   private var installChoice: SPUUserUpdateChoice {
-    SPUUserUpdateChoice(rawValue: 1)!
+    SPUUserUpdateChoice.install
   }
 
   private var dismissChoice: SPUUserUpdateChoice {
-    SPUUserUpdateChoice(rawValue: 2)!
+    SPUUserUpdateChoice.dismiss
   }
 
   private func emitDownloadProgress() {

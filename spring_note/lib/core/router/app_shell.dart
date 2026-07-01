@@ -29,16 +29,16 @@ enum AppSection { home, notes, memory, settings }
 enum _StartupCloudSyncFailureKind { offline, temporary, permanent }
 
 class AppShell extends StatefulWidget {
-  AppShell({
+  const AppShell({
     super.key,
     required this.localDataState,
     this.startupReportGenerationService =
         const StartupReportGenerationService(),
-    UpdateCheckService? updateCheckService,
+    this.updateCheckService = const UpdateCheckService(),
     this.cloudSyncService = const CloudSyncService(),
     this.localDataService = const LocalDataService(),
     this.onConfigChanged,
-  }) : updateCheckService = updateCheckService ?? UpdateCheckService();
+  });
 
   final LocalDataState localDataState;
   final StartupReportGenerationService startupReportGenerationService;

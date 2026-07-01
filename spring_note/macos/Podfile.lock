@@ -18,7 +18,7 @@ DEPENDENCIES:
   - package_info_plus (from `Flutter/ephemeral/.symlinks/plugins/package_info_plus/macos`)
   - rust (from `Flutter/ephemeral/.symlinks/plugins/rust/macos`)
   - screen_retriever_macos (from `Flutter/ephemeral/.symlinks/plugins/screen_retriever_macos/macos`)
-  - Sparkle
+  - Sparkle (= 2.9.3)
   - window_manager (from `Flutter/ephemeral/.symlinks/plugins/window_manager/macos`)
 
 SPEC REPOS:
@@ -48,6 +48,6 @@ SPEC CHECKSUMS:
   Sparkle: 39dbdf28637f6056fbf5ee6494bdbfae54f49f41
   window_manager: b729e31d38fb04905235df9ea896128991cad99e
 
-PODFILE CHECKSUM: 7906fa6f8b70b93d77b6ccc70f2c717e2ad05bee
+PODFILE CHECKSUM: 8a7723d541d0b5e33350007f308f2a86016d7765
 
 COCOAPODS: 1.16.2

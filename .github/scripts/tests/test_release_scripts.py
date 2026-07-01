@@ -337,6 +337,167 @@ class ReleaseScriptTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("LATESTCHANGELOG.md is empty", result.stderr)
 
+    def test_verify_update_metadata_rejects_missing_macos_appcast_item(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            metadata_dir = tmp_path / "update"
+            metadata_dir.mkdir()
+            release_base = "https://github.com/Radiant303/SpringNote/releases/download/1.2.3"
+            metadata_dir.joinpath("mac.json").write_text(
+                json.dumps(
+                    {
+                        "version": "1.2.3",
+                        "change_time": "2026年6月29日 13:30:00",
+                        "download_url": f"{release_base}/SpringNote-1.2.3-macos-arm64.dmg",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            metadata_dir.joinpath("windows.json").write_text(
+                json.dumps(
+                    {
+                        "version": "1.2.3",
+                        "change_time": "2026年6月29日 13:30:00",
+                        "download_url": f"{release_base}/SpringNote-1.2.3-windows-x64-setup.exe",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            metadata_dir.joinpath("LATESTCHANGELOG.md").write_text(
+                "## ✨ 更新日志\n\n* 内容。\n",
+                encoding="utf-8",
+            )
+            metadata_dir.joinpath("appcast.xml").write_text(
+                "\n".join(
+                    [
+                        '<?xml version="1.0" encoding="UTF-8"?>',
+                        '<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">',
+                        "  <channel>",
+                        "    <item>",
+                        (
+                            f'      <enclosure url="{release_base}/SpringNote-1.2.3-windows-x64-setup.exe" '
+                            'sparkle:os="windows" length="456" type="application/octet-stream" />'
+                        ),
+                        "    </item>",
+                        "  </channel>",
+                        "</rss>",
+                        "",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            result = run_script(
+                str(VERIFY_UPDATE_METADATA),
+                "--version",
+                "1.2.3",
+                "--repo",
+                "Radiant303/SpringNote",
+                "--macos-asset",
+                "SpringNote-1.2.3-macos-arm64.dmg",
+                "--windows-asset",
+                "SpringNote-1.2.3-windows-x64-setup.exe",
+                "--metadata-dir",
+                str(metadata_dir),
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("missing update items for macos", result.stderr)
+
+    def test_verify_update_metadata_rejects_empty_macos_signature(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            metadata_dir = tmp_path / "update"
+            metadata_dir.mkdir()
+            release_base = "https://github.com/Radiant303/SpringNote/releases/download/1.2.3"
+            metadata_dir.joinpath("mac.json").write_text(
+                json.dumps(
+                    {
+                        "version": "1.2.3",
+                        "change_time": "2026年6月29日 13:30:00",
+                        "download_url": f"{release_base}/SpringNote-1.2.3-macos-arm64.dmg",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            metadata_dir.joinpath("windows.json").write_text(
+                json.dumps(
+                    {
+                        "version": "1.2.3",
+                        "change_time": "2026年6月29日 13:30:00",
+                        "download_url": f"{release_base}/SpringNote-1.2.3-windows-x64-setup.exe",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            metadata_dir.joinpath("LATESTCHANGELOG.md").write_text(
+                "## ✨ 更新日志\n\n* 内容。\n",
+                encoding="utf-8",
+            )
+            write_valid_appcast(metadata_dir)
+            appcast = metadata_dir.joinpath("appcast.xml")
+            appcast.write_text(
+                appcast.read_text(encoding="utf-8").replace(
+                    'sparkle:edSignature="mac-signature"',
+                    'sparkle:edSignature=""',
+                ),
+                encoding="utf-8",
+            )
+
+            result = run_script(
+                str(VERIFY_UPDATE_METADATA),
+                "--version",
+                "1.2.3",
+                "--repo",
+                "Radiant303/SpringNote",
+                "--macos-asset",
+                "SpringNote-1.2.3-macos-arm64.dmg",
+                "--windows-asset",
+                "SpringNote-1.2.3-windows-x64-setup.exe",
+                "--metadata-dir",
+                str(metadata_dir),
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("macOS edSignature is empty", result.stderr)
+
+    def test_verify_update_metadata_version_comparison_mode(self) -> None:
+        newer_result = run_script(
+            str(VERIFY_UPDATE_METADATA),
+            "--is-newer-than",
+            "1.2.4",
+            "1.2.3",
+            "--version",
+            "1.2.3",
+            "--repo",
+            "Radiant303/SpringNote",
+            "--macos-asset",
+            "SpringNote-1.2.3-macos-arm64.dmg",
+            "--windows-asset",
+            "SpringNote-1.2.3-windows-x64-setup.exe",
+            "--metadata-dir",
+            "update",
+        )
+        self.assertEqual(newer_result.returncode, 0, newer_result.stderr)
+
+        same_result = run_script(
+            str(VERIFY_UPDATE_METADATA),
+            "--is-newer-than",
+            "1.2.3",
+            "1.2.3",
+            "--version",
+            "1.2.3",
+            "--repo",
+            "Radiant303/SpringNote",
+            "--macos-asset",
+            "SpringNote-1.2.3-macos-arm64.dmg",
+            "--windows-asset",
+            "SpringNote-1.2.3-windows-x64-setup.exe",
+            "--metadata-dir",
+            "update",
+        )
+        self.assertNotEqual(same_result.returncode, 0)
+
     def test_verify_update_metadata_rejects_non_object_json(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)

@@ -9,6 +9,23 @@ from pathlib import Path
 import xml.etree.ElementTree as ET
 
 
+def version_parts(version: str) -> tuple[int, int, int]:
+    normalized = version.split("+", 1)[0].strip()
+    parts = normalized.split(".")
+    if len(parts) != 3:
+        raise SystemExit(f"Invalid version {version!r}; expected major.minor.patch")
+    values: list[int] = []
+    for part in parts:
+        if not part.isdigit():
+            raise SystemExit(f"Invalid version {version!r}; expected numeric parts")
+        values.append(int(part))
+    return tuple(values)  # type: ignore[return-value]
+
+
+def is_newer_version(left: str, right: str) -> bool:
+    return version_parts(left) > version_parts(right)
+
+
 def read_json(path: Path) -> dict[str, object]:
     data = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(data, dict):
@@ -36,6 +53,11 @@ def verify_appcast(
     version: str,
     expected_macos_url: str,
 ) -> None:
+    """Verify the macOS Sparkle appcast.
+
+    Windows updates intentionally use windows.json plus SHA256SUMS.txt and do
+    not consume appcast items.
+    """
     namespaces = {"sparkle": "http://www.andymatuschak.org/xml-namespaces/sparkle"}
     root = ET.parse(path).getroot()
     items = root.findall("./channel/item")
@@ -70,12 +92,16 @@ def verify_appcast(
 
 def main() -> None:
     parser = argparse.ArgumentParser()
+    parser.add_argument("--is-newer-than", nargs=2, metavar=("LEFT", "RIGHT"))
     parser.add_argument("--version", required=True)
     parser.add_argument("--repo", required=True)
     parser.add_argument("--macos-asset", required=True)
     parser.add_argument("--windows-asset", required=True)
     parser.add_argument("--metadata-dir", type=Path, required=True)
     args = parser.parse_args()
+
+    if args.is_newer_than:
+        raise SystemExit(0 if is_newer_version(*args.is_newer_than) else 1)
 
     release_base = f"https://github.com/{args.repo}/releases/download/{args.version}"
     expected_macos_url = f"{release_base}/{args.macos_asset}"

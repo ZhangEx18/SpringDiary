@@ -6,7 +6,7 @@ on:
       - '[0-9]*.[0-9]*.[0-9]*'
 
 concurrency:
-  group: release
+  group: release-${{ github.ref_name }}
   cancel-in-progress: false
 
 permissions:
@@ -151,6 +151,72 @@ jobs:
           }
           & $iscc "installer\springnote.iss"
 
+      - name: Sign Windows installer
+        shell: pwsh
+        env:
+          WINDOWS_CODESIGN_PFX_BASE64: ${{ secrets.WINDOWS_CODESIGN_PFX_BASE64 }}
+          WINDOWS_CODESIGN_PASSWORD: ${{ secrets.WINDOWS_CODESIGN_PASSWORD }}
+          WINDOWS_ASSET: ${{ needs.prepare-release.outputs.windows_asset }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_CODESIGN_PFX_BASE64)) {
+            throw "Missing WINDOWS_CODESIGN_PFX_BASE64 secret."
+          }
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_CODESIGN_PASSWORD)) {
+            throw "Missing WINDOWS_CODESIGN_PASSWORD secret."
+          }
+
+          $certificate = $null
+          $store = $null
+          try {
+            $flags = [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::UserKeySet -bor
+              [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::PersistKeySet
+            $certificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new(
+              [Convert]::FromBase64String($env:WINDOWS_CODESIGN_PFX_BASE64),
+              $env:WINDOWS_CODESIGN_PASSWORD,
+              $flags
+            )
+            $store = [System.Security.Cryptography.X509Certificates.X509Store]::new(
+              [System.Security.Cryptography.X509Certificates.StoreName]::My,
+              [System.Security.Cryptography.X509Certificates.StoreLocation]::CurrentUser
+            )
+            $store.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)
+            $store.Add($certificate)
+
+            $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" `
+              -Recurse -Filter signtool.exe |
+              Where-Object { $_.FullName -match '\\x64\\signtool\.exe$' } |
+              Sort-Object FullName -Descending |
+              Select-Object -First 1
+            if ($null -eq $signtool) {
+              throw "signtool.exe not found."
+            }
+
+            $assetPath = Join-Path $PWD "build\windows\installer\$env:WINDOWS_ASSET"
+            & $signtool.FullName sign `
+              /fd SHA256 `
+              /td SHA256 `
+              /tr http://timestamp.digicert.com `
+              /sha1 $certificate.Thumbprint `
+              $assetPath
+            if ($LASTEXITCODE -ne 0) {
+              throw "Failed to sign Windows installer."
+            }
+            & $signtool.FullName verify /pa $assetPath
+            if ($LASTEXITCODE -ne 0) {
+              throw "Failed to verify Windows installer signature."
+            }
+          } finally {
+            if ($null -ne $store -and $null -ne $certificate) {
+              $store.Remove($certificate)
+            }
+            if ($null -ne $store) {
+              $store.Close()
+            }
+            if ($null -ne $certificate) {
+              $certificate.Dispose()
+            }
+          }
+
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4
         with:
@@ -205,8 +271,16 @@ jobs:
             echo "Missing SPARKLE_PUBLIC_ED_KEY secret."
             exit 1
           fi
-          /usr/libexec/PlistBuddy -c "Delete :SUPublicEDKey" macos/Runner/Info.plist 2>/dev/null || true
-          /usr/libexec/PlistBuddy -c "Add :SUPublicEDKey string ${SPARKLE_PUBLIC_ED_KEY}" macos/Runner/Info.plist
+          SPARKLE_PUBLIC_ED_KEY="${SPARKLE_PUBLIC_ED_KEY}" python3 - <<'PY'
+          import os
+          import plistlib
+          from pathlib import Path
+
+          path = Path("macos/Runner/Info.plist")
+          data = plistlib.loads(path.read_bytes())
+          data["SUPublicEDKey"] = os.environ["SPARKLE_PUBLIC_ED_KEY"]
+          path.write_bytes(plistlib.dumps(data, sort_keys=False))
+          PY
 
       - name: Build macOS release
         run: flutter build macos --release --dart-define SPRINGNOTE_UPDATE_BASE_URL=https://api.github.com/repos/${{ github.repository }}/contents/update
@@ -258,14 +332,10 @@ jobs:
             exit 1
           fi
           asset_path="build/macos/Build/Products/Release/${MACOS_ASSET}"
-          private_key_path="$(mktemp)"
-          trap 'rm -f "$private_key_path"' EXIT
-          printf '%s' "$SPARKLE_ED_PRIVATE_KEY" > "$private_key_path"
-          signature_output="$(macos/Pods/Sparkle/bin/sign_update --ed-key-file "$private_key_path" "$asset_path")"
-          ed_signature="$(printf '%s\n' "$signature_output" | sed -n 's/.*sparkle:edSignature="\([^"]*\)".*/\1/p')"
+          ed_signature="$(printf '%s' "$SPARKLE_ED_PRIVATE_KEY" | macos/Pods/Sparkle/bin/sign_update --ed-key-file - -p "$asset_path" | tr -d '\r\n')"
           length="$(stat -f '%z' "$asset_path")"
           if [ -z "$ed_signature" ] || [ -z "$length" ]; then
-            echo "Failed to parse macOS update signature: $signature_output"
+            echo "Failed to generate macOS update signature."
             exit 1
           fi
           ED_SIGNATURE="$ed_signature" UPDATE_LENGTH="$length" python3 -c 'import json, os, pathlib; pathlib.Path(os.environ["GITHUB_WORKSPACE"], "macos-update-signature.json").write_text(json.dumps({"edSignature": os.environ["ED_SIGNATURE"], "length": os.environ["UPDATE_LENGTH"]}), encoding="utf-8")'
@@ -371,7 +441,13 @@ jobs:
             git fetch origin "${{ github.event.repository.default_branch }}:refs/remotes/origin/${{ github.event.repository.default_branch }}" --depth=1
             git switch -C release-metadata "origin/${{ github.event.repository.default_branch }}"
             current_update_version="$(python3 -c 'import json, pathlib; path = pathlib.Path("update/windows.json"); print(json.loads(path.read_text(encoding="utf-8")).get("version", "0.0.0") if path.exists() else "0.0.0")')"
-            if CURRENT_UPDATE_VERSION="$current_update_version" RELEASE_VERSION="${{ needs.prepare-release.outputs.version }}" python3 -c 'import os, sys; parts = lambda version: tuple(int(part) for part in version.split(".")); sys.exit(0 if parts(os.environ["CURRENT_UPDATE_VERSION"]) > parts(os.environ["RELEASE_VERSION"]) else 1)'
+            if python3 .github/scripts/verify_update_metadata.py \
+              --is-newer-than "$current_update_version" "${{ needs.prepare-release.outputs.version }}" \
+              --version "${{ needs.prepare-release.outputs.version }}" \
+              --repo "${{ github.repository }}" \
+              --macos-asset "${{ needs.prepare-release.outputs.macos_asset }}" \
+              --windows-asset "${{ needs.prepare-release.outputs.windows_asset }}" \
+              --metadata-dir update
             then
               echo "Update metadata is already newer (${current_update_version}); skipping metadata write for ${{ needs.prepare-release.outputs.version }}."
               exit 0

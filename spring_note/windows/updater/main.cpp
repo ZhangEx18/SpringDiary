@@ -1,8 +1,9 @@
 #include <windows.h>
 #include <shellapi.h>
+#include <softpub.h>
+#include <wintrust.h>
 
 #include <cwchar>
-#include <cwctype>
 #include <cstdlib>
 #include <string>
 #include <vector>
@@ -17,23 +18,8 @@ struct Options {
   DWORD wait_pid = 0;
 };
 
-std::wstring ToLower(std::wstring value) {
-  for (wchar_t& ch : value) {
-    ch = static_cast<wchar_t>(towlower(ch));
-  }
-  return value;
-}
-
 size_t LastSeparator(const std::wstring& path) {
   return path.find_last_of(L"\\/");
-}
-
-std::wstring Basename(const std::wstring& path) {
-  const size_t index = LastSeparator(path);
-  if (index == std::wstring::npos) {
-    return path;
-  }
-  return path.substr(index + 1);
 }
 
 std::wstring ParentPath(const std::wstring& path) {
@@ -58,8 +44,7 @@ std::wstring QuoteArgument(const std::wstring& value) {
 }
 
 std::wstring InstallerArguments(const std::wstring& log_path) {
-  return L"/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /NOCLOSEAPPLICATIONS "
-         L"/SP- /LOG=" +
+  return L"/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- /LOG=" +
          QuoteArgument(log_path);
 }
 
@@ -125,25 +110,6 @@ std::wstring LastErrorText(DWORD error) {
   return std::to_wstring(error) + L": " + message;
 }
 
-bool IsSpringNoteProcess(DWORD pid) {
-  HANDLE process =
-      OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
-  if (!process) {
-    return false;
-  }
-
-  std::vector<wchar_t> path(MAX_PATH);
-  DWORD size = static_cast<DWORD>(path.size());
-  const BOOL ok = QueryFullProcessImageNameW(process, 0, path.data(), &size);
-  CloseHandle(process);
-  if (!ok) {
-    return false;
-  }
-
-  return ToLower(Basename(std::wstring(path.data(), size))) ==
-         L"springnote.exe";
-}
-
 void WaitForOldProcess(const Options& options) {
   if (options.wait_pid == 0) {
     return;
@@ -151,21 +117,49 @@ void WaitForOldProcess(const Options& options) {
 
   WriteLog(options, L"waiting for old process " +
                         std::to_wstring(options.wait_pid));
-  HANDLE process = OpenProcess(SYNCHRONIZE | PROCESS_TERMINATE |
-                                   PROCESS_QUERY_LIMITED_INFORMATION,
-                               FALSE, options.wait_pid);
+  HANDLE process = OpenProcess(SYNCHRONIZE, FALSE, options.wait_pid);
   if (!process) {
     WriteLog(options, L"old process is already gone");
     return;
   }
 
-  const DWORD wait_result = WaitForSingleObject(process, 30000);
-  if (wait_result == WAIT_TIMEOUT && IsSpringNoteProcess(options.wait_pid)) {
-    WriteLog(options, L"terminating old SpringNote process");
-    TerminateProcess(process, 0);
-    WaitForSingleObject(process, 5000);
+  DWORD wait_result = WaitForSingleObject(process, 30000);
+  if (wait_result == WAIT_TIMEOUT) {
+    WriteLog(options, L"old process is still running; installer will request "
+                      L"application close");
   }
   CloseHandle(process);
+}
+
+bool VerifyInstallerSignature(const Options& options) {
+  WriteLog(options, L"verifying installer signature");
+
+  WINTRUST_FILE_INFO file_info{};
+  file_info.cbStruct = sizeof(file_info);
+  file_info.pcwszFilePath = options.installer.c_str();
+
+  GUID policy = WINTRUST_ACTION_GENERIC_VERIFY_V2;
+  WINTRUST_DATA trust_data{};
+  trust_data.cbStruct = sizeof(trust_data);
+  trust_data.dwUIChoice = WTD_UI_NONE;
+  trust_data.fdwRevocationChecks = WTD_REVOKE_WHOLECHAIN;
+  trust_data.dwUnionChoice = WTD_CHOICE_FILE;
+  trust_data.dwStateAction = WTD_STATEACTION_VERIFY;
+  trust_data.dwProvFlags = WTD_REVOCATION_CHECK_CHAIN;
+  trust_data.pFile = &file_info;
+
+  const LONG status = WinVerifyTrust(nullptr, &policy, &trust_data);
+  trust_data.dwStateAction = WTD_STATEACTION_CLOSE;
+  WinVerifyTrust(nullptr, &policy, &trust_data);
+
+  if (status == ERROR_SUCCESS) {
+    WriteLog(options, L"installer signature is trusted");
+    return true;
+  }
+
+  WriteLog(options, L"installer signature verification failed: " +
+                        LastErrorText(static_cast<DWORD>(status)));
+  return false;
 }
 
 DWORD RunInstaller(const Options& options) {
@@ -262,6 +256,10 @@ int APIENTRY wWinMain(HINSTANCE, HINSTANCE, wchar_t*, int) {
 
   WriteLog(options, L"helper started");
   WaitForOldProcess(options);
+  if (!VerifyInstallerSignature(options)) {
+    WriteLog(options, L"helper exiting after signature verification failure");
+    return 3;
+  }
   const DWORD installer_exit_code = RunInstaller(options);
   if (installer_exit_code != 0) {
     WriteLog(options, L"helper exiting after installer failure");

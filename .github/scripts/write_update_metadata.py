@@ -9,7 +9,10 @@ from datetime import datetime
 from email.utils import format_datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
-from xml.sax.saxutils import escape
+import xml.etree.ElementTree as ET
+
+
+SPARKLE_NS = "http://www.andymatuschak.org/xml-namespaces/sparkle"
 
 
 def write_json(path: Path, *, version: str, change_time: str, download_url: str) -> None:
@@ -47,38 +50,37 @@ def write_appcast(
     macos_length: str,
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    pub_date_text = format_datetime(pub_date)
-    title = f"SpringNote v{version}"
-    path.write_text(
-        "\n".join(
-            [
-                '<?xml version="1.0" encoding="UTF-8"?>',
-                '<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">',
-                "  <channel>",
-                "    <title>SpringNote Updates</title>",
-                "    <description>SpringNote desktop app updates</description>",
-                "    <language>zh-CN</language>",
-                "    <item>",
-                f"      <title>{escape(title)}</title>",
-                f"      <sparkle:version>{escape(version)}</sparkle:version>",
-                f"      <sparkle:shortVersionString>{escape(version)}</sparkle:shortVersionString>",
-                f"      <sparkle:releaseNotesLink>{escape(release_notes_url)}</sparkle:releaseNotesLink>",
-                f"      <pubDate>{escape(pub_date_text)}</pubDate>",
-                (
-                    f'      <enclosure url="{escape(macos_url)}" '
-                    f'sparkle:edSignature="{escape(macos_signature)}" '
-                    'sparkle:os="macos" '
-                    f'length="{escape(macos_length)}" '
-                    'type="application/octet-stream" />'
-                ),
-                "    </item>",
-                "  </channel>",
-                "</rss>",
-                "",
-            ]
-        ),
-        encoding="utf-8",
+
+    ET.register_namespace("sparkle", SPARKLE_NS)
+    root = ET.Element("rss", {"version": "2.0"})
+    channel = ET.SubElement(root, "channel")
+    ET.SubElement(channel, "title").text = "SpringNote Updates"
+    ET.SubElement(channel, "description").text = "SpringNote desktop app updates"
+    ET.SubElement(channel, "language").text = "zh-CN"
+
+    item = ET.SubElement(channel, "item")
+    ET.SubElement(item, "title").text = f"SpringNote v{version}"
+    ET.SubElement(item, f"{{{SPARKLE_NS}}}version").text = version
+    ET.SubElement(item, f"{{{SPARKLE_NS}}}shortVersionString").text = version
+    ET.SubElement(item, f"{{{SPARKLE_NS}}}releaseNotesLink").text = (
+        release_notes_url
     )
+    ET.SubElement(item, "pubDate").text = format_datetime(pub_date)
+    ET.SubElement(
+        item,
+        "enclosure",
+        {
+            "url": macos_url,
+            f"{{{SPARKLE_NS}}}edSignature": macos_signature,
+            f"{{{SPARKLE_NS}}}os": "macos",
+            "length": macos_length,
+            "type": "application/octet-stream",
+        },
+    )
+
+    tree = ET.ElementTree(root)
+    ET.indent(tree, space="  ")
+    tree.write(path, encoding="utf-8", xml_declaration=True)
 
 
 def main() -> None:
