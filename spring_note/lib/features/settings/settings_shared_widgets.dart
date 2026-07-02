@@ -793,6 +793,7 @@ class _ProtocolFieldState extends State<_ProtocolField> {
   Widget build(BuildContext context) {
     final current = _current;
     final currentLabel = _protocols[current] ?? current;
+    final options = _options;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
@@ -806,36 +807,69 @@ class _ProtocolFieldState extends State<_ProtocolField> {
               final menuWidth = constraints.hasBoundedWidth
                   ? constraints.maxWidth
                   : 280.0;
+              final menuHeight =
+                  _ProtocolMenuSurface.verticalPadding * 2 +
+                  _ProtocolMenuOption.itemHeight * options.length;
               return MenuAnchor(
                 controller: _controller,
                 alignmentOffset: const Offset(0, 6),
                 style: MenuStyle(
-                  backgroundColor: const WidgetStatePropertyAll(Colors.white),
+                  backgroundColor: const WidgetStatePropertyAll(
+                    Colors.transparent,
+                  ),
                   elevation: const WidgetStatePropertyAll(0),
                   minimumSize: const WidgetStatePropertyAll(Size.zero),
-                  padding: const WidgetStatePropertyAll(
-                    EdgeInsets.symmetric(vertical: 4),
-                  ),
+                  padding: const WidgetStatePropertyAll(EdgeInsets.zero),
                   shape: WidgetStatePropertyAll(
                     RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      side: const BorderSide(color: AppTheme.border),
+                      borderRadius: BorderRadius.circular(16),
                     ),
                   ),
                 ),
                 onOpen: () => setState(() => _menuOpen = true),
                 onClose: () => setState(() => _menuOpen = false),
                 menuChildren: [
-                  for (final option in _options)
-                    _ProtocolMenuOption(
+                  TweenAnimationBuilder<double>(
+                    tween: Tween<double>(begin: 0, end: 1),
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeOutCubic,
+                    builder: (context, value, child) {
+                      final devicePixelRatio = MediaQuery.of(
+                        context,
+                      ).devicePixelRatio;
+                      final rawOffset = (1 - value) * menuHeight * -0.06;
+                      final physicalPixel = 1 / devicePixelRatio;
+                      final dy = rawOffset.abs() <= physicalPixel
+                          ? 0.0
+                          : (rawOffset * devicePixelRatio).roundToDouble() /
+                                devicePixelRatio;
+                      return Opacity(
+                        opacity: value,
+                        child: Transform.translate(
+                          offset: Offset(0, dy),
+                          child: child,
+                        ),
+                      );
+                    },
+                    child: _ProtocolMenuSurface(
                       width: menuWidth,
-                      label: option.value,
-                      selected: option.key == current,
-                      onTap: () {
-                        _controller.close();
-                        widget.onChanged(option.key);
-                      },
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          for (final option in options)
+                            _ProtocolMenuOption(
+                              width: menuWidth,
+                              label: option.value,
+                              selected: option.key == current,
+                              onTap: () {
+                                _controller.close();
+                                widget.onChanged(option.key);
+                              },
+                            ),
+                        ],
+                      ),
                     ),
+                  ),
                 ],
                 builder: (context, controller, child) {
                   final active = _hovered || _menuOpen;
@@ -901,6 +935,41 @@ class _ProtocolFieldState extends State<_ProtocolField> {
   }
 }
 
+class _ProtocolMenuSurface extends StatelessWidget {
+  const _ProtocolMenuSurface({required this.width, required this.child});
+
+  static const double verticalPadding = 4;
+
+  final double width;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      padding: const EdgeInsets.symmetric(vertical: verticalPadding),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: const Color(0xFFE8E8E8)),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x17171717),
+            blurRadius: 24,
+            offset: Offset(0, 10),
+          ),
+          BoxShadow(
+            color: Color(0x0A171717),
+            blurRadius: 4,
+            offset: Offset(0, 1),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+}
+
 class _ProtocolMenuOption extends StatefulWidget {
   const _ProtocolMenuOption({
     required this.width,
@@ -908,6 +977,8 @@ class _ProtocolMenuOption extends StatefulWidget {
     required this.selected,
     required this.onTap,
   });
+
+  static const double itemHeight = 38;
 
   final double width;
   final String label;
@@ -938,7 +1009,7 @@ class _ProtocolMenuOptionState extends State<_ProtocolMenuOption> {
         onTap: widget.onTap,
         child: SizedBox(
           width: widget.width,
-          height: 38,
+          height: _ProtocolMenuOption.itemHeight,
           child: Stack(
             children: [
               Positioned.fill(
