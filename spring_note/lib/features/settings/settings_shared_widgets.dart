@@ -698,7 +698,11 @@ class _CommittedTextFieldState extends State<_CommittedTextField> {
               constraints: const BoxConstraints.tightFor(height: 48),
               errorText: _errorText,
             )
-          : InputDecoration(isDense: true, errorText: _errorText),
+          : InputDecoration(
+              isDense: true,
+              constraints: const BoxConstraints.tightFor(height: 42),
+              errorText: _errorText,
+            ),
     );
   }
 
