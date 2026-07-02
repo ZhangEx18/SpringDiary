@@ -210,8 +210,15 @@ async fn sync_with_client<C: WebDavClient + Sync>(
     let context = CloudSyncContext::new(&request.config)?;
     ensure_remote_note_directories(client, &context, &request.config).await?;
 
-    let local_manifest = read_local_manifest(&request)?;
-    let remote_manifest = read_remote_manifest(client, &context, &request.config).await?;
+    let mut local_manifest = read_local_manifest(&request)?;
+    let mut remote_manifest = read_remote_manifest(client, &context, &request.config).await?;
+    let current_sync_target_id = manifest_sync_target_id(&context, &request.config);
+    if !remote_manifest.sync_target_matches(&current_sync_target_id) {
+        remote_manifest.entries.clear();
+    }
+    if !local_manifest.sync_target_is_current(&current_sync_target_id) {
+        local_manifest.entries.clear();
+    }
     let previous_entries = local_manifest.entries;
 
     let local_files = scan_local_notes(&request, &previous_entries)?;
@@ -269,7 +276,11 @@ async fn sync_with_client<C: WebDavClient + Sync>(
             if let Some(entry) = previous_entries.get(&relative_path) {
                 if entry.deleted {
                     next_entries.insert(relative_path, entry.clone());
+                } else {
+                    next_entries.remove(&relative_path);
                 }
+            } else {
+                next_entries.remove(&relative_path);
             }
             continue;
         }
@@ -443,10 +454,7 @@ async fn sync_with_client<C: WebDavClient + Sync>(
         || !pending_delete_remote.is_empty()
         || !pending_delete_modify_conflicts.is_empty()
     {
-        let next_manifest = SyncManifest {
-            version: MANIFEST_VERSION.to_string(),
-            entries: next_entries,
-        };
+        let next_manifest = SyncManifest::for_context(&context, &request.config, next_entries);
         write_local_manifest(&request, &next_manifest)?;
         write_remote_manifest(client, &context, &request.config, &next_manifest).await?;
         let message = if !pending_delete_modify_conflicts.is_empty()
@@ -475,10 +483,7 @@ async fn sync_with_client<C: WebDavClient + Sync>(
         });
     }
 
-    let next_manifest = SyncManifest {
-        version: MANIFEST_VERSION.to_string(),
-        entries: next_entries,
-    };
+    let next_manifest = SyncManifest::for_context(&context, &request.config, next_entries);
     write_local_manifest(&request, &next_manifest)?;
     write_remote_manifest(client, &context, &request.config, &next_manifest).await?;
 
@@ -506,8 +511,14 @@ async fn upload_note_with_client<C: WebDavClient + Sync>(
         return Ok(CloudSyncResult::failure("云同步未启用", "disabled"));
     }
 
+    validate_config(&request.config)?;
+    let context = CloudSyncContext::new(&request.config)?;
+    let current_sync_target_id = manifest_sync_target_id(&context, &request.config);
     let sync_request = sync_request_from_note_upload_request(&request);
     let mut local_manifest = read_local_manifest(&sync_request)?;
+    if !local_manifest.sync_target_is_current(&current_sync_target_id) {
+        local_manifest.entries.clear();
+    }
     let note_metadata = local_note_metadata_for_upload_request(&request)?;
     let previous = local_manifest
         .entries
@@ -528,6 +539,7 @@ async fn upload_note_with_client<C: WebDavClient + Sync>(
             next_entry.size = note.size;
             next_entry.local_modified_ms = note.modified_ms;
             next_entry.synced_at = synced_at;
+            local_manifest.set_context(&context, &request.config);
             local_manifest
                 .entries
                 .insert(note.relative_path.clone(), next_entry);
@@ -535,10 +547,6 @@ async fn upload_note_with_client<C: WebDavClient + Sync>(
             return Ok(CloudSyncResult::success("笔记未变化", 0, 0, 0));
         }
     }
-
-    validate_config(&request.config)?;
-
-    let context = CloudSyncContext::new(&request.config)?;
     ensure_remote_note_directories(client, &context, &request.config).await?;
 
     let mut files = vec![note.clone()];
@@ -1085,8 +1093,13 @@ async fn update_manifests_after_note_upload<C: WebDavClient + Sync>(
     synced_at: &str,
 ) -> Result<(), CloudSyncError> {
     let sync_request = sync_request_from_note_upload_request(request);
+    let current_sync_target_id = manifest_sync_target_id(context, &request.config);
 
     let mut local_manifest = read_local_manifest(&sync_request)?;
+    if !local_manifest.sync_target_is_current(&current_sync_target_id) {
+        local_manifest.entries.clear();
+    }
+    local_manifest.set_context(context, &request.config);
     for file in files {
         local_manifest.entries.insert(
             file.relative_path.clone(),
@@ -1096,6 +1109,10 @@ async fn update_manifests_after_note_upload<C: WebDavClient + Sync>(
     write_local_manifest(&sync_request, &local_manifest)?;
 
     let mut remote_manifest = read_remote_manifest(client, context, &request.config).await?;
+    if !remote_manifest.sync_target_matches(&current_sync_target_id) {
+        remote_manifest.entries.clear();
+    }
+    remote_manifest.set_context(context, &request.config);
     for file in files {
         remote_manifest.entries.insert(
             file.relative_path.clone(),
@@ -1619,11 +1636,45 @@ struct SyncManifest {
     #[serde(default = "manifest_version")]
     version: String,
     #[serde(default)]
+    sync_target_id: String,
+    #[serde(default)]
     entries: HashMap<String, SyncManifestEntry>,
 }
 
 fn manifest_version() -> String {
     MANIFEST_VERSION.to_string()
+}
+
+impl SyncManifest {
+    fn for_context(
+        context: &CloudSyncContext,
+        config: &CloudSyncConfig,
+        entries: HashMap<String, SyncManifestEntry>,
+    ) -> Self {
+        Self {
+            version: MANIFEST_VERSION.to_string(),
+            sync_target_id: manifest_sync_target_id(context, config),
+            entries,
+        }
+    }
+
+    fn set_context(&mut self, context: &CloudSyncContext, config: &CloudSyncConfig) {
+        self.version = MANIFEST_VERSION.to_string();
+        self.sync_target_id = manifest_sync_target_id(context, config);
+    }
+
+    fn sync_target_is_current(&self, current_sync_target_id: &str) -> bool {
+        self.sync_target_id.trim() == current_sync_target_id
+    }
+
+    fn sync_target_matches(&self, current_sync_target_id: &str) -> bool {
+        let sync_target_id = self.sync_target_id.trim();
+        sync_target_id.is_empty() || sync_target_id == current_sync_target_id
+    }
+}
+
+fn manifest_sync_target_id(context: &CloudSyncContext, config: &CloudSyncConfig) -> String {
+    sha256_hex(format!("{}\n{}", context.remote_root_url, config.username.trim()).as_bytes())
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -2343,6 +2394,54 @@ mod tests {
             fs::read_to_string(Path::new(&request.daily_notes_directory).join("2026-06-29.md"))
                 .unwrap(),
             "# 远端日报\n"
+        );
+    }
+
+    #[tokio::test]
+    async fn changing_webdav_target_uploads_local_files_without_delete_confirmation() {
+        let dir = TestDir::new("spring_note_change_webdav");
+        let request = request(&dir.path);
+        let note_path = Path::new(&request.daily_notes_directory).join("2026-06-29.md");
+        fs::write(&note_path, "# 本地日报\n").unwrap();
+        let client = MemoryWebDavClient::default();
+
+        let first = sync_with_client(&client, request.clone()).await.unwrap();
+        assert!(first.ok);
+        assert_eq!(first.uploaded, 1);
+        let old_manifest = read_local_manifest(&request).unwrap();
+        let old_context = CloudSyncContext::new(&request.config).unwrap();
+        assert_eq!(
+            old_manifest.sync_target_id,
+            manifest_sync_target_id(&old_context, &request.config)
+        );
+        let mut other_user_config = request.config.clone();
+        other_user_config.username = "other-user".to_string();
+        assert_ne!(
+            old_manifest.sync_target_id,
+            manifest_sync_target_id(&old_context, &other_user_config)
+        );
+
+        let mut changed_request = request.clone();
+        changed_request.config.server_url = "https://example.org/new-dav/".to_string();
+        let changed = sync_with_client(&client, changed_request.clone())
+            .await
+            .unwrap();
+
+        assert!(changed.ok);
+        assert!(!changed.needs_delete_confirmation);
+        assert_eq!(changed.pending_delete_local, Vec::<String>::new());
+        assert_eq!(changed.pending_delete_remote, Vec::<String>::new());
+        assert_eq!(changed.uploaded, 1);
+        assert_eq!(
+            client.text("/new-dav/SpringNote/notes/daily/2026-06-29.md"),
+            Some("# 本地日报\n".to_string())
+        );
+        assert!(note_path.exists());
+        let changed_manifest = read_local_manifest(&changed_request).unwrap();
+        let changed_context = CloudSyncContext::new(&changed_request.config).unwrap();
+        assert_eq!(
+            changed_manifest.sync_target_id,
+            manifest_sync_target_id(&changed_context, &changed_request.config)
         );
     }
 
