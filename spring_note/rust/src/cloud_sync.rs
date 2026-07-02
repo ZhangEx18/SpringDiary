@@ -213,7 +213,7 @@ async fn sync_with_client<C: WebDavClient + Sync>(
     let mut local_manifest = read_local_manifest(&request)?;
     let mut remote_manifest = read_remote_manifest(client, &context, &request.config).await?;
     let current_sync_target_id = manifest_sync_target_id(&context, &request.config);
-    if !remote_manifest.sync_target_matches(&current_sync_target_id) {
+    if !remote_manifest.sync_target_is_current(&current_sync_target_id) {
         remote_manifest.entries.clear();
     }
     if !local_manifest.sync_target_is_current(&current_sync_target_id) {
@@ -1109,7 +1109,7 @@ async fn update_manifests_after_note_upload<C: WebDavClient + Sync>(
     write_local_manifest(&sync_request, &local_manifest)?;
 
     let mut remote_manifest = read_remote_manifest(client, context, &request.config).await?;
-    if !remote_manifest.sync_target_matches(&current_sync_target_id) {
+    if !remote_manifest.sync_target_is_current(&current_sync_target_id) {
         remote_manifest.entries.clear();
     }
     remote_manifest.set_context(context, &request.config);
@@ -1665,11 +1665,6 @@ impl SyncManifest {
 
     fn sync_target_is_current(&self, current_sync_target_id: &str) -> bool {
         self.sync_target_id.trim() == current_sync_target_id
-    }
-
-    fn sync_target_matches(&self, current_sync_target_id: &str) -> bool {
-        let sync_target_id = self.sync_target_id.trim();
-        sync_target_id.is_empty() || sync_target_id == current_sync_target_id
     }
 }
 
