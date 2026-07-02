@@ -517,10 +517,8 @@ class _CloudSyncDeleteGroupSection extends StatelessWidget {
                 ? Column(
                     children: [
                       const SizedBox(height: 6),
-                      for (final path in paths.take(12))
+                      for (final path in paths)
                         _CloudSyncDeleteFileTile(path: _formatDeletePath(path)),
-                      if (paths.length > 12)
-                        _CloudSyncDeleteOverflowTile(count: paths.length - 12),
                     ],
                   )
                 : const SizedBox(width: double.infinity),
@@ -704,33 +702,6 @@ class _CloudSyncDeleteFileTileState extends State<_CloudSyncDeleteFileTile> {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _CloudSyncDeleteOverflowTile extends StatelessWidget {
-  const _CloudSyncDeleteOverflowTile({required this.count});
-
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 36,
-      child: Padding(
-        padding: const EdgeInsets.only(left: 42),
-        child: Align(
-          alignment: Alignment.centerLeft,
-          child: Text(
-            '还有 $count 个文件...',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: AppTheme.textSubtle,
-              fontSize: 13,
-              fontWeight: FontWeight.w400,
-            ),
-          ),
         ),
       ),
     );

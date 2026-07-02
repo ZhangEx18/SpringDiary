@@ -273,14 +273,18 @@ void main() {
       cloudSync: CloudSyncConfig.defaults().copyWith(enabled: true),
     );
     final service = _MemoryLocalDataService(initialConfig);
+    final deleteLocal = List.generate(
+      14,
+      (index) => 'notes/daily/old-$index.md',
+    );
     final cloudSyncService = _FakeCloudSyncService(
       syncResults: [
-        const CloudSyncResult(
+        CloudSyncResult(
           ok: true,
           message: '检测到删除项，请确认后继续同步',
           needsDeleteConfirmation: true,
-          pendingDeleteLocal: ['notes/daily/old.md'],
-          pendingDeleteRemote: ['notes/images/old.png'],
+          pendingDeleteLocal: deleteLocal,
+          pendingDeleteRemote: const ['notes/images/old.png'],
         ),
         CloudSyncResult(
           ok: true,
@@ -311,16 +315,18 @@ void main() {
     );
     expect(find.text('将删除本地文件'), findsOneWidget);
     expect(find.text('将删除远端文件'), findsOneWidget);
-    expect(find.text('daily/old.md'), findsNothing);
+    expect(find.text('daily/old-13.md'), findsNothing);
     expect(find.text('images/old.png'), findsNothing);
+
+    await tester.tap(find.text('将删除远端文件'));
+    await tester.pumpAndSettle();
+    expect(find.text('images/old.png'), findsOneWidget);
 
     await tester.tap(find.text('将删除本地文件'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('将删除远端文件'));
-    await tester.pumpAndSettle();
 
-    expect(find.text('daily/old.md'), findsOneWidget);
-    expect(find.text('images/old.png'), findsOneWidget);
+    expect(find.text('daily/old-13.md'), findsOneWidget);
+    expect(find.textContaining('还有 '), findsNothing);
 
     final confirmButtonCenter = tester.getCenter(find.text('确认删除并同步'));
     await tester.tapAt(confirmButtonCenter);
@@ -328,7 +334,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(cloudSyncService.syncCallCount, 2);
-    expect(cloudSyncService.lastConfirmedDeleteLocal, ['notes/daily/old.md']);
+    expect(cloudSyncService.lastConfirmedDeleteLocal, deleteLocal);
     expect(cloudSyncService.lastConfirmedDeleteRemote, [
       'notes/images/old.png',
     ]);
