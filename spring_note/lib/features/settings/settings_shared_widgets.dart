@@ -747,21 +747,52 @@ class _LooseField extends StatelessWidget {
   }
 }
 
-class _ProtocolField extends StatelessWidget {
+class _ProtocolField extends StatefulWidget {
   const _ProtocolField({required this.value, required this.onChanged});
 
   final String value;
   final ValueChanged<String> onChanged;
 
   @override
+  State<_ProtocolField> createState() => _ProtocolFieldState();
+}
+
+class _ProtocolFieldState extends State<_ProtocolField> {
+  final MenuController _controller = MenuController();
+  bool _hovered = false;
+  bool _menuOpen = false;
+
+  static const Map<String, String> _protocols = {
+    'openaiCompatible': 'OpenAI-compatible',
+    'gemini': 'Gemini',
+    'claude': 'Claude',
+  };
+
+  String get _current {
+    final trimmedValue = widget.value.trim();
+    return trimmedValue.isEmpty ? 'openaiCompatible' : trimmedValue;
+  }
+
+  List<MapEntry<String, String>> get _options {
+    final current = _current;
+    return [
+      if (!_protocols.containsKey(current)) MapEntry(current, current),
+      ..._protocols.entries,
+    ];
+  }
+
+  void _toggleMenu() {
+    if (_controller.isOpen) {
+      _controller.close();
+    } else {
+      _controller.open();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    const protocols = {
-      'openaiCompatible': 'OpenAI-compatible',
-      'gemini': 'Gemini',
-      'claude': 'Claude',
-    };
-    final trimmedValue = value.trim();
-    final current = trimmedValue.isEmpty ? 'openaiCompatible' : trimmedValue;
+    final current = _current;
+    final currentLabel = _protocols[current] ?? current;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
@@ -770,29 +801,194 @@ class _ProtocolField extends StatelessWidget {
         children: [
           Text('协议', style: Theme.of(context).textTheme.labelLarge),
           const SizedBox(height: 4),
-          DropdownButtonFormField<String>(
-            initialValue: current,
-            items: [
-              if (!protocols.containsKey(current))
-                DropdownMenuItem(value: current, child: Text(current)),
-              for (final entry in protocols.entries)
-                DropdownMenuItem(value: entry.key, child: Text(entry.value)),
-            ],
-            onChanged: (next) {
-              if (next != null) {
-                onChanged(next);
-              }
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final menuWidth = constraints.hasBoundedWidth
+                  ? constraints.maxWidth
+                  : 280.0;
+              return MenuAnchor(
+                controller: _controller,
+                alignmentOffset: const Offset(0, 6),
+                style: MenuStyle(
+                  backgroundColor: const WidgetStatePropertyAll(Colors.white),
+                  elevation: const WidgetStatePropertyAll(0),
+                  minimumSize: const WidgetStatePropertyAll(Size.zero),
+                  padding: const WidgetStatePropertyAll(
+                    EdgeInsets.symmetric(vertical: 4),
+                  ),
+                  shape: WidgetStatePropertyAll(
+                    RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      side: const BorderSide(color: AppTheme.border),
+                    ),
+                  ),
+                ),
+                onOpen: () => setState(() => _menuOpen = true),
+                onClose: () => setState(() => _menuOpen = false),
+                menuChildren: [
+                  for (final option in _options)
+                    _ProtocolMenuOption(
+                      width: menuWidth,
+                      label: option.value,
+                      selected: option.key == current,
+                      onTap: () {
+                        _controller.close();
+                        widget.onChanged(option.key);
+                      },
+                    ),
+                ],
+                builder: (context, controller, child) {
+                  final active = _hovered || _menuOpen;
+                  return MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    onEnter: (_) => setState(() => _hovered = true),
+                    onExit: (_) => setState(() => _hovered = false),
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: _toggleMenu,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 130),
+                        curve: Curves.easeOutCubic,
+                        height: 48,
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        decoration: BoxDecoration(
+                          color: active
+                              ? const Color(0xFFF0F0F0)
+                              : const Color(0xFFF5F5F5),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: _menuOpen
+                                ? const Color(0xFFCFCFCF)
+                                : AppTheme.border,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                currentLabel,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(
+                                      color: AppTheme.text,
+                                      fontWeight: FontWeight.w400,
+                                      height: 1.2,
+                                    ),
+                              ),
+                            ),
+                            AnimatedRotation(
+                              turns: _menuOpen ? 0.5 : 0,
+                              duration: const Duration(milliseconds: 180),
+                              curve: Curves.easeOutCubic,
+                              child: const Icon(
+                                Icons.expand_more_rounded,
+                                size: 19,
+                                color: AppTheme.textMuted,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              );
             },
-            decoration: const InputDecoration(
-              isDense: true,
-              contentPadding: EdgeInsets.symmetric(
-                horizontal: 14,
-                vertical: 12,
-              ),
-              constraints: BoxConstraints.tightFor(height: 48),
-            ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ProtocolMenuOption extends StatefulWidget {
+  const _ProtocolMenuOption({
+    required this.width,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final double width;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  State<_ProtocolMenuOption> createState() => _ProtocolMenuOptionState();
+}
+
+class _ProtocolMenuOptionState extends State<_ProtocolMenuOption> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final active = widget.selected || _hovered;
+    final backgroundColor = widget.selected
+        ? const Color(0xFFE2E2E2)
+        : const Color(0xFFF5F5F5);
+    final contentColor = active ? AppTheme.text : AppTheme.textMuted;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap,
+        child: SizedBox(
+          width: widget.width,
+          height: 38,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                left: 6,
+                right: 6,
+                top: 2,
+                bottom: 2,
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 120),
+                  curve: Curves.easeOutCubic,
+                  opacity: active ? 1 : 0,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: backgroundColor,
+                      borderRadius: BorderRadius.circular(11),
+                    ),
+                  ),
+                ),
+              ),
+              Positioned.fill(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 18),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          widget.label,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: contentColor,
+                                fontWeight: FontWeight.w400,
+                                height: 1.2,
+                              ),
+                        ),
+                      ),
+                      if (widget.selected)
+                        const Icon(
+                          Icons.check_rounded,
+                          size: 17,
+                          color: AppTheme.text,
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
