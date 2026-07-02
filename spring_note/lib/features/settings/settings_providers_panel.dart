@@ -268,82 +268,93 @@ class _ProviderDetailsState extends State<_ProviderDetails> {
   @override
   Widget build(BuildContext context) {
     final provider = widget.provider;
-    return _SettingsScrollFrame(
-      maxWidth: 1120,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            Text(provider.name, style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(width: 10),
-            Text(
-              provider.protocol,
-              style: Theme.of(context).textTheme.bodyMedium,
+        Padding(
+          padding: const EdgeInsets.fromLTRB(36, 30, 36, 0),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1120),
+              child: _ProviderDetailsHeader(
+                provider: provider,
+                onProviderChanged: widget.onProviderChanged,
+                onProviderDeleted: widget.onProviderDeleted,
+              ),
             ),
-            const Spacer(),
-            Switch(
-              value: provider.enabled,
-              onChanged: (value) async =>
-                  widget.onProviderChanged(provider.copyWith(enabled: value)),
-            ),
-            IconButton(
-              tooltip: '删除供应商',
-              onPressed: () async => widget.onProviderDeleted(provider.id),
-              icon: const Icon(Icons.delete_outline_rounded),
-            ),
-          ],
+          ),
         ),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Divider(height: 12),
-            const SizedBox(height: 2),
-            _LooseField(
-              label: '名称',
-              value: provider.name,
-              onChanged: (value) {
-                widget.onProviderChanged(provider.copyWith(name: value));
-              },
+        Expanded(
+          child: SingleChildScrollView(
+            key: ValueKey('provider-details-body-${provider.id}'),
+            padding: const EdgeInsets.fromLTRB(36, 14, 36, 42),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1120),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _LooseField(
+                      label: '名称',
+                      value: provider.name,
+                      onChanged: (value) {
+                        widget.onProviderChanged(
+                          provider.copyWith(name: value),
+                        );
+                      },
+                    ),
+                    _LooseField(
+                      label: 'API Key',
+                      value: provider.apiKey,
+                      obscureText: true,
+                      onChanged: (value) {
+                        widget.onProviderChanged(
+                          provider.copyWith(apiKey: value),
+                        );
+                      },
+                    ),
+                    _ProtocolField(
+                      value: provider.protocol,
+                      onChanged: (value) {
+                        widget.onProviderChanged(
+                          provider.copyWith(protocol: value),
+                        );
+                      },
+                    ),
+                    _LooseField(
+                      label: 'API Base URL',
+                      value: provider.baseUrl,
+                      onChanged: (value) {
+                        widget.onProviderChanged(
+                          provider.copyWith(baseUrl: value),
+                        );
+                      },
+                    ),
+                    _LooseField(
+                      label: 'API 路径',
+                      value: provider.apiPath,
+                      onChanged: (value) {
+                        widget.onProviderChanged(
+                          provider.copyWith(apiPath: value),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    _ModelsList(
+                      provider: provider,
+                      testingConnection: _testingConnection,
+                      fetchingModels: _fetchingModels,
+                      actionMessage: _actionMessage,
+                      onTestConnection: _testConnection,
+                      onFetchModels: _fetchModels,
+                      onModelChanged: widget.onModelChanged,
+                      onModelDeleted: widget.onModelDeleted,
+                    ),
+                  ],
+                ),
+              ),
             ),
-            _LooseField(
-              label: 'API Key',
-              value: provider.apiKey,
-              obscureText: true,
-              onChanged: (value) {
-                widget.onProviderChanged(provider.copyWith(apiKey: value));
-              },
-            ),
-            _ProtocolField(
-              value: provider.protocol,
-              onChanged: (value) {
-                widget.onProviderChanged(provider.copyWith(protocol: value));
-              },
-            ),
-            _LooseField(
-              label: 'API Base URL',
-              value: provider.baseUrl,
-              onChanged: (value) {
-                widget.onProviderChanged(provider.copyWith(baseUrl: value));
-              },
-            ),
-            _LooseField(
-              label: 'API 路径',
-              value: provider.apiPath,
-              onChanged: (value) {
-                widget.onProviderChanged(provider.copyWith(apiPath: value));
-              },
-            ),
-            const SizedBox(height: 12),
-            _ModelsList(
-              provider: provider,
-              testingConnection: _testingConnection,
-              fetchingModels: _fetchingModels,
-              actionMessage: _actionMessage,
-              onTestConnection: _testConnection,
-              onFetchModels: _fetchModels,
-              onModelChanged: widget.onModelChanged,
-              onModelDeleted: widget.onModelDeleted,
-            ),
-          ],
+          ),
         ),
       ],
     );
@@ -405,6 +416,66 @@ class _ProviderDetailsState extends State<_ProviderDetails> {
         setState(() => _fetchingModels = false);
       }
     }
+  }
+}
+
+class _ProviderDetailsHeader extends StatelessWidget {
+  const _ProviderDetailsHeader({
+    required this.provider,
+    required this.onProviderChanged,
+    required this.onProviderDeleted,
+  });
+
+  final ProviderConfig provider;
+  final Future<void> Function(ProviderConfig provider) onProviderChanged;
+  final Future<void> Function(String id) onProviderDeleted;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(
+          height: 36,
+          child: Row(
+            children: [
+              Text(
+                provider.name,
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const Spacer(),
+              SizedBox(
+                width: 48,
+                height: 32,
+                child: Transform.scale(
+                  scale: 0.86,
+                  child: Switch(
+                    value: provider.enabled,
+                    onChanged: (value) async =>
+                        onProviderChanged(provider.copyWith(enabled: value)),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              IconButton(
+                tooltip: '删除供应商',
+                constraints: const BoxConstraints.tightFor(
+                  width: 34,
+                  height: 34,
+                ),
+                padding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
+                iconSize: 20,
+                onPressed: () async => onProviderDeleted(provider.id),
+                icon: const Icon(Icons.delete_outline_rounded),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 2),
+        const Divider(height: 1),
+      ],
+    );
   }
 }
 
