@@ -466,7 +466,17 @@ class _ProviderDetailsHeader extends StatelessWidget {
                 padding: EdgeInsets.zero,
                 visualDensity: VisualDensity.compact,
                 iconSize: 20,
-                onPressed: () async => onProviderDeleted(provider.id),
+                onPressed: () async {
+                  final confirmed = await showDialog<bool>(
+                    context: context,
+                    builder: (_) => _DeleteProviderConfirmDialog(
+                      providerName: provider.name,
+                    ),
+                  );
+                  if (confirmed == true) {
+                    await onProviderDeleted(provider.id);
+                  }
+                },
                 icon: const Icon(Icons.delete_outline_rounded),
               ),
             ],
@@ -475,6 +485,120 @@ class _ProviderDetailsHeader extends StatelessWidget {
         const SizedBox(height: 2),
         const Divider(height: 1),
       ],
+    );
+  }
+}
+
+class _DeleteProviderConfirmDialog extends StatelessWidget {
+  const _DeleteProviderConfirmDialog({required this.providerName});
+
+  final String providerName;
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 340),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '删除供应商',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: AppTheme.text,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                '确定要删除该供应商吗？此操作不可撤销。',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppTheme.text,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  _DeleteDialogButton(
+                    label: '取消',
+                    isDestructive: false,
+                    onTap: () => Navigator.of(context).pop(false),
+                  ),
+                  const SizedBox(width: 10),
+                  _DeleteDialogButton(
+                    label: '删除',
+                    isDestructive: true,
+                    onTap: () => Navigator.of(context).pop(true),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DeleteDialogButton extends StatefulWidget {
+  const _DeleteDialogButton({
+    required this.label,
+    required this.isDestructive,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool isDestructive;
+  final VoidCallback onTap;
+
+  @override
+  State<_DeleteDialogButton> createState() => _DeleteDialogButtonState();
+}
+
+class _DeleteDialogButtonState extends State<_DeleteDialogButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final backgroundColor =
+        _hovered ? const Color(0xFFF5F5F5) : Colors.white;
+    final foregroundColor =
+        widget.isDestructive ? const Color(0xFFEF4444) : AppTheme.text;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 130),
+          curve: Curves.easeOutCubic,
+          height: 40,
+          padding: const EdgeInsets.symmetric(horizontal: 18),
+          decoration: BoxDecoration(
+            color: backgroundColor,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Center(
+            child: Text(
+              widget.label,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: foregroundColor,
+                height: 1.2,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
