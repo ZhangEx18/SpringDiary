@@ -402,7 +402,10 @@ pub async fn merge_daily_note(request: DailyMergeRequest) -> AiTextResult {
 
 pub async fn generate_weekly_report(request: ReportRequest) -> AiTextResult {
     let user_prompt = report_user_prompt(&request.period_label, &request.source_markdown);
-    let system_prompt = with_industry_context(WEEKLY_REPORT_SYSTEM_PROMPT, &request.industry);
+    let system_prompt = with_markdown_attachment_preservation_instruction(with_industry_context(
+        WEEKLY_REPORT_SYSTEM_PROMPT,
+        &request.industry,
+    ));
     chat(AiChatRequest {
         app_data_dir: request.app_data_dir,
         provider: request.provider,
@@ -418,7 +421,10 @@ pub async fn generate_weekly_report(request: ReportRequest) -> AiTextResult {
 
 pub async fn generate_monthly_report(request: ReportRequest) -> AiTextResult {
     let user_prompt = report_user_prompt(&request.period_label, &request.source_markdown);
-    let system_prompt = with_industry_context(MONTHLY_REPORT_SYSTEM_PROMPT, &request.industry);
+    let system_prompt = with_markdown_attachment_preservation_instruction(with_industry_context(
+        MONTHLY_REPORT_SYSTEM_PROMPT,
+        &request.industry,
+    ));
     chat(AiChatRequest {
         app_data_dir: request.app_data_dir,
         provider: request.provider,
@@ -662,10 +668,13 @@ fn read_i32(value: &Value, path: &[&str]) -> Option<i32> {
 fn daily_merge_system_prompt(request: &DailyMergeRequest) -> String {
     let custom_prompt = request.merge_prompt.trim();
     if !custom_prompt.is_empty() {
-        return custom_prompt.to_string();
+        return with_markdown_attachment_preservation_instruction(custom_prompt.to_string());
     }
 
-    render_daily_merge_prompt(DAILY_MERGE_SYSTEM_PROMPT, request)
+    with_markdown_attachment_preservation_instruction(render_daily_merge_prompt(
+        DAILY_MERGE_SYSTEM_PROMPT,
+        request,
+    ))
 }
 
 fn render_daily_merge_prompt(template: &str, request: &DailyMergeRequest) -> String {
@@ -923,6 +932,17 @@ fn with_industry_context(base_prompt: &str, industry: &str) -> String {
     )
 }
 
+fn with_markdown_attachment_preservation_instruction(prompt: String) -> String {
+    let trimmed = prompt.trim_end();
+    if trimmed.contains(MARKDOWN_ATTACHMENT_PRESERVATION_INSTRUCTION) {
+        return trimmed.to_string();
+    }
+
+    format!("{trimmed}\n{MARKDOWN_ATTACHMENT_PRESERVATION_INSTRUCTION}")
+}
+
+const MARKDOWN_ATTACHMENT_PRESERVATION_INSTRUCTION: &str = "输出内容时，必须将给定的所有 Markdown 图片（`![]()`）和其他文件链接原样包含在内，不得省略、修改或重新生成；图片路径、文件名和语法必须与原始提供完全一致，同时，这些内容应自然融入上下文之中。";
+
 const WEEKLY_REPORT_SYSTEM_PROMPT: &str = r#"你是 SpringNote 的周报整理助手。请基于一周日报 Markdown 生成一篇自然、有重点、可直接编辑的周报。
 写作原则：
 1. 保留来源中的事实，不编造没有依据的成果、风险或计划。
@@ -1024,6 +1044,7 @@ mod tests {
         assert!(prompt.contains("已有日报：# old"));
         assert!(prompt.contains("新增随手记录：done"));
         assert!(prompt.contains("用户所在行业：未设置"));
+        assert!(prompt.ends_with(MARKDOWN_ATTACHMENT_PRESERVATION_INSTRUCTION));
         assert!(!prompt.contains("{date}"));
         assert!(!prompt.contains("{existing_markdown}"));
         assert!(!prompt.contains("{raw_input}"));
@@ -1032,7 +1053,7 @@ mod tests {
     }
 
     #[test]
-    fn custom_daily_merge_prompt_is_system_prompt() {
+    fn custom_daily_merge_prompt_appends_markdown_attachment_instruction() {
         let request = DailyMergeRequest {
             app_data_dir: ".".to_string(),
             provider: request().provider,
@@ -1048,8 +1069,25 @@ mod tests {
             api_log_enabled: false,
         };
 
-        assert_eq!(daily_merge_system_prompt(&request), "custom system prompt");
+        let prompt = daily_merge_system_prompt(&request);
+        assert!(prompt.starts_with("custom system prompt\n"));
+        assert!(prompt.ends_with(MARKDOWN_ATTACHMENT_PRESERVATION_INSTRUCTION));
         assert_eq!(daily_merge_user_prompt(&request), "");
+    }
+
+    #[test]
+    fn report_system_prompts_append_markdown_attachment_instruction() {
+        let weekly_prompt = with_markdown_attachment_preservation_instruction(
+            with_industry_context(WEEKLY_REPORT_SYSTEM_PROMPT, "互联网"),
+        );
+        let monthly_prompt = with_markdown_attachment_preservation_instruction(
+            with_industry_context(MONTHLY_REPORT_SYSTEM_PROMPT, "互联网"),
+        );
+
+        assert!(weekly_prompt.contains("周报整理助手"));
+        assert!(monthly_prompt.contains("月报整理助手"));
+        assert!(weekly_prompt.ends_with(MARKDOWN_ATTACHMENT_PRESERVATION_INSTRUCTION));
+        assert!(monthly_prompt.ends_with(MARKDOWN_ATTACHMENT_PRESERVATION_INSTRUCTION));
     }
 
     #[test]
