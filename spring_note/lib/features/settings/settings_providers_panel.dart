@@ -567,10 +567,10 @@ class _DeleteDialogButtonState extends State<_DeleteDialogButton> {
 
   @override
   Widget build(BuildContext context) {
-    final backgroundColor =
-        _hovered ? const Color(0xFFF5F5F5) : Colors.white;
-    final foregroundColor =
-        widget.isDestructive ? const Color(0xFFEF4444) : AppTheme.text;
+    final backgroundColor = _hovered ? const Color(0xFFF5F5F5) : Colors.white;
+    final foregroundColor = widget.isDestructive
+        ? const Color(0xFFEF4444)
+        : AppTheme.text;
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -1266,6 +1266,7 @@ class _ProviderModelFetchDialog extends StatefulWidget {
 
 class _ProviderModelFetchDialogState extends State<_ProviderModelFetchDialog> {
   late final TextEditingController _controller = TextEditingController();
+  late final ScrollController _scrollController = ScrollController();
   late final Set<String> _selectedModelIds;
   final Set<String> _expandedGroups = {};
   final Set<String> _busyModelIds = {};
@@ -1289,6 +1290,7 @@ class _ProviderModelFetchDialogState extends State<_ProviderModelFetchDialog> {
   @override
   void dispose() {
     _controller.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -1515,43 +1517,58 @@ class _ProviderModelFetchDialogState extends State<_ProviderModelFetchDialog> {
                     ? _ProviderModelEmptyView(
                         message: _models.isEmpty ? '没有获取到模型' : '没有匹配的模型',
                       )
-                    : ListView.builder(
+                    : ScrollConfiguration(
                         key: const ValueKey('provider-model-groups'),
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
-                        itemCount: groups.length,
-                        itemBuilder: (context, index) {
-                          final group = groups[index];
-                          final expanded =
-                              searching || _expandedGroups.contains(group.name);
-                          return _ProviderModelGroupSection(
-                            group: group,
-                            expanded: expanded,
-                            hoveredGroup: _hoveredGroup == group.name,
-                            selectedModelIds: _selectedModelIds,
-                            busyModelIds: _busyModelIds,
-                            hoveredModelId: _hoveredModelId,
-                            onGroupHoverChanged: (hovered) {
-                              setState(() {
-                                if (hovered) {
-                                  _hoveredGroup = group.name;
-                                } else if (_hoveredGroup == group.name) {
-                                  _hoveredGroup = null;
-                                }
-                              });
-                            },
-                            onGroupTap: () => _toggleGroup(group.name),
-                            onModelHoverChanged: (modelId, hovered) {
-                              setState(() {
-                                if (hovered) {
-                                  _hoveredModelId = modelId;
-                                } else if (_hoveredModelId == modelId) {
-                                  _hoveredModelId = null;
-                                }
-                              });
-                            },
-                            onModelTap: _toggleModel,
-                          );
-                        },
+                        behavior: ScrollConfiguration.of(
+                          context,
+                        ).copyWith(scrollbars: false),
+                        child: Scrollbar(
+                          controller: _scrollController,
+                          thumbVisibility: true,
+                          interactive: true,
+                          child: SingleChildScrollView(
+                            controller: _scrollController,
+                            primary: false,
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                for (final group in groups)
+                                  _ProviderModelGroupSection(
+                                    group: group,
+                                    expanded:
+                                        searching ||
+                                        _expandedGroups.contains(group.name),
+                                    hoveredGroup: _hoveredGroup == group.name,
+                                    selectedModelIds: _selectedModelIds,
+                                    busyModelIds: _busyModelIds,
+                                    hoveredModelId: _hoveredModelId,
+                                    onGroupHoverChanged: (hovered) {
+                                      setState(() {
+                                        if (hovered) {
+                                          _hoveredGroup = group.name;
+                                        } else if (_hoveredGroup ==
+                                            group.name) {
+                                          _hoveredGroup = null;
+                                        }
+                                      });
+                                    },
+                                    onGroupTap: () => _toggleGroup(group.name),
+                                    onModelHoverChanged: (modelId, hovered) {
+                                      setState(() {
+                                        if (hovered) {
+                                          _hoveredModelId = modelId;
+                                        } else if (_hoveredModelId == modelId) {
+                                          _hoveredModelId = null;
+                                        }
+                                      });
+                                    },
+                                    onModelTap: _toggleModel,
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
                       ),
               ),
             ),

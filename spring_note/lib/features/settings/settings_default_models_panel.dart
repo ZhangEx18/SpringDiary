@@ -186,6 +186,7 @@ class _ModelPickerDialog extends StatefulWidget {
 
 class _ModelPickerDialogState extends State<_ModelPickerDialog> {
   late final TextEditingController _controller = TextEditingController();
+  late final ScrollController _scrollController = ScrollController();
   String _query = '';
   String? _hoveredOptionKey;
   String? _hoveredProviderId;
@@ -251,6 +252,7 @@ class _ModelPickerDialogState extends State<_ModelPickerDialog> {
   @override
   void dispose() {
     _controller.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -343,82 +345,105 @@ class _ModelPickerDialogState extends State<_ModelPickerDialog> {
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                     )
-                  : ListView(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
-                      children: [
-                        if (showNoneOption)
-                          _ModelOptionTile(
-                            model: null,
-                            selected: selectedRef == null,
-                            hovered: _hoveredOptionKey == '__none__',
-                            onHoverChanged: (hovered) =>
-                                _setHoveredOption('__none__', hovered),
-                            onTap: () => Navigator.of(
-                              context,
-                            ).pop(const _ModelSelectionResult(null)),
-                          ),
-                        for (final group in groups) ...[
-                          _ProviderModelGroupHeader(
-                            name: group.provider.name,
-                            count: group.models.length,
-                            expanded: _providerExpanded(group.provider.id),
-                            hovered: _hoveredProviderId == group.provider.id,
-                            onHoverChanged: (hovered) {
-                              setState(() {
-                                if (hovered) {
-                                  _hoveredProviderId = group.provider.id;
-                                } else if (_hoveredProviderId ==
-                                    group.provider.id) {
-                                  _hoveredProviderId = null;
-                                }
-                              });
-                            },
-                            onTap: () => _toggleProvider(group.provider.id),
-                          ),
-                          ClipRect(
-                            child: AnimatedSize(
-                              duration: const Duration(milliseconds: 280),
-                              reverseDuration: const Duration(
-                                milliseconds: 190,
-                              ),
-                              curve: Curves.easeOutCubic,
-                              alignment: Alignment.topCenter,
-                              child: _providerExpanded(group.provider.id)
-                                  ? Column(
-                                      children: [
-                                        const SizedBox(height: 6),
-                                        for (final model in group.models)
-                                          _ModelOptionTile(
-                                            model: model,
-                                            selected:
-                                                selectedRef?.matches(
-                                                  providerId: model.provider.id,
-                                                  modelId: model.model.modelId,
-                                                ) ??
-                                                false,
-                                            hovered:
-                                                _hoveredOptionKey ==
-                                                model.value,
-                                            onHoverChanged: (hovered) =>
-                                                _setHoveredOption(
-                                                  model.value,
-                                                  hovered,
+                  : ScrollConfiguration(
+                      behavior: ScrollConfiguration.of(
+                        context,
+                      ).copyWith(scrollbars: false),
+                      child: Scrollbar(
+                        controller: _scrollController,
+                        thumbVisibility: true,
+                        interactive: true,
+                        child: SingleChildScrollView(
+                          controller: _scrollController,
+                          primary: false,
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              if (showNoneOption)
+                                _ModelOptionTile(
+                                  model: null,
+                                  selected: selectedRef == null,
+                                  hovered: _hoveredOptionKey == '__none__',
+                                  onHoverChanged: (hovered) =>
+                                      _setHoveredOption('__none__', hovered),
+                                  onTap: () => Navigator.of(
+                                    context,
+                                  ).pop(const _ModelSelectionResult(null)),
+                                ),
+                              for (final group in groups) ...[
+                                _ProviderModelGroupHeader(
+                                  name: group.provider.name,
+                                  count: group.models.length,
+                                  expanded: _providerExpanded(
+                                    group.provider.id,
+                                  ),
+                                  hovered:
+                                      _hoveredProviderId == group.provider.id,
+                                  onHoverChanged: (hovered) {
+                                    setState(() {
+                                      if (hovered) {
+                                        _hoveredProviderId = group.provider.id;
+                                      } else if (_hoveredProviderId ==
+                                          group.provider.id) {
+                                        _hoveredProviderId = null;
+                                      }
+                                    });
+                                  },
+                                  onTap: () =>
+                                      _toggleProvider(group.provider.id),
+                                ),
+                                ClipRect(
+                                  child: AnimatedSize(
+                                    duration: const Duration(milliseconds: 280),
+                                    reverseDuration: const Duration(
+                                      milliseconds: 190,
+                                    ),
+                                    curve: Curves.easeOutCubic,
+                                    alignment: Alignment.topCenter,
+                                    child: _providerExpanded(group.provider.id)
+                                        ? Column(
+                                            children: [
+                                              const SizedBox(height: 6),
+                                              for (final model in group.models)
+                                                _ModelOptionTile(
+                                                  model: model,
+                                                  selected:
+                                                      selectedRef?.matches(
+                                                        providerId:
+                                                            model.provider.id,
+                                                        modelId:
+                                                            model.model.modelId,
+                                                      ) ??
+                                                      false,
+                                                  hovered:
+                                                      _hoveredOptionKey ==
+                                                      model.value,
+                                                  onHoverChanged: (hovered) =>
+                                                      _setHoveredOption(
+                                                        model.value,
+                                                        hovered,
+                                                      ),
+                                                  onTap: () =>
+                                                      Navigator.of(context).pop(
+                                                        _ModelSelectionResult(
+                                                          model.value,
+                                                        ),
+                                                      ),
                                                 ),
-                                            onTap: () =>
-                                                Navigator.of(context).pop(
-                                                  _ModelSelectionResult(
-                                                    model.value,
-                                                  ),
-                                                ),
+                                            ],
+                                          )
+                                        : const SizedBox(
+                                            width: double.infinity,
                                           ),
-                                      ],
-                                    )
-                                  : const SizedBox(width: double.infinity),
-                            ),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                              ],
+                            ],
                           ),
-                          const SizedBox(height: 8),
-                        ],
-                      ],
+                        ),
+                      ),
                     ),
             ),
           ],

@@ -345,8 +345,15 @@ class _CloudSyncDeleteConfirmDialog extends StatefulWidget {
 
 class _CloudSyncDeleteConfirmDialogState
     extends State<_CloudSyncDeleteConfirmDialog> {
+  late final ScrollController _scrollController = ScrollController();
   final Set<_CloudSyncDeleteTarget> _expandedTargets = {};
   bool _submitting = false;
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   void _toggleGroup(_CloudSyncDeleteTarget target) {
     setState(() {
@@ -417,35 +424,50 @@ class _CloudSyncDeleteConfirmDialogState
                 ),
               ),
               Flexible(
-                child: ListView(
-                  shrinkWrap: true,
-                  padding: const EdgeInsets.fromLTRB(28, 0, 28, 18),
-                  children: [
-                    if (widget.deleteLocal.isNotEmpty)
-                      _CloudSyncDeleteGroupSection(
-                        title: '将删除本地文件',
-                        icon: Icons.desktop_windows_outlined,
-                        paths: widget.deleteLocal,
-                        expanded: _expandedTargets.contains(
-                          _CloudSyncDeleteTarget.local,
-                        ),
-                        onTap: () => _toggleGroup(_CloudSyncDeleteTarget.local),
+                child: ScrollConfiguration(
+                  behavior: ScrollConfiguration.of(
+                    context,
+                  ).copyWith(scrollbars: false),
+                  child: Scrollbar(
+                    controller: _scrollController,
+                    thumbVisibility: true,
+                    interactive: true,
+                    child: SingleChildScrollView(
+                      controller: _scrollController,
+                      primary: false,
+                      padding: const EdgeInsets.fromLTRB(28, 0, 28, 18),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (widget.deleteLocal.isNotEmpty)
+                            _CloudSyncDeleteGroupSection(
+                              title: '将删除本地文件',
+                              icon: Icons.desktop_windows_outlined,
+                              paths: widget.deleteLocal,
+                              expanded: _expandedTargets.contains(
+                                _CloudSyncDeleteTarget.local,
+                              ),
+                              onTap: () =>
+                                  _toggleGroup(_CloudSyncDeleteTarget.local),
+                            ),
+                          if (widget.deleteLocal.isNotEmpty &&
+                              widget.deleteRemote.isNotEmpty)
+                            const SizedBox(height: 8),
+                          if (widget.deleteRemote.isNotEmpty)
+                            _CloudSyncDeleteGroupSection(
+                              title: '将删除远端文件',
+                              icon: Icons.cloud_outlined,
+                              paths: widget.deleteRemote,
+                              expanded: _expandedTargets.contains(
+                                _CloudSyncDeleteTarget.remote,
+                              ),
+                              onTap: () =>
+                                  _toggleGroup(_CloudSyncDeleteTarget.remote),
+                            ),
+                        ],
                       ),
-                    if (widget.deleteLocal.isNotEmpty &&
-                        widget.deleteRemote.isNotEmpty)
-                      const SizedBox(height: 8),
-                    if (widget.deleteRemote.isNotEmpty)
-                      _CloudSyncDeleteGroupSection(
-                        title: '将删除远端文件',
-                        icon: Icons.cloud_outlined,
-                        paths: widget.deleteRemote,
-                        expanded: _expandedTargets.contains(
-                          _CloudSyncDeleteTarget.remote,
-                        ),
-                        onTap: () =>
-                            _toggleGroup(_CloudSyncDeleteTarget.remote),
-                      ),
-                  ],
+                    ),
+                  ),
                 ),
               ),
               Container(
@@ -762,12 +784,19 @@ class _DeleteModifyConflictDialog extends StatefulWidget {
 
 class _DeleteModifyConflictDialogState
     extends State<_DeleteModifyConflictDialog> {
+  late final ScrollController _scrollController = ScrollController();
   final Map<String, _DeleteModifyResolution> _selections = {};
   bool _submitting = false;
 
   int get _handledCount => _selections.length;
 
   int get _remainingCount => widget.conflicts.length - _handledCount;
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   void _setSelection(
     CloudSyncDeleteModifyConflict conflict,
@@ -897,20 +926,44 @@ class _DeleteModifyConflictDialogState
               ),
             ),
             Expanded(
-              child: ListView.separated(
-                padding: const EdgeInsets.fromLTRB(28, 0, 28, 18),
-                itemCount: widget.conflicts.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 10),
-                itemBuilder: (context, index) {
-                  final conflict = widget.conflicts[index];
-                  return _DeleteModifyConflictRow(
-                    conflict: conflict,
-                    value: _selections[conflict.relativePath],
-                    enabled: !_submitting,
-                    onChanged: (resolution) =>
-                        _setSelection(conflict, resolution),
-                  );
-                },
+              child: ScrollConfiguration(
+                behavior: ScrollConfiguration.of(
+                  context,
+                ).copyWith(scrollbars: false),
+                child: Scrollbar(
+                  controller: _scrollController,
+                  thumbVisibility: true,
+                  interactive: true,
+                  child: SingleChildScrollView(
+                    controller: _scrollController,
+                    primary: false,
+                    padding: const EdgeInsets.fromLTRB(28, 0, 28, 18),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        for (
+                          var index = 0;
+                          index < widget.conflicts.length;
+                          index++
+                        ) ...[
+                          if (index > 0) const SizedBox(height: 10),
+                          _DeleteModifyConflictRow(
+                            conflict: widget.conflicts[index],
+                            value:
+                                _selections[widget
+                                    .conflicts[index]
+                                    .relativePath],
+                            enabled: !_submitting,
+                            onChanged: (resolution) => _setSelection(
+                              widget.conflicts[index],
+                              resolution,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
               ),
             ),
             _DeleteModifyDialogFooter(
