@@ -1,0 +1,16 @@
+<?xml version='1.0' encoding='utf-8'?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+  <channel>
+    <title>SpringNote Updates</title>
+    <description>SpringNote desktop app updates</description>
+    <language>zh-CN</language>
+    <item>
+      <title>SpringNote v1.0.2</title>
+      <sparkle:version>1.0.2</sparkle:version>
+      <sparkle:shortVersionString>1.0.2</sparkle:shortVersionString>
+      <sparkle:releaseNotesLink>https://github.com/Radiant303/SpringNote/releases/download/1.0.2/LATESTCHANGELOG.md</sparkle:releaseNotesLink>
+      <pubDate>Fri, 03 Jul 2026 23:22:59 +0800</pubDate>
+      <enclosure url="https://github.com/Radiant303/SpringNote/releases/download/1.0.2/SpringNote-1.0.2-macos-arm64.dmg" sparkle:edSignature="XNpLC9GRIOpWekJqqIy3N/eYcFnlOJKMcz4sZXzdonXF9w8PDULslQPDSe2O0tGPZpj2y5hunSAPHAe1DUBDAA==" sparkle:os="macos" length="37381406" type="application/octet-stream" />
+    </item>
+  </channel>
+</rss>
