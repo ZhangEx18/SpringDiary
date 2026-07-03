@@ -67,6 +67,11 @@ class _NotesPageState extends State<NotesPage> {
   String _statusText = '正在加载';
   String _lastEditorText = '';
   TextSelection _lastEditorSelection = const TextSelection.collapsed(offset: 0);
+  int _editorRevision = 0;
+  bool _awaitingInitialEditorSelection = false;
+  TextEditingValue? _editorInitialValue;
+  bool _restoreInitialSelectionAfterUndo = false;
+  final UndoHistoryController _editorUndoController = UndoHistoryController();
   Timer? _fimDebounce;
   int _fimGeneration = 0;
   String? _fimPrediction;
@@ -116,6 +121,7 @@ class _NotesPageState extends State<NotesPage> {
     _editorController
       ..removeListener(_handleEditorChanged)
       ..dispose();
+    _editorUndoController.dispose();
     _editorFocusNode.removeListener(_handleEditorFocusChanged);
     _editorFocusNode.dispose();
     _fimDebounce?.cancel();
@@ -138,6 +144,14 @@ class _NotesPageState extends State<NotesPage> {
           metaPressed: metaPressed,
         )) {
       unawaited(_handlePasteShortcut());
+      return KeyEventResult.handled;
+    }
+    if (_isUndoShortcut(
+      logicalKey: logicalKey,
+      controlPressed: controlPressed,
+      metaPressed: metaPressed,
+    )) {
+      _triggerEditorUndo();
       return KeyEventResult.handled;
     }
     if (logicalKey == LogicalKeyboardKey.tab) {
@@ -181,6 +195,7 @@ class _NotesPageState extends State<NotesPage> {
 
   void _handleEditorPointerFocus() {
     _editorFocusedByPointer = true;
+    _captureInitialEditorSelectionSoon();
   }
 
   bool _isPasteModifierPressed({
@@ -191,6 +206,21 @@ class _NotesPageState extends State<NotesPage> {
       TargetPlatform.iOS || TargetPlatform.macOS => metaPressed,
       _ => controlPressed,
     };
+  }
+
+  bool _isUndoShortcut({
+    required LogicalKeyboardKey logicalKey,
+    required bool controlPressed,
+    required bool metaPressed,
+  }) {
+    if (logicalKey != LogicalKeyboardKey.keyZ ||
+        HardwareKeyboard.instance.isShiftPressed) {
+      return false;
+    }
+    return _isPasteModifierPressed(
+      controlPressed: controlPressed,
+      metaPressed: metaPressed,
+    );
   }
 
   bool _localDataDirectoryChanged(LocalDataState previous) {
@@ -339,12 +369,24 @@ class _NotesPageState extends State<NotesPage> {
     final textChanged = text != _lastEditorText;
     final selectionChanged = selection != _lastEditorSelection;
 
-    _lastEditorText = text;
-    _lastEditorSelection = selection;
+    if (_awaitingInitialEditorSelection && selectionChanged && !textChanged) {
+      _captureInitialEditorSelection();
+    } else if (_awaitingInitialEditorSelection && textChanged) {
+      _awaitingInitialEditorSelection = false;
+    }
+
+    if (textChanged) {
+      _restoreInitialSelectionIfUndoReachedBaseline(text);
+    }
+
+    final currentText = _editorController.text;
+    final currentSelection = _editorController.selection;
+    _lastEditorText = currentText;
+    _lastEditorSelection = currentSelection;
 
     if (_consumingFimPrediction) {
       if (textChanged) {
-        _saveEditorText(selected, text);
+        _saveEditorText(selected, currentText);
       }
       return;
     }
@@ -360,7 +402,7 @@ class _NotesPageState extends State<NotesPage> {
       return;
     }
 
-    _saveEditorText(selected, text);
+    _saveEditorText(selected, currentText);
   }
 
   Future<void> _saveEditorText(NoteFile selected, String text) async {
@@ -463,6 +505,13 @@ class _NotesPageState extends State<NotesPage> {
       ..text = value
       ..selection = nextSelection
       ..addListener(_handleEditorChanged);
+    _editorRevision++;
+    _awaitingInitialEditorSelection = true;
+    _editorInitialValue = TextEditingValue(
+      text: value,
+      selection: nextSelection,
+    );
+    _restoreInitialSelectionAfterUndo = false;
     _lastEditorText = value;
     _lastEditorSelection = _editorController.selection;
     _fimGeneration++;
@@ -474,8 +523,77 @@ class _NotesPageState extends State<NotesPage> {
     _editorController.clearFimPrediction();
   }
 
-  TextSelection _selectionClampedTo(String text) {
+  void _captureInitialEditorSelectionSoon() {
+    if (!_awaitingInitialEditorSelection) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_awaitingInitialEditorSelection) {
+        return;
+      }
+      if (_editorController.text != _lastEditorText) {
+        _awaitingInitialEditorSelection = false;
+        return;
+      }
+      _captureInitialEditorSelection();
+    });
+  }
+
+  void _captureInitialEditorSelection() {
     final selection = _editorController.selection;
+    if (!selection.isValid || _selectedNote == null) {
+      return;
+    }
+    _awaitingInitialEditorSelection = false;
+    _editorInitialValue = TextEditingValue(
+      text: _editorController.text,
+      selection: selection,
+    );
+    _lastEditorSelection = selection;
+  }
+
+  void _triggerEditorUndo() {
+    final beforeUndo = _editorController.value;
+    _restoreInitialSelectionAfterUndo = _editorInitialValue != null;
+    _editorUndoController.undo();
+    final initial = _editorInitialValue;
+    if (_editorController.value == beforeUndo ||
+        initial == null ||
+        _editorController.text != initial.text) {
+      _restoreInitialSelectionAfterUndo = false;
+    }
+  }
+
+  void _restoreInitialSelectionIfUndoReachedBaseline(String text) {
+    final initial = _editorInitialValue;
+    if (!_restoreInitialSelectionAfterUndo ||
+        initial == null ||
+        text != initial.text) {
+      return;
+    }
+    _restoreInitialSelectionAfterUndo = false;
+
+    final selection = _selectionClampedToText(initial.selection, text);
+    if (_editorController.selection == selection) {
+      return;
+    }
+    scheduleMicrotask(() {
+      if (!mounted || _editorController.text != initial.text) {
+        return;
+      }
+      _editorController
+        ..removeListener(_handleEditorChanged)
+        ..selection = selection
+        ..addListener(_handleEditorChanged);
+      _lastEditorSelection = selection;
+    });
+  }
+
+  TextSelection _selectionClampedTo(String text) {
+    return _selectionClampedToText(_editorController.selection, text);
+  }
+
+  TextSelection _selectionClampedToText(TextSelection selection, String text) {
     if (!selection.isValid) {
       return TextSelection.collapsed(offset: text.length);
     }
@@ -998,6 +1116,8 @@ class _NotesPageState extends State<NotesPage> {
             flex: 32,
             child: _EditorPane(
               controller: _editorController,
+              editorRevision: _editorRevision,
+              undoController: _editorUndoController,
               focusNode: _editorFocusNode,
               statusText: _editorStatusText,
               enabled: selected != null && !_loading,
@@ -1735,6 +1855,8 @@ class _NoteListItemState extends State<_NoteListItem> {
 class _EditorPane extends StatefulWidget {
   const _EditorPane({
     required this.controller,
+    required this.editorRevision,
+    required this.undoController,
     required this.focusNode,
     required this.statusText,
     required this.enabled,
@@ -1744,6 +1866,8 @@ class _EditorPane extends StatefulWidget {
   });
 
   final TextEditingController controller;
+  final int editorRevision;
+  final UndoHistoryController undoController;
   final FocusNode focusNode;
   final String statusText;
   final bool enabled;
@@ -1834,7 +1958,9 @@ class _EditorPaneState extends State<_EditorPane> {
                         selectionHandleColor: const Color(0xFF737373),
                       ),
                       child: TextField(
+                        key: ValueKey('note-editor-${widget.editorRevision}'),
                         controller: widget.controller,
+                        undoController: widget.undoController,
                         focusNode: widget.focusNode,
                         onTap: widget.onPointerFocus,
                         scrollController: _scrollController,

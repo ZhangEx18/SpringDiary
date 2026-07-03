@@ -279,6 +279,113 @@ final value = 1;
     expect(find.text('周报'), findsWidgets);
   });
 
+  testWidgets('notes editor clears undo history when switching note kind', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final noteService = _MemoryNoteService({
+      'D:\\Temp\\SpringNote\\notes\\daily\\2026-06-18.md': '# 日报\n',
+      'D:\\Temp\\SpringNote\\notes\\weekly\\2026-W25.md': '# 周报\n',
+      'D:\\Temp\\SpringNote\\notes\\monthly\\2026-06.md': '# 月报\n',
+    });
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: NotesPage(
+          localDataState: _localDataState,
+          noteService: noteService,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final editor = find.byType(TextField).last;
+    await tester.tap(editor);
+    await tester.enterText(editor, '# 日报\n编辑内容');
+    await tester.pump(const Duration(milliseconds: 600));
+
+    await tester.tap(find.byIcon(Icons.more_horiz));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('周报').last);
+    await tester.pumpAndSettle();
+    expect(_editableRealText(tester), '# 周报\n');
+
+    await tester.tap(find.byIcon(Icons.more_horiz));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('月报').last);
+    await tester.pumpAndSettle();
+    expect(_editableRealText(tester), '# 月报\n');
+
+    await tester.tap(find.byType(TextField).last);
+    await tester.sendKeyDownEvent(
+      LogicalKeyboardKey.controlLeft,
+      platform: 'windows',
+    );
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyZ, platform: 'windows');
+    await tester.sendKeyUpEvent(
+      LogicalKeyboardKey.controlLeft,
+      platform: 'windows',
+    );
+    await tester.pump();
+
+    expect(_editableRealText(tester), '# 月报\n');
+    expect(_editableRealText(tester), isNot('# 周报\n'));
+    expect(_editableRealText(tester), isNot('# 日报\n编辑内容'));
+  });
+
+  testWidgets('notes editor undo restores first cursor placement', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    const initialText = '# 日报\n第一行\n第二行\n';
+    final noteService = _MemoryNoteService({
+      'D:\\Temp\\SpringNote\\notes\\daily\\2026-06-18.md': initialText,
+    });
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: NotesPage(
+          localDataState: _localDataState,
+          noteService: noteService,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+
+    final editor = find.byType(TextField).last;
+    final cursorOffset = initialText.indexOf('第一行');
+    _editableController(tester).selection = TextSelection.collapsed(
+      offset: cursorOffset,
+    );
+    await tester.pump();
+    await tester.pump();
+    expect(_editableSelection(tester).baseOffset, cursorOffset);
+
+    await tester.enterText(editor, '# 日报\n插入第一行\n第二行\n');
+    await tester.pump(const Duration(milliseconds: 600));
+
+    await tester.tap(editor);
+    await tester.pump();
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyZ);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pump();
+
+    expect(_editableRealText(tester), initialText);
+    expect(_editableSelection(tester).baseOffset, cursorOffset);
+  });
+
   testWidgets('notes editor debounces FIM and accepts full prediction', (
     WidgetTester tester,
   ) async {
@@ -890,10 +997,18 @@ String _editablePlainText(WidgetTester tester) {
 }
 
 String _editableRealText(WidgetTester tester) {
+  return _editableController(tester).text;
+}
+
+TextSelection _editableSelection(WidgetTester tester) {
+  return _editableController(tester).selection;
+}
+
+TextEditingController _editableController(WidgetTester tester) {
   final editableText = tester.widget<EditableText>(
     find.byType(EditableText).last,
   );
-  return editableText.controller.text;
+  return editableText.controller;
 }
 
 final _localDataState = LocalDataState(
