@@ -63,6 +63,10 @@ void main() {
     await tester.pump();
     expect(service.savedConfig.apiLogEnabled, isTrue);
     expect(latestConfig?.apiLogEnabled, isTrue);
+
+    await tester.tap(find.text('深色'));
+    await tester.pump();
+    expect(service.savedConfig.themeMode, AppThemePreference.dark);
   });
 
   testWidgets('settings page persists desktop widget orb mode', (
