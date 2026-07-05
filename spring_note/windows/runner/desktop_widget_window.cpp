@@ -279,7 +279,7 @@ void DesktopWidgetWindow::ShowOrUpdate(const flutter::EncodableMap& arguments) {
                             state_.font_scale_factor),
                  0.8, 1.4);
   state_.orb_mode = ReadBool(arguments, "orbMode", state_.orb_mode);
-  state_.dark_mode = ReadBool(arguments, "darkMode", state_.dark_mode);
+  state_.dark_mode = ReadBool(arguments, "darkMode", false);
   if (!state_.orb_mode) {
     expanded_ = true;
   } else if (!was_orb_mode || window_ == nullptr) {

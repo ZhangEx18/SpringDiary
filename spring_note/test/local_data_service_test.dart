@@ -58,6 +58,10 @@ void main() {
     final reloaded = AppConfig.fromJson(config.toJson());
 
     expect(reloaded.themeMode, AppThemePreference.dark);
+    expect(
+      AppConfig.fromJson({'themeMode': 'Dark'}).themeMode,
+      AppThemePreference.dark,
+    );
     expect(AppConfig.fromJson({}).themeMode, AppThemePreference.system);
     expect(
       AppConfig.fromJson({'themeMode': 'invalid'}).themeMode,

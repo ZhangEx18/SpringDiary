@@ -302,9 +302,9 @@ class AppConfig {
     if (value is! String) {
       return AppThemePreference.system;
     }
-    final normalized = value.trim();
+    final normalized = value.trim().toLowerCase();
     for (final mode in AppThemePreference.values) {
-      if (mode.name == normalized) {
+      if (mode.name.toLowerCase() == normalized) {
         return mode;
       }
     }
