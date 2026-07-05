@@ -736,6 +736,46 @@ struct DesktopWidgetState {
   var fontFamily = "system"
   var fontScaleFactor = 1.0
   var orbMode = false
+  var darkMode = false
+}
+
+private struct DesktopWidgetColors {
+  let surface: NSColor
+  let surfaceMuted: NSColor
+  let surfacePressed: NSColor
+  let border: NSColor
+  let text: NSColor
+  let textSubtle: NSColor
+  let stopped: NSColor
+
+  static let accent = rgb(16, 185, 129)
+
+  static func palette(darkMode: Bool) -> DesktopWidgetColors {
+    if darkMode {
+      return DesktopWidgetColors(
+        surface: rgb(27, 27, 27),
+        surfaceMuted: rgb(42, 42, 42),
+        surfacePressed: rgb(48, 48, 48),
+        border: rgb(51, 51, 51),
+        text: rgb(242, 242, 242),
+        textSubtle: rgb(154, 154, 154),
+        stopped: rgb(154, 154, 154)
+      )
+    }
+    return DesktopWidgetColors(
+      surface: rgb(255, 255, 255),
+      surfaceMuted: rgb(237, 237, 237),
+      surfacePressed: rgb(207, 207, 207),
+      border: rgb(229, 229, 229),
+      text: rgb(23, 23, 23),
+      textSubtle: rgb(102, 102, 102),
+      stopped: rgb(207, 207, 207)
+    )
+  }
+
+  private static func rgb(_ red: CGFloat, _ green: CGFloat, _ blue: CGFloat) -> NSColor {
+    NSColor(calibratedRed: red / 255, green: green / 255, blue: blue / 255, alpha: 1)
+  }
 }
 
 final class DesktopWidgetWindowController: NSObject {
@@ -800,6 +840,7 @@ final class DesktopWidgetWindowController: NSObject {
       max(0.8, doubleValue(arguments, "fontScaleFactor", fallback: state.fontScaleFactor))
     )
     state.orbMode = boolValue(arguments, "orbMode", fallback: state.orbMode)
+    state.darkMode = boolValue(arguments, "darkMode", fallback: false)
     if !state.orbMode {
       expanded = true
     } else if !wasOrbMode || panel == nil {
@@ -1090,23 +1131,24 @@ final class DesktopWidgetView: NSView {
     }
 
     let bounds = self.bounds
+    let colors = DesktopWidgetColors.palette(darkMode: state.darkMode)
     if state.orbMode && !expanded {
       let orbPath = CGPath(
         ellipseIn: bounds.insetBy(dx: 0.5, dy: 0.5),
         transform: nil
       )
-      context.setFillColor(NSColor.white.cgColor)
+      context.setFillColor(colors.surface.cgColor)
       context.addPath(orbPath)
       context.fillPath()
 
-      context.setStrokeColor(NSColor(calibratedWhite: 0.9, alpha: 1).cgColor)
+      context.setStrokeColor(colors.border.cgColor)
       context.setLineWidth(1)
       context.addPath(orbPath)
       context.strokePath()
 
       let dotColor = state.running
-        ? NSColor(calibratedRed: 0.06, green: 0.73, blue: 0.51, alpha: 1)
-        : NSColor(calibratedWhite: 0.81, alpha: 1)
+        ? DesktopWidgetColors.accent
+        : colors.stopped
       context.setFillColor(dotColor.cgColor)
       context.fillEllipse(in: NSRect(x: bounds.width - 18, y: 12, width: 8, height: 8))
 
@@ -1116,7 +1158,7 @@ final class DesktopWidgetView: NSView {
         rect: NSRect(x: 7, y: 20, width: bounds.width - 14, height: 24),
         size: scaled(17),
         weight: .semibold,
-        color: NSColor(calibratedWhite: 0.09, alpha: 1),
+        color: colors.text,
         alignment: .center
       )
       drawText(
@@ -1124,7 +1166,7 @@ final class DesktopWidgetView: NSView {
         rect: NSRect(x: 8, y: 43, width: bounds.width - 16, height: 14),
         size: scaled(10),
         weight: .semibold,
-        color: NSColor(calibratedWhite: 0.4, alpha: 1),
+        color: colors.textSubtle,
         alignment: .center
       )
       return
@@ -1136,11 +1178,11 @@ final class DesktopWidgetView: NSView {
       cornerHeight: 16,
       transform: nil
     )
-    context.setFillColor(NSColor.white.cgColor)
+    context.setFillColor(colors.surface.cgColor)
     context.addPath(cardPath)
     context.fillPath()
 
-    context.setStrokeColor(NSColor(calibratedWhite: 0.9, alpha: 1).cgColor)
+    context.setStrokeColor(colors.border.cgColor)
     context.setLineWidth(1)
     context.addPath(cardPath)
     context.strokePath()
@@ -1150,18 +1192,18 @@ final class DesktopWidgetView: NSView {
       rect: NSRect(x: 16, y: 13, width: bounds.width - 32, height: 20),
       size: scaled(14),
       weight: .semibold,
-      color: NSColor(calibratedWhite: 0.4, alpha: 1),
+      color: colors.textSubtle,
       alignment: .left
     )
 
     let track = NSRect(x: 16, y: 39, width: bounds.width - 32, height: 2)
-    drawRoundedRect(track, radius: 1, color: NSColor(calibratedWhite: 0.93, alpha: 1))
+    drawRoundedRect(track, radius: 1, color: colors.surfaceMuted)
     let progressWidth = track.width * CGFloat(min(1, max(0, state.progress)))
     if progressWidth > 0 {
       drawRoundedRect(
         NSRect(x: track.minX, y: track.minY, width: progressWidth, height: track.height),
         radius: 1,
-        color: NSColor(calibratedWhite: 0.81, alpha: 1)
+        color: colors.surfacePressed
       )
     }
 
@@ -1170,7 +1212,7 @@ final class DesktopWidgetView: NSView {
       rect: NSRect(x: 16, y: 52, width: bounds.width - 32, height: 48),
       size: scaled(38),
       weight: .medium,
-      color: NSColor(calibratedWhite: 0.09, alpha: 1),
+      color: colors.text,
       alignment: .left
     )
 
@@ -1180,13 +1222,13 @@ final class DesktopWidgetView: NSView {
       rect: NSRect(x: 16, y: 111, width: 130, height: 20),
       size: scaled(14),
       weight: .bold,
-      color: NSColor(calibratedRed: 0.06, green: 0.73, blue: 0.51, alpha: 1),
+      color: DesktopWidgetColors.accent,
       alignment: .left
     )
 
     let dotColor = state.running
-      ? NSColor(calibratedRed: 0.06, green: 0.73, blue: 0.51, alpha: 1)
-      : NSColor(calibratedWhite: 0.81, alpha: 1)
+      ? DesktopWidgetColors.accent
+      : colors.stopped
     context.setFillColor(dotColor.cgColor)
     context.fillEllipse(in: NSRect(x: bounds.width - 96, y: 118, width: 6, height: 6))
 
@@ -1195,7 +1237,7 @@ final class DesktopWidgetView: NSView {
       rect: NSRect(x: bounds.width - 84, y: 111, width: 68, height: 20),
       size: scaled(13),
       weight: .regular,
-      color: NSColor(calibratedWhite: 0.4, alpha: 1),
+      color: colors.textSubtle,
       alignment: .right
     )
   }
