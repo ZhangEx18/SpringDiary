@@ -107,6 +107,18 @@ jobs:
       - name: Flutter pub get
         run: flutter pub get
 
+      - name: Prepare macOS native project
+        run: flutter build macos --debug --config-only
+
+      - name: Run macOS native tests
+        run: >
+          xcodebuild test
+          -workspace macos/Runner.xcworkspace
+          -scheme Runner
+          -configuration Debug
+          -destination 'platform=macOS'
+          CODE_SIGNING_ALLOWED=NO
+
       - name: Build macOS release
         run: flutter build macos --release
 

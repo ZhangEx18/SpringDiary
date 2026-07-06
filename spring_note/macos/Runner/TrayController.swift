@@ -736,6 +736,81 @@ struct DesktopWidgetState {
   var fontFamily = "system"
   var fontScaleFactor = 1.0
   var orbMode = false
+  var darkMode = false
+
+  mutating func update(with arguments: [String: Any]) {
+    running = boolValue(arguments, "running", fallback: running)
+    workSeconds = intValue(arguments, "workSeconds", fallback: workSeconds)
+    coins = doubleValue(arguments, "coins", fallback: coins)
+    coinRatePerSecond = doubleValue(
+      arguments,
+      "coinRatePerSecond",
+      fallback: coinRatePerSecond
+    )
+    level = max(1, intValue(arguments, "level", fallback: level))
+    experiencePercent = min(
+      99,
+      max(0, intValue(arguments, "experiencePercent", fallback: experiencePercent))
+    )
+    progress = min(1, max(0, doubleValue(arguments, "progress", fallback: progress)))
+    fontFamily = stringValue(arguments, "appFont", fallback: fontFamily)
+    fontScaleFactor = min(
+      1.4,
+      max(0.8, doubleValue(arguments, "fontScaleFactor", fallback: fontScaleFactor))
+    )
+    orbMode = boolValue(arguments, "orbMode", fallback: orbMode)
+    darkMode = boolValue(arguments, "darkMode", fallback: darkMode)
+  }
+}
+
+struct DesktopWidgetColors {
+  let surface: NSColor
+  let surfaceMuted: NSColor
+  let surfacePressed: NSColor
+  let border: NSColor
+  let text: NSColor
+  let textSubtle: NSColor
+  let stopped: NSColor
+  let accent: NSColor
+
+  private static let defaultAccent = NSColor(
+    calibratedRed: 0.06,
+    green: 0.73,
+    blue: 0.51,
+    alpha: 1
+  )
+  static let dark = DesktopWidgetColors(
+    surface: rgb(27, 27, 27),
+    surfaceMuted: rgb(42, 42, 42),
+    surfacePressed: rgb(48, 48, 48),
+    border: rgb(51, 51, 51),
+    text: rgb(242, 242, 242),
+    textSubtle: rgb(154, 154, 154),
+    stopped: rgb(154, 154, 154),
+    accent: defaultAccent
+  )
+  static let light = DesktopWidgetColors(
+    surface: .white,
+    surfaceMuted: white(0.93),
+    surfacePressed: white(0.81),
+    border: white(0.9),
+    text: white(0.09),
+    textSubtle: white(0.4),
+    stopped: white(0.81),
+    accent: defaultAccent
+  )
+
+  static func palette(darkMode: Bool) -> DesktopWidgetColors {
+    darkMode ? dark : light
+  }
+
+  private static func rgb(_ red: CGFloat, _ green: CGFloat, _ blue: CGFloat) -> NSColor {
+    NSColor(calibratedRed: red / 255, green: green / 255, blue: blue / 255, alpha: 1)
+  }
+
+  private static func white(_ white: CGFloat) -> NSColor {
+    NSColor(calibratedWhite: white, alpha: 1)
+  }
 }
 
 final class DesktopWidgetWindowController: NSObject {
@@ -780,26 +855,7 @@ final class DesktopWidgetWindowController: NSObject {
 
   private func showOrUpdate(_ arguments: [String: Any]) {
     let wasOrbMode = state.orbMode
-    state.running = boolValue(arguments, "running", fallback: state.running)
-    state.workSeconds = intValue(arguments, "workSeconds", fallback: state.workSeconds)
-    state.coins = doubleValue(arguments, "coins", fallback: state.coins)
-    state.coinRatePerSecond = doubleValue(
-      arguments,
-      "coinRatePerSecond",
-      fallback: state.coinRatePerSecond
-    )
-    state.level = max(1, intValue(arguments, "level", fallback: state.level))
-    state.experiencePercent = min(
-      99,
-      max(0, intValue(arguments, "experiencePercent", fallback: state.experiencePercent))
-    )
-    state.progress = min(1, max(0, doubleValue(arguments, "progress", fallback: state.progress)))
-    state.fontFamily = stringValue(arguments, "appFont", fallback: state.fontFamily)
-    state.fontScaleFactor = min(
-      1.4,
-      max(0.8, doubleValue(arguments, "fontScaleFactor", fallback: state.fontScaleFactor))
-    )
-    state.orbMode = boolValue(arguments, "orbMode", fallback: state.orbMode)
+    state.update(with: arguments)
     if !state.orbMode {
       expanded = true
     } else if !wasOrbMode || panel == nil {
@@ -1035,8 +1091,19 @@ final class DesktopWidgetPanel: NSPanel {
 }
 
 final class DesktopWidgetView: NSView {
-  var state = DesktopWidgetState()
-  var expanded = true
+  var state = DesktopWidgetState() {
+    didSet {
+      invalidateDisplay()
+    }
+  }
+  var expanded = true {
+    didSet {
+      invalidateDisplay()
+    }
+  }
+  #if DEBUG
+  var onDisplayInvalidated: (() -> Void)?
+  #endif
   private weak var controller: DesktopWidgetWindowController?
   private var mouseDownLocation: NSPoint?
   private var windowStartOrigin: NSPoint?
@@ -1090,23 +1157,24 @@ final class DesktopWidgetView: NSView {
     }
 
     let bounds = self.bounds
+    let colors = DesktopWidgetColors.palette(darkMode: state.darkMode)
     if state.orbMode && !expanded {
       let orbPath = CGPath(
         ellipseIn: bounds.insetBy(dx: 0.5, dy: 0.5),
         transform: nil
       )
-      context.setFillColor(NSColor.white.cgColor)
+      context.setFillColor(colors.surface.cgColor)
       context.addPath(orbPath)
       context.fillPath()
 
-      context.setStrokeColor(NSColor(calibratedWhite: 0.9, alpha: 1).cgColor)
+      context.setStrokeColor(colors.border.cgColor)
       context.setLineWidth(1)
       context.addPath(orbPath)
       context.strokePath()
 
       let dotColor = state.running
-        ? NSColor(calibratedRed: 0.06, green: 0.73, blue: 0.51, alpha: 1)
-        : NSColor(calibratedWhite: 0.81, alpha: 1)
+        ? colors.accent
+        : colors.stopped
       context.setFillColor(dotColor.cgColor)
       context.fillEllipse(in: NSRect(x: bounds.width - 18, y: 12, width: 8, height: 8))
 
@@ -1116,7 +1184,7 @@ final class DesktopWidgetView: NSView {
         rect: NSRect(x: 7, y: 20, width: bounds.width - 14, height: 24),
         size: scaled(17),
         weight: .semibold,
-        color: NSColor(calibratedWhite: 0.09, alpha: 1),
+        color: colors.text,
         alignment: .center
       )
       drawText(
@@ -1124,7 +1192,7 @@ final class DesktopWidgetView: NSView {
         rect: NSRect(x: 8, y: 43, width: bounds.width - 16, height: 14),
         size: scaled(10),
         weight: .semibold,
-        color: NSColor(calibratedWhite: 0.4, alpha: 1),
+        color: colors.textSubtle,
         alignment: .center
       )
       return
@@ -1136,11 +1204,11 @@ final class DesktopWidgetView: NSView {
       cornerHeight: 16,
       transform: nil
     )
-    context.setFillColor(NSColor.white.cgColor)
+    context.setFillColor(colors.surface.cgColor)
     context.addPath(cardPath)
     context.fillPath()
 
-    context.setStrokeColor(NSColor(calibratedWhite: 0.9, alpha: 1).cgColor)
+    context.setStrokeColor(colors.border.cgColor)
     context.setLineWidth(1)
     context.addPath(cardPath)
     context.strokePath()
@@ -1150,18 +1218,18 @@ final class DesktopWidgetView: NSView {
       rect: NSRect(x: 16, y: 13, width: bounds.width - 32, height: 20),
       size: scaled(14),
       weight: .semibold,
-      color: NSColor(calibratedWhite: 0.4, alpha: 1),
+      color: colors.textSubtle,
       alignment: .left
     )
 
     let track = NSRect(x: 16, y: 39, width: bounds.width - 32, height: 2)
-    drawRoundedRect(track, radius: 1, color: NSColor(calibratedWhite: 0.93, alpha: 1))
+    drawRoundedRect(track, radius: 1, color: colors.surfaceMuted)
     let progressWidth = track.width * CGFloat(min(1, max(0, state.progress)))
     if progressWidth > 0 {
       drawRoundedRect(
         NSRect(x: track.minX, y: track.minY, width: progressWidth, height: track.height),
         radius: 1,
-        color: NSColor(calibratedWhite: 0.81, alpha: 1)
+        color: colors.surfacePressed
       )
     }
 
@@ -1170,7 +1238,7 @@ final class DesktopWidgetView: NSView {
       rect: NSRect(x: 16, y: 52, width: bounds.width - 32, height: 48),
       size: scaled(38),
       weight: .medium,
-      color: NSColor(calibratedWhite: 0.09, alpha: 1),
+      color: colors.text,
       alignment: .left
     )
 
@@ -1180,13 +1248,13 @@ final class DesktopWidgetView: NSView {
       rect: NSRect(x: 16, y: 111, width: 130, height: 20),
       size: scaled(14),
       weight: .bold,
-      color: NSColor(calibratedRed: 0.06, green: 0.73, blue: 0.51, alpha: 1),
+      color: colors.accent,
       alignment: .left
     )
 
     let dotColor = state.running
-      ? NSColor(calibratedRed: 0.06, green: 0.73, blue: 0.51, alpha: 1)
-      : NSColor(calibratedWhite: 0.81, alpha: 1)
+      ? colors.accent
+      : colors.stopped
     context.setFillColor(dotColor.cgColor)
     context.fillEllipse(in: NSRect(x: bounds.width - 96, y: 118, width: 6, height: 6))
 
@@ -1195,7 +1263,7 @@ final class DesktopWidgetView: NSView {
       rect: NSRect(x: bounds.width - 84, y: 111, width: 68, height: 20),
       size: scaled(13),
       weight: .regular,
-      color: NSColor(calibratedWhite: 0.4, alpha: 1),
+      color: colors.textSubtle,
       alignment: .right
     )
   }
@@ -1259,6 +1327,13 @@ final class DesktopWidgetView: NSView {
   private func drawRoundedRect(_ rect: NSRect, radius: CGFloat, color: NSColor) {
     color.setFill()
     NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius).fill()
+  }
+
+  private func invalidateDisplay() {
+    needsDisplay = true
+    #if DEBUG
+    onDisplayInvalidated?()
+    #endif
   }
 
   private func drawText(
