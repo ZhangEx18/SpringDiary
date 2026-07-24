@@ -5,12 +5,12 @@
     <description>SpringNote desktop app updates</description>
     <language>zh-CN</language>
     <item>
-      <title>SpringNote v1.0.4</title>
-      <sparkle:version>1.0.4</sparkle:version>
-      <sparkle:shortVersionString>1.0.4</sparkle:shortVersionString>
-      <sparkle:releaseNotesLink>https://github.com/Radiant303/SpringNote/releases/download/1.0.4/LATESTCHANGELOG.md</sparkle:releaseNotesLink>
-      <pubDate>Fri, 17 Jul 2026 20:08:01 +0800</pubDate>
-      <enclosure url="https://github.com/Radiant303/SpringNote/releases/download/1.0.4/SpringNote-1.0.4-macos-arm64.dmg" sparkle:edSignature="Osl0omJxu9i135rnQc/hmElE0jfSg5HCGMFMsIlhoO8aofMP+mC0d0NrnT7LKSuJam83rfQoF07P9gVwLrH4Ag==" sparkle:os="macos" length="38126591" type="application/octet-stream" />
+      <title>SpringNote v1.0.5</title>
+      <sparkle:version>1.0.5</sparkle:version>
+      <sparkle:shortVersionString>1.0.5</sparkle:shortVersionString>
+      <sparkle:releaseNotesLink>https://github.com/Radiant303/SpringNote/releases/download/1.0.5/LATESTCHANGELOG.md</sparkle:releaseNotesLink>
+      <pubDate>Fri, 24 Jul 2026 22:08:42 +0800</pubDate>
+      <enclosure url="https://github.com/Radiant303/SpringNote/releases/download/1.0.5/SpringNote-1.0.5-macos-arm64.dmg" sparkle:edSignature="BQIvxZdGNgnuGCDzRmNGBOD2xvUeOViyFkMWLXKNsoZpoEC6CdQqlrdFMthmqdNFi5zLu6R1IvuKhz+p4jYaBg==" sparkle:os="macos" length="38496080" type="application/octet-stream" />
     </item>
   </channel>
 </rss>
