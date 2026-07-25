@@ -35,6 +35,56 @@ If some AI features are unavailable after upgrading, check:
 
 Do not delete existing configuration directly.
 
+## v1.0.5 (2026-07-24)
+
+### Daily, Weekly & Monthly Report Regeneration
+
+#### UI Improvements
+
+- Refined note editor toolbar icon styles and hover effects.
+- Improved note page notifications: success messages are now highlighted in green.
+- Refined divider and heading underline styles on the note page.
+- Improved protocol selector dropdown styles.
+
+#### New Features
+
+- Added regeneration for daily, weekly, and monthly reports.
+- Memory Book Q&A now supports Gemini and Claude providers.
+- Added a "Completion Protocol" option when editing model info, with support for the Qwen completion format.
+- Added truncation fields to some Memory Book tool results, so models can tell whether the returned content is complete.
+
+#### Bug Fixes
+
+- Fixed an issue where note page notifications were not replaced by new messages.
+
+## v1.0.4 (2026-07-17)
+
+### Customizable Home Columns
+
+#### UI Improvements
+
+- Improved switching and selection effects in the main sidebar, note type menu, and note search list.
+- Refined styles of the home column detail dialog and the model providers page.
+- Improved the display timing of some button tooltips.
+- Refined shortcut settings: removed the clear button that duplicated the toggle.
+- Improved the update icon and refined the Chinese and English user manuals.
+
+#### New Features
+
+- Added customizable home columns: edit column titles and AI prompts, and click a column to view its full content.
+- Added keyword search tools for daily, weekly, and monthly reports in Memory Book, and improved the time query tool's results.
+- The input box remains editable while AI is replying.
+- The model provider list now supports searching by provider name.
+- Improved note search for faster keyword retrieval.
+
+#### Bug Fixes
+
+- Fixed an issue where the data directory could revert to the default location on Windows startup.
+- Fixed flickering items in the note search results list.
+- Fixed residual "Global" text on the Add Model page.
+- Fixed redundant prompts on the Memory Book page.
+- Fixed the app failing to start on Windows due to missing DLL files.
+
 ## v1.0.3 (2026-07-10)
 
 ### Dark Mode, Wallpaper & Markdown Editing Enhancements
