@@ -1002,13 +1002,15 @@
   --spring-zed-paper: #fbfcfb;
 }
 
-.VPNav {
+/* 背景与模糊必须挂在 .VPNavBar 上：若挂在 .VPNav，backdrop-filter 会使其成为
+   fixed 定位后代的包含块，导致移动端 VPNavScreen 菜单高度塌缩为 0 无法点击 */
+.VPNavBar {
   border-bottom: 1px solid var(--spring-zed-line) !important;
   background: rgba(255, 255, 255, 0.86) !important;
   backdrop-filter: blur(18px);
 }
 
-.dark .VPNav {
+.dark .VPNavBar {
   background: rgba(12, 14, 18, 0.84) !important;
 }
 
