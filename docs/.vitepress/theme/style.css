@@ -1017,6 +1017,8 @@
 .VPHome {
   position: relative;
   overflow: hidden;
+  /* 默认主题是 .VPHome[data-v-x]（两层选择器），需要 !important 才能覆盖 */
+  margin-bottom: 0 !important;
   background:
     linear-gradient(90deg, var(--spring-zed-line) 1px, transparent 1px) calc(50% - 610px) 0 / 220px 100%,
     linear-gradient(0deg, var(--spring-zed-line) 1px, transparent 1px) 0 0 / 100% 96px,
@@ -1091,7 +1093,20 @@
   position: relative;
   z-index: 2;
   max-width: 1040px !important;
-  padding: 0 24px 96px !important;
+  padding: 0 24px 32px !important;
+}
+
+/* 底部网格渐隐，避免背景线在内容结尾处硬截断 */
+.VPHome::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  height: 140px;
+  background: linear-gradient(to bottom, transparent, var(--spring-zed-paper));
+  pointer-events: none;
 }
 
 .home-announcement {
@@ -1298,12 +1313,42 @@ html[lang="en-US"] .zed-feature-strip p {
 
   .zed-feature-strip section,
   .zed-feature-strip section:first-child {
-    border-left: 1px solid var(--spring-zed-line-strong);
-    border-right: 1px solid var(--spring-zed-line-strong);
-    border-bottom: 1px solid var(--spring-zed-line-strong);
+    border: none;
+    border-top: 1px solid var(--spring-zed-line-strong);
+  }
+
+  .zed-feature-strip section:first-child {
+    border-top: none;
   }
 
   .home-showcase {
     padding: 0 16px !important;
   }
+}
+
+
+/* ========================================
+   首页底部链接
+   ======================================== */
+
+.home-footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 28px;
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 28px 24px 8px;
+  border-top: 1px solid var(--spring-zed-line);
+}
+
+.home-footer-links a {
+  color: var(--vp-c-text-2);
+  font-size: 13px;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.home-footer-links a:hover {
+  color: var(--spring-zed-blue);
 }

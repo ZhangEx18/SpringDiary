@@ -45,7 +45,7 @@ const copy = computed(() => {
     memoryBook: 'Memory Book',
     settings: 'Settings',
     more: 'More',
-    totalIncome: 'Total earnings',
+    totalIncome: 'Total',
     recentActivity: 'Recently active',
     weekAdded: 'Week',
     articlesUnit: 'notes',

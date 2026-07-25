@@ -130,9 +130,6 @@ export default defineConfig({
         nav: [
           { text: 'Home', link: '/en/' },
           { text: 'Guide', link: '/en/guide/quick-start' },
-          { text: 'Features', link: '/en/features' },
-          { text: 'Models', link: '/en/models' },
-          { text: 'Desktop', link: '/en/desktop' },
           { text: 'GitHub', link: 'https://github.com/Radiant303/SpringNote' }
         ],
         sidebar: [

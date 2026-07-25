@@ -51,3 +51,10 @@ hero:
     <HomeDemo />
   </div>
 </div>
+
+<div class="home-footer-links">
+  <a href="/guide/quick-start">快速入门</a>
+  <a href="/guide/updates">更新与版本</a>
+  <a href="https://github.com/Radiant303/SpringNote/releases/latest">下载</a>
+  <a href="https://github.com/Radiant303/SpringNote">GitHub</a>
+</div>

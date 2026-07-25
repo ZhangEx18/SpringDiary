@@ -51,3 +51,10 @@ hero:
     <HomeDemo />
   </div>
 </div>
+
+<div class="home-footer-links">
+  <a href="/en/guide/quick-start">Quick Start</a>
+  <a href="/en/guide/updates">Updates</a>
+  <a href="https://github.com/Radiant303/SpringNote/releases/latest">Download</a>
+  <a href="https://github.com/Radiant303/SpringNote">GitHub</a>
+</div>
