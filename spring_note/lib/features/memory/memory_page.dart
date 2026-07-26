@@ -733,7 +733,10 @@ class _MemoryPageState extends State<MemoryPage> {
           children: [
             Center(
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 920),
+                // Regular messages cap themselves at 820 below; the wider
+                // ceiling exists so springtree mind-map messages can grow
+                // into the window's side margins.
+                constraints: const BoxConstraints(maxWidth: 1600),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -755,30 +758,38 @@ class _MemoryPageState extends State<MemoryPage> {
           left: 0,
           right: 0,
           bottom: 0,
-          child: Container(
-            height: 132,
-            padding: const EdgeInsets.fromLTRB(24, 16, 24, 28),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  colors.background.withValues(alpha: 0),
-                  colors.background,
-                  colors.background,
-                ],
+          // The gradient strip is purely decorative. Ignore pointers for
+          // everything except the composer itself, so the bottom corners
+          // stay scrollable/selectable instead of becoming dead zones.
+          child: IgnorePointer(
+            child: Container(
+              height: 132,
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 28),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    colors.background.withValues(alpha: 0),
+                    colors.background,
+                    colors.background,
+                  ],
+                ),
               ),
-            ),
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 760),
-                child: _MemoryComposer(
-                  controller: _chatController,
-                  focusNode: _chatFocusNode,
-                  hintText: '继续追问你的回忆...',
-                  answering: _answering,
-                  onSubmit: _sendFromChat,
-                  multiline: true,
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 760),
+                  child: IgnorePointer(
+                    ignoring: false,
+                    child: _MemoryComposer(
+                      controller: _chatController,
+                      focusNode: _chatFocusNode,
+                      hintText: '继续追问你的回忆...',
+                      answering: _answering,
+                      onSubmit: _sendFromChat,
+                      multiline: true,
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -1256,7 +1267,11 @@ class _MemoryMessageView extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final messageWidth = constraints.maxWidth < 820
+        // Mind-map messages break out of the 820 reading column so large
+        // springtree graphs can use the space beside it.
+        final isMindmap =
+            message.role != 'user' && message.content.contains('```springtree');
+        final messageWidth = isMindmap || constraints.maxWidth < 820
             ? constraints.maxWidth
             : 820.0;
         return Center(

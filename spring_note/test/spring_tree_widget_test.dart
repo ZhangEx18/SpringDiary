@@ -210,11 +210,9 @@ void main() {
     expect(find.byType(SpringTreeBlock), findsNWidgets(2));
     expect(find.byIcon(Icons.fullscreen_rounded), findsOneWidget);
 
-    // Close the dialog again via the back button in the app bar.
-    final navigator = tester.state<NavigatorState>(
-      find.byType(Navigator).first,
-    );
-    navigator.pop();
+    // The dialog offers its own exit button (previously only ESC worked).
+    expect(find.byIcon(Icons.fullscreen_exit_rounded), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.fullscreen_exit_rounded));
     await tester.pumpAndSettle();
     expect(find.byType(SpringTreeBlock), findsOneWidget);
   });

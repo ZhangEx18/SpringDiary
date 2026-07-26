@@ -671,7 +671,16 @@ class _SpringTreeBlockState extends State<SpringTreeBlock> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (!widget.expand) ...[
+          if (widget.expand) ...[
+            // The fullscreen dialog gets a real exit affordance instead of
+            // relying on the ESC shortcut alone.
+            button(
+              Icons.fullscreen_exit_rounded,
+              '退出全屏',
+              () => Navigator.of(context).maybePop(),
+            ),
+            Divider(height: 1, thickness: 1, color: colors.divider),
+          ] else ...[
             button(Icons.fullscreen_rounded, '全屏查看', _openFullscreen),
             Divider(height: 1, thickness: 1, color: colors.divider),
           ],

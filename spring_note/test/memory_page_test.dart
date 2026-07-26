@@ -13,6 +13,7 @@ import 'package:spring_note/core/services/ai_client_service.dart';
 import 'package:spring_note/core/services/memory_conversation_service.dart';
 import 'package:spring_note/core/services/memory_search_service.dart';
 import 'package:spring_note/core/widgets/spring_markdown.dart';
+import 'package:spring_note/core/widgets/spring_tree.dart';
 import 'package:spring_note/features/memory/memory_page.dart';
 import 'package:spring_note/src/rust/ai.dart' as rust_ai;
 
@@ -144,6 +145,52 @@ void main() {
     expect(lists.any((list) => list.bulletSize == 0), isTrue);
   });
 
+  testWidgets('springtree message breaks out of the reading column', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1400, 760);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: MemoryPage(
+            localDataState: _localDataState(),
+            conversationService: _FakeMemoryConversationService(
+              initialMessages: [
+                MemoryMessage(
+                  role: 'ai',
+                  content: '普通回答',
+                  createdAt: DateTime(2026, 7, 8),
+                ),
+                MemoryMessage(
+                  role: 'ai',
+                  content: '```springtree\n- 根节点\n  - 子节点\n```',
+                  createdAt: DateTime(2026, 7, 8),
+                ),
+              ],
+            ),
+            searchService: const _FakeMemorySearchService(),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // The mind map may grow into the side margins (1400 window minus the
+    // 64 horizontal list padding), far beyond the 820 reading column.
+    final blockWidth = tester.getSize(find.byType(SpringTreeBlock)).width;
+    expect(blockWidth, greaterThan(1000));
+
+    // Regular text messages stay inside the reading column.
+    final markdownWidths = tester
+        .widgetList<GptMarkdown>(find.byType(GptMarkdown))
+        .map((widget) => tester.getSize(find.byWidget(widget)).width);
+    expect(markdownWidths.any((width) => width <= 820), isTrue);
+  });
+
   test('memory image bases include source note and notes directories', () {
     final localDataState = _localDataState(
       dataDirectory: _joinPath('D:\\Temp', 'SpringNote'),
@@ -216,8 +263,7 @@ void main() {
 
     final inputFinder = find.byWidgetPredicate(
       (widget) =>
-          widget is TextField &&
-          widget.decoration?.hintText == '继续追问你的回忆...',
+          widget is TextField && widget.decoration?.hintText == '继续追问你的回忆...',
     );
     final inputField = tester.widget<TextField>(inputFinder);
     final inputController = inputField.controller!;
