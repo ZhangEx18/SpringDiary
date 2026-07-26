@@ -1022,6 +1022,9 @@ class _MemoryComposer extends StatelessWidget {
       text: value.text.replaceRange(offset, offset, mode.token),
       selection: TextSelection.collapsed(offset: offset + 1),
     );
+    // Opening the "+" menu stole the focus — give it back so the caret
+    // lands right after the inserted tag and typing continues seamlessly.
+    focusNode.requestFocus();
   }
 
   @override
@@ -1076,6 +1079,9 @@ class _MemoryComposer extends StatelessWidget {
                 controller: controller,
                 focusNode: focusNode,
                 enabled: true,
+                // Desktop single-line fields select all on focus gain —
+                // that would highlight a just-inserted mode tag.
+                selectAllOnFocus: false,
                 minLines: 1,
                 maxLines: multiline ? 3 : 1,
                 textInputAction: multiline

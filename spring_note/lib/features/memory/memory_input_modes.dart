@@ -118,12 +118,13 @@ MemoryInputModeResolution resolveMemoryInputModes(String input) {
   return MemoryInputModeResolution(userText: userText, modes: active);
 }
 
-/// Text controller that paints registered mode tokens as labeled chips.
+/// Text controller that paints registered mode tokens as inline tags.
 ///
 /// Each token is one code point in the text, so selection, cursor movement
-/// and deletion treat it atomically; only the visual rendering differs.
+/// and deletion treat it atomically; only the visual rendering differs —
+/// a small icon plus a colored label, like the tags in chat composers.
 class MemoryComposerController extends TextEditingController {
-  static const Color _chipColor = Color(0xFF3B82F6);
+  static const Color _tagColor = Color(0xFF3B82F6);
 
   @override
   TextSpan buildTextSpan({
@@ -132,13 +133,10 @@ class MemoryComposerController extends TextEditingController {
     required bool withComposing,
   }) {
     final base = style ?? const TextStyle();
-    final chipStyle = base.copyWith(
-      color: _chipColor,
-      backgroundColor: _chipColor.withValues(alpha: 0.12),
-      fontWeight: FontWeight.w600,
-    );
+    final tagStyle = base.copyWith(color: _tagColor);
+    final iconSize = (base.fontSize ?? 14) + 2;
 
-    final spans = <TextSpan>[];
+    final spans = <InlineSpan>[];
     var rest = text;
     while (rest.isNotEmpty) {
       var nearest = -1;
@@ -157,7 +155,25 @@ class MemoryComposerController extends TextEditingController {
       if (nearest > 0) {
         spans.add(TextSpan(text: rest.substring(0, nearest)));
       }
-      spans.add(TextSpan(text: ' ${nearestMode.label} ', style: chipStyle));
+      // The whole tag renders as ONE placeholder: it occupies exactly one
+      // code unit, matching the token's length. Painting it as separate
+      // icon+text spans would make the paragraph longer than the text and
+      // the caret would land in the middle of the label instead of after
+      // the tag.
+      spans.add(
+        WidgetSpan(
+          alignment: PlaceholderAlignment.middle,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(nearestMode.icon, size: iconSize, color: _tagColor),
+              const SizedBox(width: 3),
+              Text(nearestMode.label, style: tagStyle),
+              const SizedBox(width: 4),
+            ],
+          ),
+        ),
+      );
       rest = rest.substring(nearest + nearestMode.token.length);
     }
     return TextSpan(style: base, children: spans);

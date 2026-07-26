@@ -315,10 +315,9 @@ void main() {
 
       final inputFinder = find.byType(TextField);
       expect(inputFinder, findsOneWidget);
-      String composerText() => tester
-          .widget<EditableText>(find.byType(EditableText))
-          .controller
-          .text;
+      EditableText composer() =>
+          tester.widget<EditableText>(find.byType(EditableText));
+      String composerText() => composer().controller.text;
 
       // The "+" menu inserts the 思维导图 tag into the input text.
       await tester.tap(find.byIcon(Icons.add_rounded));
@@ -326,17 +325,16 @@ void main() {
       await tester.tap(find.text('思维导图'));
       await tester.pumpAndSettle();
       expect(composerText(), mindMapInputMode.token);
+      // The caret lands right after the tag and the field keeps its focus —
+      // no select-all-on-focus highlighting the fresh tag.
+      expect(
+        composer().controller.selection,
+        const TextSelection.collapsed(offset: 1),
+      );
+      expect(composer().focusNode.hasFocus, isTrue);
 
       // The tag is one code point: Backspace removes it whole, turning the
       // mode off again.
-      await tester.tap(inputFinder);
-      await tester.pump();
-      tester
-          .widget<EditableText>(find.byType(EditableText))
-          .controller
-          .selection = const TextSelection.collapsed(
-        offset: 1,
-      );
       await tester.sendKeyEvent(LogicalKeyboardKey.backspace);
       await tester.pump();
       expect(composerText(), isEmpty);
@@ -348,6 +346,11 @@ void main() {
       await tester.tap(find.text('思维导图'));
       await tester.pumpAndSettle();
       expect(composerText(), '整理上周周报${mindMapInputMode.token}');
+      expect(
+        composer().controller.selection,
+        TextSelection.collapsed(offset: '整理上周周报'.length + 1),
+      );
+      expect(composer().focusNode.hasFocus, isTrue);
 
       await tester.tap(find.byIcon(Icons.arrow_upward_rounded));
       for (var index = 0; index < 20 && !aiClientService.started; index++) {
