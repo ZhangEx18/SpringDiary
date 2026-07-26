@@ -217,6 +217,31 @@ void main() {
     expect(find.byType(SpringTreeBlock), findsOneWidget);
   });
 
+  testWidgets('node labels are not selectable inside a SelectionArea', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SelectionArea(
+            child: SpringTreeBlock(source: '- root\n  - a\n', isComplete: true),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // A disabled SelectionContainer between the label and the SelectionArea
+    // keeps node text out of text selection (and the pan gesture free).
+    final containers = tester.widgetList<SelectionContainer>(
+      find.ancestor(
+        of: find.text('root'),
+        matching: find.byType(SelectionContainer),
+      ),
+    );
+    expect(containers.any((container) => container.delegate == null), isTrue);
+  });
+
   testWidgets('wheel zooms the graph without scrolling the outer page', (
     tester,
   ) async {

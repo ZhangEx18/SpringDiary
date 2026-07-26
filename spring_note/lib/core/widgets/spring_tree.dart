@@ -558,31 +558,36 @@ class _SpringTreeBlockState extends State<SpringTreeBlock> {
       },
     );
 
-    return Container(
-      margin: widget.expand
-          ? EdgeInsets.zero
-          : const EdgeInsets.symmetric(vertical: 12),
-      decoration: BoxDecoration(
-        color: colors.surfaceMuted,
-        border: Border.all(color: colors.border),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _buildHeader(colors),
-          if (widget.expand)
-            Expanded(child: graphArea)
-          else
-            SizedBox(
-              height: math.min(
-                520.0,
-                math.max(200.0, _tree.leafCount * 42.0 + 64.0),
+    // The mind map is a canvas, not text: keep an enclosing SelectionArea
+    // (chat messages, previews) from making node labels selectable —
+    // selecting text would also swallow the canvas pan gesture.
+    return SelectionContainer.disabled(
+      child: Container(
+        margin: widget.expand
+            ? EdgeInsets.zero
+            : const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: colors.surfaceMuted,
+          border: Border.all(color: colors.border),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildHeader(colors),
+            if (widget.expand)
+              Expanded(child: graphArea)
+            else
+              SizedBox(
+                height: math.min(
+                  520.0,
+                  math.max(200.0, _tree.leafCount * 42.0 + 64.0),
+                ),
+                child: graphArea,
               ),
-              child: graphArea,
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
