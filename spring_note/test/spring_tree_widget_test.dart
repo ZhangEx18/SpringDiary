@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:spring_note/core/widgets/spring_tree.dart';
@@ -155,6 +157,48 @@ void main() {
         }
       }
     }
+  });
+
+  testWidgets('dense trees stay readable and offer zoom controls', (
+    tester,
+  ) async {
+    final buffer = StringBuffer('- 根\n');
+    for (var i = 0; i < 12; i++) {
+      buffer.writeln('  - 分支 $i 的标题比较长一些');
+      for (var j = 0; j < 3; j++) {
+        buffer.writeln('    - 子项 $i-$j 也是一段不短的文本内容');
+      }
+    }
+    await tester.pumpWidget(_wrap(buffer.toString()));
+    await tester.pumpAndSettle();
+
+    double scale() {
+      // Read the X basis length: getMaxScaleOnAxis also inspects the
+      // (always 1x) Z basis and would never report less than 1.
+      final s = tester
+          .widget<InteractiveViewer>(find.byType(InteractiveViewer))
+          .transformationController!
+          .value
+          .storage;
+      return sqrt(s[0] * s[0] + s[1] * s[1]);
+    }
+
+    // Dense graph: fitting everything would be unreadable, so it stays at
+    // 100% zoom instead of shrinking.
+    expect(scale(), closeTo(1.0, 0.001));
+
+    await tester.tap(find.byIcon(Icons.add_rounded));
+    await tester.pump();
+    expect(scale(), greaterThan(1.1));
+
+    await tester.tap(find.byIcon(Icons.remove_rounded));
+    await tester.pump();
+    expect(scale(), closeTo(1.0, 0.01));
+
+    // The fit button explicitly zooms out to the full overview.
+    await tester.tap(find.byIcon(Icons.fit_screen_rounded));
+    await tester.pumpAndSettle();
+    expect(scale(), lessThan(0.9));
   });
 
   testWidgets('falls back to a code block when nothing is parseable', (

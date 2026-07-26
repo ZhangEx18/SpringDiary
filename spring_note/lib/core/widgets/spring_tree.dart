@@ -295,6 +295,10 @@ class _SpringTreeBlockState extends State<SpringTreeBlock> {
   bool _userInteractedWithView = false;
   bool _applyingFit = false;
 
+  /// Id of the node the 100% zoom view centers on (single root, or the
+  /// virtual origin dot when several top-level lines exist).
+  String? _rootId;
+
   final Algorithm _algorithm = _RadialMindmapAlgorithm(
     BuchheimWalkerConfiguration(
       siblingSeparation: 18,
@@ -325,11 +329,18 @@ class _SpringTreeBlockState extends State<SpringTreeBlock> {
     }
   }
 
-  /// Fits the whole graph inside the viewport (zoom capped at 1x, so small
-  /// trees keep their natural size) and schedules the fit after the frame in
+  /// Picks the view for the graph and schedules it after the frame in
   /// which node sizes have been measured. Skipped once the user takes over
   /// the canvas.
-  void _scheduleFit() {
+  ///
+  /// Two modes:
+  /// - the graph fits at a readable zoom (>= 85%): center the whole graph;
+  /// - fitting it would shrink nodes below readability: stay at 100% zoom,
+  ///   centered on the root, and let the user pan/zoom.
+  ///
+  /// [forceFullFit] (the fit button) always centers the whole graph, even
+  /// when that means zooming far out.
+  void _scheduleFit({bool forceFullFit = false}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _userInteractedWithView) {
         return;
@@ -339,25 +350,72 @@ class _SpringTreeBlockState extends State<SpringTreeBlock> {
         return;
       }
       const padding = 28.0;
-      final scale = math.min(
-        1.0,
-        math.min(
-          (_viewportSize.width - padding * 2) / bounds.width,
-          (_viewportSize.height - padding * 2) / bounds.height,
-        ),
+      final fitScale = math.min(
+        (_viewportSize.width - padding * 2) / bounds.width,
+        (_viewportSize.height - padding * 2) / bounds.height,
       );
-      final dx =
-          (_viewportSize.width - bounds.width * scale) / 2 -
-          bounds.left * scale;
-      final dy =
-          (_viewportSize.height - bounds.height * scale) / 2 -
-          bounds.top * scale;
+
+      final double scale;
+      final double dx;
+      final double dy;
+      if (forceFullFit || fitScale >= 0.85) {
+        scale = forceFullFit ? fitScale : math.min(1.0, fitScale);
+        dx =
+            (_viewportSize.width - bounds.width * scale) / 2 -
+            bounds.left * scale;
+        dy =
+            (_viewportSize.height - bounds.height * scale) / 2 -
+            bounds.top * scale;
+      } else {
+        // Too dense to read when fitted — 100% zoom, centered on the root.
+        final root = _nodes[_rootId];
+        scale = 1.0;
+        if (root == null) {
+          dx = (_viewportSize.width - bounds.width) / 2 - bounds.left;
+          dy = (_viewportSize.height - bounds.height) / 2 - bounds.top;
+        } else {
+          dx = _viewportSize.width / 2 - (root.x + root.width / 2) * scale;
+          dy = _viewportSize.height / 2 - (root.y + root.height / 2) * scale;
+        }
+      }
+
       _applyingFit = true;
       _viewTransform.value = Matrix4.identity()
         ..translateByDouble(dx, dy, 0, 1)
         ..scaleByDouble(scale, scale, 1, 1);
       _applyingFit = false;
     });
+  }
+
+  /// Current 2D zoom factor. `getMaxScaleOnAxis` is unusable for this: it
+  /// also inspects the (always 1x) Z basis, so it never reports less than 1.
+  double _currentScale() {
+    final s = _viewTransform.value.storage;
+    return math.sqrt(s[0] * s[0] + s[1] * s[1]);
+  }
+
+  /// Multiplies the current zoom by [factor] around the viewport center.
+  /// Counts as user interaction, so automatic fitting stops.
+  void _zoomBy(double factor) {
+    final current = _currentScale();
+    final nextScale = (current * factor).clamp(0.2, 3.0);
+    if (nextScale == current) {
+      return;
+    }
+    final applied = nextScale / current;
+    final cx = _viewportSize.width / 2;
+    final cy = _viewportSize.height / 2;
+    _viewTransform.value = Matrix4.identity()
+      ..translateByDouble(cx, cy, 0, 1)
+      ..scaleByDouble(applied, applied, 1, 1)
+      ..translateByDouble(-cx, -cy, 0, 1)
+      ..multiply(_viewTransform.value);
+  }
+
+  /// Re-enables automatic fitting (undoes user pan/zoom) and refits.
+  void _fitAndFollow() {
+    _userInteractedWithView = false;
+    _scheduleFit(forceFullFit: true);
   }
 
   void _rebuildGraph() {
@@ -373,6 +431,9 @@ class _SpringTreeBlockState extends State<SpringTreeBlock> {
 
     tree.roots.forEach(collect);
     final useVirtualRoot = tree.roots.length > 1;
+    _rootId = tree.roots.length == 1
+        ? tree.roots.single.id
+        : (useVirtualRoot ? _virtualRootId : null);
 
     // Remove vanished nodes, deepest first so Graph.removeNode's recursive
     // subtree removal finds nothing left to cascade into.
@@ -475,28 +536,40 @@ class _SpringTreeBlockState extends State<SpringTreeBlock> {
                   constraints.maxWidth,
                   constraints.maxHeight,
                 );
-                return GraphView.builder(
-                  // A new graph instance per parse; the element tree diffs
-                  // node widgets by their stable ValueKeys, so only new
-                  // nodes animate.
-                  graph: _graph,
-                  algorithm: _algorithm,
-                  controller: _graphController,
-                  // Keep position animation off: graphview restarts a 600ms
-                  // position lerp on every graph rebuild, so during
-                  // streaming/typing it never converges and nodes overlap.
-                  // New nodes still get a grow animation from _buildNode.
-                  animated: false,
-                  // centerGraph must stay off: graphview implements it by
-                  // laying the graph out around (100000, 100000), far
-                  // outside the initial viewport, so the block would render
-                  // blank.
-                  centerGraph: false,
-                  paint: Paint()
-                    ..color = colors.border
-                    ..strokeWidth = 1.4
-                    ..style = PaintingStyle.stroke,
-                  builder: _buildNode,
+                return Stack(
+                  children: [
+                    Positioned.fill(
+                      child: GraphView.builder(
+                        // One persistent graph, synced in place; the element
+                        // tree diffs node widgets by their stable ValueKeys,
+                        // so only new nodes animate.
+                        graph: _graph,
+                        algorithm: _algorithm,
+                        controller: _graphController,
+                        // Keep position animation off: graphview restarts a
+                        // 600ms position lerp on every graph rebuild, so
+                        // during streaming/typing it never converges and
+                        // nodes overlap. New nodes still get a grow
+                        // animation from _buildNode.
+                        animated: false,
+                        // centerGraph must stay off: graphview implements it
+                        // by laying the graph out around (100000, 100000),
+                        // far outside the initial viewport, so the block
+                        // would render blank.
+                        centerGraph: false,
+                        paint: Paint()
+                          ..color = colors.border
+                          ..strokeWidth = 1.4
+                          ..style = PaintingStyle.stroke,
+                        builder: _buildNode,
+                      ),
+                    ),
+                    Positioned(
+                      right: 8,
+                      bottom: 8,
+                      child: _buildZoomControls(colors),
+                    ),
+                  ],
                 );
               },
             ),
@@ -555,6 +628,46 @@ class _SpringTreeBlockState extends State<SpringTreeBlock> {
             ),
             label: Text(_copied ? '已复制' : '复制'),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildZoomControls(SpringThemeColors colors) {
+    Widget button(IconData icon, String tooltip, VoidCallback onPressed) {
+      return IconButton(
+        onPressed: onPressed,
+        tooltip: tooltip,
+        icon: Icon(icon, size: 15),
+        color: colors.textSubtle,
+        splashRadius: 14,
+        visualDensity: VisualDensity.compact,
+        constraints: const BoxConstraints.tightFor(width: 28, height: 28),
+        padding: EdgeInsets.zero,
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: colors.surface,
+        border: Border.all(color: colors.border),
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x14000000),
+            blurRadius: 4,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          button(Icons.add_rounded, '放大', () => _zoomBy(1.25)),
+          Divider(height: 1, thickness: 1, color: colors.divider),
+          button(Icons.remove_rounded, '缩小', () => _zoomBy(0.8)),
+          Divider(height: 1, thickness: 1, color: colors.divider),
+          button(Icons.fit_screen_rounded, '适应全图', _fitAndFollow),
         ],
       ),
     );
