@@ -331,6 +331,18 @@ class _SpringTreeBlockState extends State<SpringTreeBlock> {
     }
   }
 
+  @override
+  void dispose() {
+    for (final pointer in _panPointers) {
+      GestureBinding.instance.pointerRouter.removeRoute(
+        pointer,
+        _routeMousePan,
+      );
+    }
+    _panPointers.clear();
+    super.dispose();
+  }
+
   /// Centers the whole graph in the viewport and schedules it after the
   /// frame in which node sizes have been measured. Small trees stay at 100%
   /// zoom; large trees are shrunk to fit — the initial view always shows the
@@ -408,6 +420,74 @@ class _SpringTreeBlockState extends State<SpringTreeBlock> {
     if (event is PointerScrollEvent) {
       GestureBinding.instance.pointerSignalResolver.register(event, (_) {});
     }
+  }
+
+  /// Mouse pointers currently being panned by [_routeMousePan].
+  final Set<int> _panPointers = <int>{};
+
+  /// Starts tracking a mouse drag on the canvas. Move/up events are routed
+  /// through the pointer router, so panning keeps working even when the
+  /// cursor leaves the block mid-drag.
+  void _trackMousePan(PointerDownEvent event) {
+    if (event.kind != PointerDeviceKind.mouse ||
+        event.buttons != kPrimaryButton) {
+      return;
+    }
+    if (_panPointers.add(event.pointer)) {
+      GestureBinding.instance.pointerRouter.addRoute(
+        event.pointer,
+        _routeMousePan,
+      );
+    }
+  }
+
+  void _routeMousePan(PointerEvent event) {
+    if (event is PointerMoveEvent && (event.buttons & kPrimaryButton) != 0) {
+      _panBy(event.delta);
+      return;
+    }
+    if (event is PointerUpEvent || event is PointerCancelEvent) {
+      GestureBinding.instance.pointerRouter.removeRoute(
+        event.pointer,
+        _routeMousePan,
+      );
+      _panPointers.remove(event.pointer);
+    }
+  }
+
+  /// Pans the view by a drag delta (in viewport pixels).
+  void _panBy(Offset delta) {
+    _viewTransform.value = Matrix4.identity()
+      ..translateByDouble(delta.dx, delta.dy, 0, 1)
+      ..multiply(_viewTransform.value);
+  }
+
+  /// Claims mouse drags on the canvas with an eager recognizer; the actual
+  /// panning is driven by [_routeMousePan].
+  ///
+  /// InteractiveViewer pans through a ScaleGestureRecognizer, which loses
+  /// the gesture arena unpredictably to the TapAndPanGestureRecognizer that
+  /// an enclosing SelectionArea installs for mouse selection (chat messages,
+  /// previews): that recognizer wins by deadline timer whenever a drag
+  /// hesitates past its slop, so the mouse moves but the graph does not.
+  /// The eager recognizer accepts the pointer at mouse-down — deepest in the
+  /// hit path, before the selection recognizer even joins the arena — so
+  /// canvas drags always pan. Touch keeps InteractiveViewer's own pan; wheel
+  /// zoom and trackpad pinch are pointer signals and stay unaffected.
+  Widget _buildPanClaimer({required Widget child}) {
+    return RawGestureDetector(
+      gestures: <Type, GestureRecognizerFactory<GestureRecognizer>>{
+        EagerGestureRecognizer:
+            GestureRecognizerFactoryWithHandlers<EagerGestureRecognizer>(
+              () => EagerGestureRecognizer(
+                supportedDevices: <PointerDeviceKind>{PointerDeviceKind.mouse},
+              ),
+              (recognizer) {},
+            ),
+      },
+      behavior: HitTestBehavior.translucent,
+      child: child,
+    );
   }
 
   void _openFullscreen() {
@@ -526,29 +606,32 @@ class _SpringTreeBlockState extends State<SpringTreeBlock> {
             Positioned.fill(
               child: Listener(
                 onPointerSignal: _claimWheelEvent,
-                child: GraphView.builder(
-                  // One persistent graph, synced in place; the element
-                  // tree diffs node widgets by their stable ValueKeys,
-                  // so only new nodes animate.
-                  graph: _graph,
-                  algorithm: _algorithm,
-                  controller: _graphController,
-                  // Keep position animation off: graphview restarts a
-                  // 600ms position lerp on every graph rebuild, so
-                  // during streaming/typing it never converges and
-                  // nodes overlap. New nodes still get a grow
-                  // animation from _buildNode.
-                  animated: false,
-                  // centerGraph must stay off: graphview implements it
-                  // by laying the graph out around (100000, 100000),
-                  // far outside the initial viewport, so the block
-                  // would render blank.
-                  centerGraph: false,
-                  paint: Paint()
-                    ..color = colors.border
-                    ..strokeWidth = 1.4
-                    ..style = PaintingStyle.stroke,
-                  builder: _buildNode,
+                onPointerDown: _trackMousePan,
+                child: _buildPanClaimer(
+                  child: GraphView.builder(
+                    // One persistent graph, synced in place; the element
+                    // tree diffs node widgets by their stable ValueKeys,
+                    // so only new nodes animate.
+                    graph: _graph,
+                    algorithm: _algorithm,
+                    controller: _graphController,
+                    // Keep position animation off: graphview restarts a
+                    // 600ms position lerp on every graph rebuild, so
+                    // during streaming/typing it never converges and
+                    // nodes overlap. New nodes still get a grow
+                    // animation from _buildNode.
+                    animated: false,
+                    // centerGraph must stay off: graphview implements it
+                    // by laying the graph out around (100000, 100000),
+                    // far outside the initial viewport, so the block
+                    // would render blank.
+                    centerGraph: false,
+                    paint: Paint()
+                      ..color = colors.border
+                      ..strokeWidth = 1.4
+                      ..style = PaintingStyle.stroke,
+                    builder: _buildNode,
+                  ),
                 ),
               ),
             ),

@@ -172,3 +172,79 @@ String _cleanLabel(String raw) {
   }
   return text;
 }
+
+/// One chunk of a message that may mix prose with ```springtree fences:
+/// either [markdown] prose or a springtree [treeSource] body.
+class SpringTreeSegment {
+  const SpringTreeSegment.markdown(this.markdown)
+    : treeSource = null,
+      treeComplete = true;
+
+  const SpringTreeSegment.tree(this.treeSource, {required this.treeComplete})
+    : markdown = null;
+
+  /// Prose to render with the regular Markdown pipeline.
+  final String? markdown;
+
+  /// Body of a ```springtree fence, to render as a mind map.
+  final String? treeSource;
+
+  /// Whether the closing fence has been received yet (streaming).
+  final bool treeComplete;
+
+  bool get isTree => treeSource != null;
+}
+
+final RegExp _springTreeOpenFence = RegExp(
+  r'```[ \t]*springtree[^\n]*(?:\n|$)',
+  caseSensitive: false,
+);
+final RegExp _springTreeCloseFence = RegExp('\n[ \t]*```[^\n]*(?:\n|\$)');
+
+/// Splits [content] into prose and springtree segments, so a chat message
+/// can render the mind map at full width while the surrounding prose (and
+/// any regular code blocks inside it) stays in the reading column. An
+/// unclosed trailing fence yields a segment with `treeComplete: false`,
+/// which keeps streaming growth working.
+List<SpringTreeSegment> splitSpringTreeSegments(String content) {
+  final segments = <SpringTreeSegment>[];
+  var cursor = 0;
+  while (true) {
+    final open = _springTreeOpenFence.firstMatch(content.substring(cursor));
+    if (open == null) {
+      break;
+    }
+    final prose = content.substring(cursor, cursor + open.start);
+    if (prose.trim().isNotEmpty) {
+      segments.add(SpringTreeSegment.markdown(prose));
+    }
+    final bodyStart = cursor + open.end;
+    final close = _springTreeCloseFence.firstMatch(
+      content.substring(bodyStart),
+    );
+    if (close == null) {
+      segments.add(
+        SpringTreeSegment.tree(
+          content.substring(bodyStart),
+          treeComplete: false,
+        ),
+      );
+      return segments;
+    }
+    segments.add(
+      SpringTreeSegment.tree(
+        content.substring(bodyStart, bodyStart + close.start),
+        treeComplete: true,
+      ),
+    );
+    cursor = bodyStart + close.end;
+  }
+  final tail = content.substring(cursor);
+  if (tail.trim().isNotEmpty) {
+    segments.add(SpringTreeSegment.markdown(tail));
+  }
+  if (segments.isEmpty) {
+    segments.add(SpringTreeSegment.markdown(content));
+  }
+  return segments;
+}

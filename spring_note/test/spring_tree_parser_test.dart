@@ -147,4 +147,49 @@ void main() {
       expect(stopwatch.elapsedMilliseconds, lessThan(100));
     });
   });
+
+  group('splitSpringTreeSegments', () {
+    test('splits prose around a closed fence', () {
+      final segments = splitSpringTreeSegments(
+        '介绍\n```springtree\n- 根\n  - 子\n```\n总结',
+      );
+
+      expect(segments, hasLength(3));
+      expect(segments[0].isTree, isFalse);
+      expect(segments[0].markdown, '介绍\n');
+      expect(segments[1].isTree, isTrue);
+      expect(segments[1].treeSource, '- 根\n  - 子');
+      expect(segments[1].treeComplete, isTrue);
+      expect(segments[2].isTree, isFalse);
+      expect(segments[2].markdown, '总结');
+    });
+
+    test('marks an unclosed trailing fence as incomplete', () {
+      final segments = splitSpringTreeSegments('前文\n```springtree\n- 根\n');
+
+      expect(segments, hasLength(2));
+      expect(segments[1].isTree, isTrue);
+      expect(segments[1].treeSource, '- 根\n');
+      expect(segments[1].treeComplete, isFalse);
+    });
+
+    test('keeps fence-free content as a single markdown segment', () {
+      final segments = splitSpringTreeSegments('普通回答\n- 列表\n');
+
+      expect(segments, hasLength(1));
+      expect(segments.single.isTree, isFalse);
+      expect(segments.single.markdown, '普通回答\n- 列表\n');
+    });
+
+    test('handles multiple fences', () {
+      final segments = splitSpringTreeSegments(
+        '```springtree\n- 一\n```\n中间\n```springtree\n- 二\n```\n',
+      );
+
+      expect(segments, hasLength(3));
+      expect(segments[0].treeSource, '- 一');
+      expect(segments[1].markdown, '中间\n');
+      expect(segments[2].treeSource, '- 二');
+    });
+  });
 }

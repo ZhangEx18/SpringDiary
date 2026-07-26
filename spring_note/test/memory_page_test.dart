@@ -167,7 +167,8 @@ void main() {
                 ),
                 MemoryMessage(
                   role: 'ai',
-                  content: '```springtree\n- 根节点\n  - 子节点\n```',
+                  content: '导图如下\n```springtree\n- 根节点\n  - 子节点\n```\n补充说明',
+                  reasoningContent: '推理过程',
                   createdAt: DateTime(2026, 7, 8),
                 ),
               ],
@@ -184,11 +185,35 @@ void main() {
     final blockWidth = tester.getSize(find.byType(SpringTreeBlock)).width;
     expect(blockWidth, greaterThan(1000));
 
-    // Regular text messages stay inside the reading column.
+    // Regular text messages stay inside the reading column, and so does the
+    // prose surrounding a springtree fence in a mind-map message.
     final markdownWidths = tester
         .widgetList<GptMarkdown>(find.byType(GptMarkdown))
         .map((widget) => tester.getSize(find.byWidget(widget)).width);
-    expect(markdownWidths.any((width) => width <= 820), isTrue);
+    expect(markdownWidths.every((width) => width <= 820), isTrue);
+
+    // The reasoning bar and the prose in a mind-map message keep the
+    // (centered) reading width instead of stretching across the widened
+    // message; only the mind map itself breaks out.
+    final readingColumn = find.byWidgetPredicate(
+      (widget) =>
+          widget is ConstrainedBox && widget.constraints.maxWidth == 820,
+    );
+    expect(
+      find.descendant(of: readingColumn, matching: find.textContaining('深度思考')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: readingColumn, matching: find.byType(GptMarkdown)),
+      findsNWidgets(2),
+    );
+    expect(
+      find.descendant(
+        of: readingColumn,
+        matching: find.byType(SpringTreeBlock),
+      ),
+      findsNothing,
+    );
   });
 
   test('memory image bases include source note and notes directories', () {

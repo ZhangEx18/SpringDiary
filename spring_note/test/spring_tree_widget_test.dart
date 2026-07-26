@@ -27,6 +27,16 @@ double _graphScale(WidgetTester tester) {
   return sqrt(s[0] * s[0] + s[1] * s[1]);
 }
 
+/// Current pan offset of the graph's InteractiveViewer, in viewport pixels.
+Offset _graphTranslation(WidgetTester tester) {
+  final t = tester
+      .widget<InteractiveViewer>(find.byType(InteractiveViewer))
+      .transformationController!
+      .value
+      .getTranslation();
+  return Offset(t.x, t.y);
+}
+
 void main() {
   testWidgets('renders mind map nodes from an indented list', (tester) async {
     await tester.pumpWidget(_wrap('- 中心主题\n  - 分支 A\n  - 分支 B\n'));
@@ -240,6 +250,46 @@ void main() {
       ),
     );
     expect(containers.any((container) => container.delegate == null), isTrue);
+  });
+
+  testWidgets('mouse drag pans the graph inside a SelectionArea', (
+    tester,
+  ) async {
+    // Regression test: SelectionArea's TapAndPanGestureRecognizer could win
+    // the gesture arena over InteractiveViewer's scale recognizer, so mouse
+    // drags moved only the cursor while the graph stayed put.
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SelectionArea(
+            child: SingleChildScrollView(
+              child: SpringTreeBlock(
+                source: '- root\n  - a\n  - b\n',
+                isComplete: true,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final before = _graphTranslation(tester);
+    final center = tester.getCenter(find.byType(SpringTreeBlock));
+    final gesture = await tester.startGesture(
+      center,
+      kind: PointerDeviceKind.mouse,
+    );
+    await gesture.moveBy(const Offset(48, 24));
+    await tester.pump();
+
+    final delta = _graphTranslation(tester) - before;
+    expect(
+      delta.distance,
+      greaterThan(10),
+      reason: 'mouse drag should pan the graph',
+    );
+    await gesture.up();
   });
 
   testWidgets('wheel zooms the graph without scrolling the outer page', (

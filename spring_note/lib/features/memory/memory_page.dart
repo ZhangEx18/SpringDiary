@@ -12,6 +12,7 @@ import '../../core/services/memory_conversation_service.dart';
 import '../../core/services/memory_search_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/spring_tree.dart';
+import '../../core/widgets/spring_tree_parser.dart';
 import '../../core/widgets/spring_markdown.dart';
 
 bool shouldCollapseMemoryReasoning(MemoryMessage message) {
@@ -1310,6 +1311,65 @@ class _MemoryMessageView extends StatelessWidget {
       );
     }
 
+    // Mind-map messages span the full column so the graph can use the side
+    // margins. Everything else in the message — reasoning bar, tool chips,
+    // prose and regular code blocks — is split out around the springtree
+    // fence and kept in the centered 820 reading column, aligned with plain
+    // messages above and below.
+    final isMindmap = message.content.contains('```springtree');
+    Widget readingWidth(Widget child) {
+      if (!isMindmap) {
+        return child;
+      }
+      return Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 820),
+          child: SizedBox(width: double.infinity, child: child),
+        ),
+      );
+    }
+
+    Widget buildMarkdown(String markdown) {
+      return SizedBox(
+        width: double.infinity,
+        child: GptMarkdownTheme(
+          gptThemeData: springMarkdownThemeData(
+            context,
+            GptMarkdownTheme.of(context),
+          ),
+          child: GptMarkdown(
+            prepareSpringMarkdownText(markdown),
+            followLinkColor: true,
+            useDollarSignsForLatex: true,
+            latexBuilder: springMarkdownLatexBuilder,
+            components: springMarkdownComponents,
+            inlineComponents: springMarkdownInlineComponents,
+            unOrderedListBuilder: springMarkdownUnorderedListBuilder,
+            tableBuilder: springMarkdownTableBuilder,
+            codeBuilder: buildSpringCodeBlock,
+            imageBuilder: (context, url, width, height) => SpringMarkdownImage(
+              url: url,
+              width: width,
+              height: height,
+              localImageBasePaths: memoryImageBasePaths(
+                message,
+                localDataState,
+              ),
+            ),
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              color: springMarkdownTextColor(
+                context,
+                darkFallback: colors.textMuted,
+              ),
+              fontSize: 14,
+              height: 1.55,
+            ),
+            onLinkTap: openSpringMarkdownLink,
+          ),
+        ),
+      );
+    }
+
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 36),
@@ -1318,56 +1378,29 @@ class _MemoryMessageView extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (message.reasoningContent.trim().isNotEmpty) ...[
-              _ReasoningBlock(
-                reasoning: message.reasoningContent,
-                duration: memoryReasoningDuration(message),
-                collapsed: shouldCollapseMemoryReasoning(message),
+              readingWidth(
+                _ReasoningBlock(
+                  reasoning: message.reasoningContent,
+                  duration: memoryReasoningDuration(message),
+                  collapsed: shouldCollapseMemoryReasoning(message),
+                ),
               ),
               const SizedBox(height: 12),
             ],
             if (message.content.trim().isNotEmpty)
-              SizedBox(
-                width: double.infinity,
-                child: GptMarkdownTheme(
-                  gptThemeData: springMarkdownThemeData(
-                    context,
-                    GptMarkdownTheme.of(context),
-                  ),
-                  child: GptMarkdown(
-                    prepareSpringMarkdownText(message.content),
-                    followLinkColor: true,
-                    useDollarSignsForLatex: true,
-                    latexBuilder: springMarkdownLatexBuilder,
-                    components: springMarkdownComponents,
-                    inlineComponents: springMarkdownInlineComponents,
-                    unOrderedListBuilder: springMarkdownUnorderedListBuilder,
-                    tableBuilder: springMarkdownTableBuilder,
-                    codeBuilder: buildSpringCodeBlock,
-                    imageBuilder: (context, url, width, height) =>
-                        SpringMarkdownImage(
-                          url: url,
-                          width: width,
-                          height: height,
-                          localImageBasePaths: memoryImageBasePaths(
-                            message,
-                            localDataState,
-                          ),
-                        ),
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: springMarkdownTextColor(
-                        context,
-                        darkFallback: colors.textMuted,
-                      ),
-                      fontSize: 14,
-                      height: 1.55,
-                    ),
-                    onLinkTap: openSpringMarkdownLink,
-                  ),
-                ),
-              ),
+              if (isMindmap)
+                for (final segment in splitSpringTreeSegments(message.content))
+                  segment.isTree
+                      ? SpringTreeBlock(
+                          source: segment.treeSource!,
+                          isComplete: segment.treeComplete,
+                        )
+                      : readingWidth(buildMarkdown(segment.markdown!))
+              else
+                buildMarkdown(message.content),
             if (attachments.isNotEmpty) ...[
               const SizedBox(height: 14),
-              _ToolAttachmentStrip(attachments: attachments),
+              readingWidth(_ToolAttachmentStrip(attachments: attachments)),
             ],
           ],
         ),
