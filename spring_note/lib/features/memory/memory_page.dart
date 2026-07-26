@@ -12,6 +12,7 @@ import '../../core/services/memory_conversation_service.dart';
 import '../../core/services/memory_search_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/spring_tree.dart';
+import 'memory_input_modes.dart';
 import '../../core/widgets/spring_markdown.dart';
 
 bool shouldCollapseMemoryReasoning(MemoryMessage message) {
@@ -109,8 +110,8 @@ class MemoryPage extends StatefulWidget {
 }
 
 class _MemoryPageState extends State<MemoryPage> {
-  final TextEditingController _entryController = TextEditingController();
-  final TextEditingController _chatController = TextEditingController();
+  final TextEditingController _entryController = MemoryComposerController();
+  final TextEditingController _chatController = MemoryComposerController();
   final ScrollController _scrollController = ScrollController();
   final FocusNode _entryFocusNode = FocusNode();
   final FocusNode _chatFocusNode = FocusNode();
@@ -189,10 +190,16 @@ class _MemoryPageState extends State<MemoryPage> {
   Future<void> _sendFromChat() => _send(_chatController.text);
 
   Future<void> _send(String rawQuestion) async {
-    final question = rawQuestion.trim();
+    // Mode tags (e.g. 思维导图) live in the input text; strip them from the
+    // displayed question and turn their prompts into a model-only suffix.
+    final resolved = resolveMemoryInputModes(rawQuestion);
+    final question = resolved.userText.trim();
     if (question.isEmpty || _answering) {
       return;
     }
+    final modelQuestion = resolved.modes.isEmpty
+        ? null
+        : '$question\n\n${resolved.promptSuffix}';
 
     final now = DateTime.now();
     final userMessage = MemoryMessage(
@@ -211,7 +218,10 @@ class _MemoryPageState extends State<MemoryPage> {
     await _persist();
     _scrollToBottom();
 
-    final aiMessage = await _runToolCallingLoop(question);
+    final aiMessage = await _runToolCallingLoop(
+      question,
+      modelQuestion: modelQuestion,
+    );
     if (!mounted) {
       return;
     }
@@ -227,7 +237,31 @@ class _MemoryPageState extends State<MemoryPage> {
     _chatFocusNode.requestFocus();
   }
 
-  Future<MemoryMessage?> _runToolCallingLoop(String question) async {
+  /// The conversation as the model should see it: identical to [_messages]
+  /// except the latest user message additionally carries the active
+  /// input-mode prompt. Storage and bubbles keep the clean text.
+  List<MemoryMessage> _requestMessages(String? modelQuestion) {
+    if (modelQuestion == null) {
+      return _messages;
+    }
+    final view = [..._messages];
+    for (var i = view.length - 1; i >= 0; i--) {
+      if (view[i].role == 'user') {
+        view[i] = MemoryMessage(
+          role: 'user',
+          content: modelQuestion,
+          createdAt: view[i].createdAt,
+        );
+        break;
+      }
+    }
+    return view;
+  }
+
+  Future<MemoryMessage?> _runToolCallingLoop(
+    String question, {
+    String? modelQuestion,
+  }) async {
     final maxTurns = widget.localDataState.config.memorySearchLimit
         .round()
         .clamp(1, 12);
@@ -240,7 +274,7 @@ class _MemoryPageState extends State<MemoryPage> {
       final stream = widget.aiClientService.memoryToolChatStream(
         appDataDir: widget.localDataState.dataDirectory,
         config: widget.localDataState.config,
-        messages: _messages,
+        messages: _requestMessages(modelQuestion),
         thinkingEnabled: _thinkingEnabled,
         reasoningEffort: _reasoningEffort,
       );
@@ -755,40 +789,49 @@ class _MemoryPageState extends State<MemoryPage> {
           left: 0,
           right: 0,
           bottom: 0,
-          // The gradient strip is purely decorative. Ignore pointers for
-          // everything except the composer itself, so the bottom corners
-          // stay scrollable/selectable instead of becoming dead zones.
-          child: IgnorePointer(
-            child: Container(
-              height: 132,
-              padding: const EdgeInsets.fromLTRB(24, 16, 24, 28),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    colors.background.withValues(alpha: 0),
-                    colors.background,
-                    colors.background,
-                  ],
-                ),
-              ),
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 760),
+          child: SizedBox(
+            height: 132,
+            child: Stack(
+              children: [
+                // The gradient strip is purely decorative. Ignore its
+                // pointers so the bottom corners stay scrollable/selectable
+                // instead of becoming dead zones. (A nested
+                // IgnorePointer(ignoring: false) cannot re-enable hit
+                // testing, so the composer must live outside it.)
+                Positioned.fill(
                   child: IgnorePointer(
-                    ignoring: false,
-                    child: _MemoryComposer(
-                      controller: _chatController,
-                      focusNode: _chatFocusNode,
-                      hintText: '继续追问你的回忆...',
-                      answering: _answering,
-                      onSubmit: _sendFromChat,
-                      multiline: true,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            colors.background.withValues(alpha: 0),
+                            colors.background,
+                            colors.background,
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 28),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 760),
+                      child: _MemoryComposer(
+                        controller: _chatController,
+                        focusNode: _chatFocusNode,
+                        hintText: '继续追问你的回忆...',
+                        answering: _answering,
+                        onSubmit: _sendFromChat,
+                        multiline: true,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -963,6 +1006,24 @@ class _MemoryComposer extends StatelessWidget {
   final VoidCallback onSubmit;
   final bool multiline;
 
+  /// Inserts a mode tag at the cursor. The tag is a single code point in
+  /// the text, so it edits like any other character — Backspace/Delete
+  /// remove it whole and the mode is off again. One tag per mode.
+  void _insertModeToken(MemoryInputMode mode) {
+    final value = controller.value;
+    if (value.text.contains(mode.token)) {
+      return;
+    }
+    final selection = value.selection;
+    final offset = selection.isValid
+        ? selection.baseOffset.clamp(0, value.text.length)
+        : value.text.length;
+    controller.value = TextEditingValue(
+      text: value.text.replaceRange(offset, offset, mode.token),
+      selection: TextSelection.collapsed(offset: offset + 1),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = AppTheme.colors(context);
@@ -983,11 +1044,25 @@ class _MemoryComposer extends StatelessWidget {
       ),
       child: Row(
         children: [
-          IconButton(
-            onPressed: null,
-            icon: const Icon(Icons.add_rounded),
-            color: colors.textMuted,
-            disabledColor: colors.textMuted,
+          PopupMenuButton<MemoryInputMode>(
+            tooltip: '输入模式',
+            // The composer sits at the bottom of the page — open upwards.
+            position: PopupMenuPosition.over,
+            icon: Icon(Icons.add_rounded, color: colors.textMuted),
+            onSelected: _insertModeToken,
+            itemBuilder: (context) => [
+              for (final mode in memoryInputModes)
+                PopupMenuItem<MemoryInputMode>(
+                  value: mode,
+                  child: Row(
+                    children: [
+                      Icon(mode.icon, size: 16),
+                      const SizedBox(width: 10),
+                      Text(mode.label),
+                    ],
+                  ),
+                ),
+            ],
           ),
           Expanded(
             child: CallbackShortcuts(

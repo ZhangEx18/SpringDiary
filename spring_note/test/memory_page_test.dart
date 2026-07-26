@@ -14,6 +14,7 @@ import 'package:spring_note/core/services/memory_conversation_service.dart';
 import 'package:spring_note/core/services/memory_search_service.dart';
 import 'package:spring_note/core/widgets/spring_markdown.dart';
 import 'package:spring_note/core/widgets/spring_tree.dart';
+import 'package:spring_note/features/memory/memory_input_modes.dart';
 import 'package:spring_note/features/memory/memory_page.dart';
 import 'package:spring_note/src/rust/ai.dart' as rust_ai;
 
@@ -279,6 +280,100 @@ void main() {
     expect(inputController.text, '下一条预先输入的回忆问题');
   });
 
+  testWidgets(
+    'mind map mode tag edits like text and injects the prompt only for the model',
+    (tester) async {
+      tester.view.physicalSize = const Size(1200, 760);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final aiClientService = _DelayedMemoryAiClientService();
+      addTearDown(aiClientService.dispose);
+      final conversationService = _FakeMemoryConversationService(
+        initialMessages: [
+          MemoryMessage(
+            role: 'ai',
+            content: '之前的回答',
+            createdAt: DateTime(2026, 7, 8),
+          ),
+        ],
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: MemoryPage(
+              localDataState: _localDataState(),
+              aiClientService: aiClientService,
+              conversationService: conversationService,
+              searchService: const _FakeMemorySearchService(),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final inputFinder = find.byType(TextField);
+      expect(inputFinder, findsOneWidget);
+      String composerText() => tester
+          .widget<EditableText>(find.byType(EditableText))
+          .controller
+          .text;
+
+      // The "+" menu inserts the 思维导图 tag into the input text.
+      await tester.tap(find.byIcon(Icons.add_rounded));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('思维导图'));
+      await tester.pumpAndSettle();
+      expect(composerText(), mindMapInputMode.token);
+
+      // The tag is one code point: Backspace removes it whole, turning the
+      // mode off again.
+      await tester.tap(inputFinder);
+      await tester.pump();
+      tester
+          .widget<EditableText>(find.byType(EditableText))
+          .controller
+          .selection = const TextSelection.collapsed(
+        offset: 1,
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.backspace);
+      await tester.pump();
+      expect(composerText(), isEmpty);
+
+      // Type the question first, then tag it: the tag joins the draft.
+      await tester.enterText(inputFinder, '整理上周周报');
+      await tester.tap(find.byIcon(Icons.add_rounded));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('思维导图'));
+      await tester.pumpAndSettle();
+      expect(composerText(), '整理上周周报${mindMapInputMode.token}');
+
+      await tester.tap(find.byIcon(Icons.arrow_upward_rounded));
+      for (var index = 0; index < 20 && !aiClientService.started; index++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      expect(aiClientService.started, isTrue);
+
+      // The model receives the question plus the springtree prompt, without
+      // the tag itself; the bubble and storage keep the clean text.
+      final modelUserMessage = aiClientService.capturedMessages!.lastWhere(
+        (message) => message.role == 'user',
+      );
+      expect(modelUserMessage.content, contains('整理上周周报'));
+      expect(modelUserMessage.content, contains('SpringTree 输出模式'));
+      expect(modelUserMessage.content, isNot(contains(mindMapInputMode.token)));
+
+      final savedUserMessage = conversationService.savedMessages.lastWhere(
+        (message) => message.role == 'user',
+      );
+      expect(savedUserMessage.content, '整理上周周报');
+
+      aiClientService.complete();
+      await tester.pumpAndSettle();
+    },
+  );
+
   for (final shortcut in const [
     (name: 'ctrl enter', key: LogicalKeyboardKey.controlLeft),
     (name: 'meta enter', key: LogicalKeyboardKey.metaLeft),
@@ -354,6 +449,7 @@ class _DelayedMemoryAiClientService extends AiClientService {
   final StreamController<rust_ai.MemoryToolChatStreamEvent> _controller =
       StreamController();
   bool started = false;
+  List<MemoryMessage>? capturedMessages;
 
   @override
   Stream<rust_ai.MemoryToolChatStreamEvent>? memoryToolChatStream({
@@ -364,6 +460,7 @@ class _DelayedMemoryAiClientService extends AiClientService {
     required String reasoningEffort,
   }) {
     started = true;
+    capturedMessages = messages;
     return _controller.stream;
   }
 
