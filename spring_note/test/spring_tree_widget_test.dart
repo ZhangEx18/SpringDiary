@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:spring_note/core/widgets/spring_tree.dart';
@@ -12,6 +13,18 @@ Widget _wrap(String source, {bool isComplete = true}) {
       ),
     ),
   );
+}
+
+/// Current zoom factor of the graph's InteractiveViewer. Reads the X basis
+/// length because getMaxScaleOnAxis also inspects the (always 1x) Z basis
+/// and would never report less than 1.
+double _graphScale(WidgetTester tester) {
+  final s = tester
+      .widget<InteractiveViewer>(find.byType(InteractiveViewer))
+      .transformationController!
+      .value
+      .storage;
+  return sqrt(s[0] * s[0] + s[1] * s[1]);
 }
 
 void main() {
@@ -159,7 +172,7 @@ void main() {
     }
   });
 
-  testWidgets('dense trees stay readable and offer zoom controls', (
+  testWidgets('dense trees start fitted and offer zoom controls', (
     tester,
   ) async {
     final buffer = StringBuffer('- 根\n');
@@ -172,33 +185,80 @@ void main() {
     await tester.pumpWidget(_wrap(buffer.toString()));
     await tester.pumpAndSettle();
 
-    double scale() {
-      // Read the X basis length: getMaxScaleOnAxis also inspects the
-      // (always 1x) Z basis and would never report less than 1.
-      final s = tester
-          .widget<InteractiveViewer>(find.byType(InteractiveViewer))
-          .transformationController!
-          .value
-          .storage;
-      return sqrt(s[0] * s[0] + s[1] * s[1]);
-    }
-
-    // Dense graph: fitting everything would be unreadable, so it stays at
-    // 100% zoom instead of shrinking.
-    expect(scale(), closeTo(1.0, 0.001));
+    // The initial view always shows the whole graph, even when that means
+    // shrinking a dense map; the user zooms in manually.
+    final initial = _graphScale(tester);
+    expect(initial, lessThan(0.9));
 
     await tester.tap(find.byIcon(Icons.add_rounded));
     await tester.pump();
-    expect(scale(), greaterThan(1.1));
+    expect(_graphScale(tester), greaterThan(initial));
 
-    await tester.tap(find.byIcon(Icons.remove_rounded));
-    await tester.pump();
-    expect(scale(), closeTo(1.0, 0.01));
-
-    // The fit button explicitly zooms out to the full overview.
     await tester.tap(find.byIcon(Icons.fit_screen_rounded));
     await tester.pumpAndSettle();
-    expect(scale(), lessThan(0.9));
+    expect(_graphScale(tester), closeTo(initial, 0.01));
+  });
+
+  testWidgets('fullscreen button opens an expanded dialog', (tester) async {
+    await tester.pumpWidget(_wrap('- root\n  - a\n'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.fullscreen_rounded));
+    await tester.pumpAndSettle();
+
+    // The inline block plus the one in the fullscreen dialog.
+    expect(find.byType(SpringTreeBlock), findsNWidgets(2));
+    expect(find.byIcon(Icons.fullscreen_rounded), findsOneWidget);
+
+    // Close the dialog again via the back button in the app bar.
+    final navigator = tester.state<NavigatorState>(
+      find.byType(Navigator).first,
+    );
+    navigator.pop();
+    await tester.pumpAndSettle();
+    expect(find.byType(SpringTreeBlock), findsOneWidget);
+  });
+
+  testWidgets('wheel zooms the graph without scrolling the outer page', (
+    tester,
+  ) async {
+    final controller = ScrollController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            controller: controller,
+            child: Column(
+              children: [
+                const SizedBox(height: 100),
+                SpringTreeBlock(source: '- root\n  - a\n  - b\n'),
+                const SizedBox(height: 600),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final before = _graphScale(tester);
+    final center = tester.getCenter(find.byType(SpringTreeBlock));
+    await tester.sendEventToBinding(
+      PointerScrollEvent(position: center, scrollDelta: const Offset(0, -120)),
+    );
+    await tester.pump();
+
+    expect(
+      _graphScale(tester),
+      greaterThan(before),
+      reason: "wheel should zoom",
+    );
+    expect(
+      controller.offset,
+      0.0,
+      reason: 'wheel over the graph must not scroll the outer page',
+    );
   });
 
   testWidgets('falls back to a code block when nothing is parseable', (

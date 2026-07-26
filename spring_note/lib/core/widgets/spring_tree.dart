@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:graphview/GraphView.dart';
@@ -244,6 +245,7 @@ class SpringTreeBlock extends StatefulWidget {
     super.key,
     required this.source,
     this.isComplete = true,
+    this.expand = false,
   });
 
   /// Raw body of the code fence (the indented list).
@@ -251,6 +253,10 @@ class SpringTreeBlock extends StatefulWidget {
 
   /// Whether the closing fence has been received yet (streaming).
   final bool isComplete;
+
+  /// Fill all the height the parent offers (fullscreen dialog) instead of
+  /// sizing the canvas from the leaf count.
+  final bool expand;
 
   @override
   State<SpringTreeBlock> createState() => _SpringTreeBlockState();
@@ -295,10 +301,6 @@ class _SpringTreeBlockState extends State<SpringTreeBlock> {
   bool _userInteractedWithView = false;
   bool _applyingFit = false;
 
-  /// Id of the node the 100% zoom view centers on (single root, or the
-  /// virtual origin dot when several top-level lines exist).
-  String? _rootId;
-
   final Algorithm _algorithm = _RadialMindmapAlgorithm(
     BuchheimWalkerConfiguration(
       siblingSeparation: 18,
@@ -329,18 +331,12 @@ class _SpringTreeBlockState extends State<SpringTreeBlock> {
     }
   }
 
-  /// Picks the view for the graph and schedules it after the frame in
-  /// which node sizes have been measured. Skipped once the user takes over
-  /// the canvas.
-  ///
-  /// Two modes:
-  /// - the graph fits at a readable zoom (>= 85%): center the whole graph;
-  /// - fitting it would shrink nodes below readability: stay at 100% zoom,
-  ///   centered on the root, and let the user pan/zoom.
-  ///
-  /// [forceFullFit] (the fit button) always centers the whole graph, even
-  /// when that means zooming far out.
-  void _scheduleFit({bool forceFullFit = false}) {
+  /// Centers the whole graph in the viewport and schedules it after the
+  /// frame in which node sizes have been measured. Small trees stay at 100%
+  /// zoom; large trees are shrunk to fit — the initial view always shows the
+  /// full map, and the user can zoom in (wheel, buttons) or open fullscreen
+  /// for readability. Skipped once the user takes over the canvas.
+  void _scheduleFit() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _userInteractedWithView) {
         return;
@@ -354,31 +350,13 @@ class _SpringTreeBlockState extends State<SpringTreeBlock> {
         (_viewportSize.width - padding * 2) / bounds.width,
         (_viewportSize.height - padding * 2) / bounds.height,
       );
-
-      final double scale;
-      final double dx;
-      final double dy;
-      if (forceFullFit || fitScale >= 0.85) {
-        scale = forceFullFit ? fitScale : math.min(1.0, fitScale);
-        dx =
-            (_viewportSize.width - bounds.width * scale) / 2 -
-            bounds.left * scale;
-        dy =
-            (_viewportSize.height - bounds.height * scale) / 2 -
-            bounds.top * scale;
-      } else {
-        // Too dense to read when fitted — 100% zoom, centered on the root.
-        final root = _nodes[_rootId];
-        scale = 1.0;
-        if (root == null) {
-          dx = (_viewportSize.width - bounds.width) / 2 - bounds.left;
-          dy = (_viewportSize.height - bounds.height) / 2 - bounds.top;
-        } else {
-          dx = _viewportSize.width / 2 - (root.x + root.width / 2) * scale;
-          dy = _viewportSize.height / 2 - (root.y + root.height / 2) * scale;
-        }
-      }
-
+      final scale = math.min(1.0, fitScale);
+      final dx =
+          (_viewportSize.width - bounds.width * scale) / 2 -
+          bounds.left * scale;
+      final dy =
+          (_viewportSize.height - bounds.height * scale) / 2 -
+          bounds.top * scale;
       _applyingFit = true;
       _viewTransform.value = Matrix4.identity()
         ..translateByDouble(dx, dy, 0, 1)
@@ -415,7 +393,38 @@ class _SpringTreeBlockState extends State<SpringTreeBlock> {
   /// Re-enables automatic fitting (undoes user pan/zoom) and refits.
   void _fitAndFollow() {
     _userInteractedWithView = false;
-    _scheduleFit(forceFullFit: true);
+    _scheduleFit();
+  }
+
+  /// Claims mouse-wheel events in the pointer signal resolver so an outer
+  /// [Scrollable] never scrolls the page while the user zooms the graph.
+  ///
+  /// Flutter dispatches pointer signals to every [Listener] in the hit path:
+  /// graphview's InteractiveViewer zooms on the event but never claims it,
+  /// so without this the outer scroll view would scroll too. This Listener
+  /// sits deeper in the hit path, so its registration wins and the outer
+  /// Scrollable's scroll callback is dropped.
+  void _claimWheelEvent(PointerSignalEvent event) {
+    if (event is PointerScrollEvent) {
+      GestureBinding.instance.pointerSignalResolver.register(event, (_) {});
+    }
+  }
+
+  void _openFullscreen() {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => Dialog.fullscreen(
+        backgroundColor: AppTheme.colors(dialogContext).background,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: SpringTreeBlock(
+            source: widget.source,
+            isComplete: widget.isComplete,
+            expand: true,
+          ),
+        ),
+      ),
+    );
   }
 
   void _rebuildGraph() {
@@ -431,9 +440,6 @@ class _SpringTreeBlockState extends State<SpringTreeBlock> {
 
     tree.roots.forEach(collect);
     final useVirtualRoot = tree.roots.length > 1;
-    _rootId = tree.roots.length == 1
-        ? tree.roots.single.id
-        : (useVirtualRoot ? _virtualRootId : null);
 
     // Remove vanished nodes, deepest first so Graph.removeNode's recursive
     // subtree removal finds nothing left to cascade into.
@@ -511,13 +517,51 @@ class _SpringTreeBlockState extends State<SpringTreeBlock> {
     }
 
     final colors = AppTheme.colors(context);
-    final height = math.min(
-      520.0,
-      math.max(200.0, _tree.leafCount * 42.0 + 64.0),
+
+    final graphArea = LayoutBuilder(
+      builder: (context, constraints) {
+        _viewportSize = Size(constraints.maxWidth, constraints.maxHeight);
+        return Stack(
+          children: [
+            Positioned.fill(
+              child: Listener(
+                onPointerSignal: _claimWheelEvent,
+                child: GraphView.builder(
+                  // One persistent graph, synced in place; the element
+                  // tree diffs node widgets by their stable ValueKeys,
+                  // so only new nodes animate.
+                  graph: _graph,
+                  algorithm: _algorithm,
+                  controller: _graphController,
+                  // Keep position animation off: graphview restarts a
+                  // 600ms position lerp on every graph rebuild, so
+                  // during streaming/typing it never converges and
+                  // nodes overlap. New nodes still get a grow
+                  // animation from _buildNode.
+                  animated: false,
+                  // centerGraph must stay off: graphview implements it
+                  // by laying the graph out around (100000, 100000),
+                  // far outside the initial viewport, so the block
+                  // would render blank.
+                  centerGraph: false,
+                  paint: Paint()
+                    ..color = colors.border
+                    ..strokeWidth = 1.4
+                    ..style = PaintingStyle.stroke,
+                  builder: _buildNode,
+                ),
+              ),
+            ),
+            Positioned(right: 8, bottom: 8, child: _buildZoomControls(colors)),
+          ],
+        );
+      },
     );
 
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 12),
+      margin: widget.expand
+          ? EdgeInsets.zero
+          : const EdgeInsets.symmetric(vertical: 12),
       decoration: BoxDecoration(
         color: colors.surfaceMuted,
         border: Border.all(color: colors.border),
@@ -528,52 +572,16 @@ class _SpringTreeBlockState extends State<SpringTreeBlock> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _buildHeader(colors),
-          SizedBox(
-            height: height,
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                _viewportSize = Size(
-                  constraints.maxWidth,
-                  constraints.maxHeight,
-                );
-                return Stack(
-                  children: [
-                    Positioned.fill(
-                      child: GraphView.builder(
-                        // One persistent graph, synced in place; the element
-                        // tree diffs node widgets by their stable ValueKeys,
-                        // so only new nodes animate.
-                        graph: _graph,
-                        algorithm: _algorithm,
-                        controller: _graphController,
-                        // Keep position animation off: graphview restarts a
-                        // 600ms position lerp on every graph rebuild, so
-                        // during streaming/typing it never converges and
-                        // nodes overlap. New nodes still get a grow
-                        // animation from _buildNode.
-                        animated: false,
-                        // centerGraph must stay off: graphview implements it
-                        // by laying the graph out around (100000, 100000),
-                        // far outside the initial viewport, so the block
-                        // would render blank.
-                        centerGraph: false,
-                        paint: Paint()
-                          ..color = colors.border
-                          ..strokeWidth = 1.4
-                          ..style = PaintingStyle.stroke,
-                        builder: _buildNode,
-                      ),
-                    ),
-                    Positioned(
-                      right: 8,
-                      bottom: 8,
-                      child: _buildZoomControls(colors),
-                    ),
-                  ],
-                );
-              },
+          if (widget.expand)
+            Expanded(child: graphArea)
+          else
+            SizedBox(
+              height: math.min(
+                520.0,
+                math.max(200.0, _tree.leafCount * 42.0 + 64.0),
+              ),
+              child: graphArea,
             ),
-          ),
         ],
       ),
     );
@@ -663,6 +671,10 @@ class _SpringTreeBlockState extends State<SpringTreeBlock> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (!widget.expand) ...[
+            button(Icons.fullscreen_rounded, '全屏查看', _openFullscreen),
+            Divider(height: 1, thickness: 1, color: colors.divider),
+          ],
           button(Icons.add_rounded, '放大', () => _zoomBy(1.25)),
           Divider(height: 1, thickness: 1, color: colors.divider),
           button(Icons.remove_rounded, '缩小', () => _zoomBy(0.8)),
