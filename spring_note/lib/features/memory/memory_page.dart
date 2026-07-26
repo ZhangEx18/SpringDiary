@@ -12,7 +12,6 @@ import '../../core/services/memory_conversation_service.dart';
 import '../../core/services/memory_search_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/spring_tree.dart';
-import '../../core/widgets/spring_tree_parser.dart';
 import '../../core/widgets/spring_markdown.dart';
 
 bool shouldCollapseMemoryReasoning(MemoryMessage message) {
@@ -734,10 +733,7 @@ class _MemoryPageState extends State<MemoryPage> {
           children: [
             Center(
               child: ConstrainedBox(
-                // Regular messages cap themselves at 820 below; the wider
-                // ceiling exists so springtree mind-map messages can grow
-                // into the window's side margins.
-                constraints: const BoxConstraints(maxWidth: 1600),
+                constraints: const BoxConstraints(maxWidth: 920),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -1268,11 +1264,7 @@ class _MemoryMessageView extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Mind-map messages break out of the 820 reading column so large
-        // springtree graphs can use the space beside it.
-        final isMindmap =
-            message.role != 'user' && message.content.contains('```springtree');
-        final messageWidth = isMindmap || constraints.maxWidth < 820
+        final messageWidth = constraints.maxWidth < 820
             ? constraints.maxWidth
             : 820.0;
         return Center(
@@ -1307,24 +1299,6 @@ class _MemoryMessageView extends StatelessWidget {
               context,
             ).textTheme.bodyLarge?.copyWith(color: colors.text, height: 1.7),
           ),
-        ),
-      );
-    }
-
-    // Mind-map messages span the full column so the graph can use the side
-    // margins. Everything else in the message — reasoning bar, tool chips,
-    // prose and regular code blocks — is split out around the springtree
-    // fence and kept in the centered 820 reading column, aligned with plain
-    // messages above and below.
-    final isMindmap = message.content.contains('```springtree');
-    Widget readingWidth(Widget child) {
-      if (!isMindmap) {
-        return child;
-      }
-      return Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 820),
-          child: SizedBox(width: double.infinity, child: child),
         ),
       );
     }
@@ -1378,29 +1352,18 @@ class _MemoryMessageView extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (message.reasoningContent.trim().isNotEmpty) ...[
-              readingWidth(
-                _ReasoningBlock(
-                  reasoning: message.reasoningContent,
-                  duration: memoryReasoningDuration(message),
-                  collapsed: shouldCollapseMemoryReasoning(message),
-                ),
+              _ReasoningBlock(
+                reasoning: message.reasoningContent,
+                duration: memoryReasoningDuration(message),
+                collapsed: shouldCollapseMemoryReasoning(message),
               ),
               const SizedBox(height: 12),
             ],
             if (message.content.trim().isNotEmpty)
-              if (isMindmap)
-                for (final segment in splitSpringTreeSegments(message.content))
-                  segment.isTree
-                      ? SpringTreeBlock(
-                          source: segment.treeSource!,
-                          isComplete: segment.treeComplete,
-                        )
-                      : readingWidth(buildMarkdown(segment.markdown!))
-              else
-                buildMarkdown(message.content),
+              buildMarkdown(message.content),
             if (attachments.isNotEmpty) ...[
               const SizedBox(height: 14),
-              readingWidth(_ToolAttachmentStrip(attachments: attachments)),
+              _ToolAttachmentStrip(attachments: attachments),
             ],
           ],
         ),

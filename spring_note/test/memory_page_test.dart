@@ -145,7 +145,7 @@ void main() {
     expect(lists.any((list) => list.bulletSize == 0), isTrue);
   });
 
-  testWidgets('springtree message breaks out of the reading column', (
+  testWidgets('springtree message stays inside the reading column', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1400, 760);
@@ -180,40 +180,17 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // The mind map may grow into the side margins (1400 window minus the
-    // 64 horizontal list padding), far beyond the 820 reading column.
-    final blockWidth = tester.getSize(find.byType(SpringTreeBlock)).width;
-    expect(blockWidth, greaterThan(1000));
-
-    // Regular text messages stay inside the reading column, and so does the
-    // prose surrounding a springtree fence in a mind-map message.
+    // Every message — including one with a mind map — renders inside the
+    // same centered 820 reading column; nothing stretches to the window.
+    expect(
+      tester.getSize(find.byType(SpringTreeBlock)).width,
+      lessThanOrEqualTo(820),
+    );
     final markdownWidths = tester
         .widgetList<GptMarkdown>(find.byType(GptMarkdown))
         .map((widget) => tester.getSize(find.byWidget(widget)).width);
     expect(markdownWidths.every((width) => width <= 820), isTrue);
-
-    // The reasoning bar and the prose in a mind-map message keep the
-    // (centered) reading width instead of stretching across the widened
-    // message; only the mind map itself breaks out.
-    final readingColumn = find.byWidgetPredicate(
-      (widget) =>
-          widget is ConstrainedBox && widget.constraints.maxWidth == 820,
-    );
-    expect(
-      find.descendant(of: readingColumn, matching: find.textContaining('深度思考')),
-      findsOneWidget,
-    );
-    expect(
-      find.descendant(of: readingColumn, matching: find.byType(GptMarkdown)),
-      findsNWidgets(2),
-    );
-    expect(
-      find.descendant(
-        of: readingColumn,
-        matching: find.byType(SpringTreeBlock),
-      ),
-      findsNothing,
-    );
+    expect(find.textContaining('深度思考'), findsOneWidget);
   });
 
   test('memory image bases include source note and notes directories', () {
