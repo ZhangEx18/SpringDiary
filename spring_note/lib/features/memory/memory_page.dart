@@ -11,7 +11,7 @@ import '../../core/services/ai_client_service.dart';
 import '../../core/services/memory_conversation_service.dart';
 import '../../core/services/memory_search_service.dart';
 import '../../core/theme/app_theme.dart';
-import '../../core/widgets/markdown_code_block.dart';
+import '../../core/widgets/spring_tree.dart';
 import '../../core/widgets/spring_markdown.dart';
 
 bool shouldCollapseMemoryReasoning(MemoryMessage message) {
@@ -1327,8 +1327,7 @@ class _MemoryMessageView extends StatelessWidget {
                     inlineComponents: springMarkdownInlineComponents,
                     unOrderedListBuilder: springMarkdownUnorderedListBuilder,
                     tableBuilder: springMarkdownTableBuilder,
-                    codeBuilder: (context, name, code, closed) =>
-                        MarkdownCodeBlock(language: name, code: code),
+                    codeBuilder: buildSpringCodeBlock,
                     imageBuilder: (context, url, width, height) =>
                         SpringMarkdownImage(
                           url: url,

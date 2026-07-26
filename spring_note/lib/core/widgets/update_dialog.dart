@@ -6,7 +6,7 @@ import 'package:gpt_markdown/gpt_markdown.dart';
 
 import '../services/update_check_service.dart';
 import '../theme/app_theme.dart';
-import 'markdown_code_block.dart';
+import 'spring_tree.dart';
 import 'spring_markdown.dart';
 
 Future<void> showAppUpdateDialog({
@@ -131,8 +131,7 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
                                   height: height,
                                   localImageBasePaths: const [],
                                 ),
-                            codeBuilder: (context, name, code, closed) =>
-                                MarkdownCodeBlock(language: name, code: code),
+                            codeBuilder: buildSpringCodeBlock,
                             style: textTheme.bodyLarge?.copyWith(
                               color: springMarkdownTextColor(context),
                               fontSize: 14,
