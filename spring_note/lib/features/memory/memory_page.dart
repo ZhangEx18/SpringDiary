@@ -112,6 +112,8 @@ class MemoryPage extends StatefulWidget {
 class _MemoryPageState extends State<MemoryPage> {
   final TextEditingController _entryController = MemoryComposerController();
   final TextEditingController _chatController = MemoryComposerController();
+  final LayerLink _entryMenuLink = LayerLink();
+  final LayerLink _chatMenuLink = LayerLink();
   final ScrollController _scrollController = ScrollController();
   final FocusNode _entryFocusNode = FocusNode();
   final FocusNode _chatFocusNode = FocusNode();
@@ -713,6 +715,7 @@ class _MemoryPageState extends State<MemoryPage> {
                 hintText: '问问你的回忆...',
                 answering: _answering,
                 onSubmit: _sendFromEntry,
+                menuLink: _entryMenuLink,
               ),
               const SizedBox(height: 18),
               Wrap(
@@ -827,6 +830,8 @@ class _MemoryPageState extends State<MemoryPage> {
                         answering: _answering,
                         onSubmit: _sendFromChat,
                         multiline: true,
+                        menuOpensUpward: true,
+                        menuLink: _chatMenuLink,
                       ),
                     ),
                   ),
@@ -996,7 +1001,9 @@ class _MemoryComposer extends StatelessWidget {
     required this.hintText,
     required this.answering,
     required this.onSubmit,
+    required this.menuLink,
     this.multiline = false,
+    this.menuOpensUpward = false,
   });
 
   final TextEditingController controller;
@@ -1004,7 +1011,15 @@ class _MemoryComposer extends StatelessWidget {
   final String hintText;
   final bool answering;
   final VoidCallback onSubmit;
+
+  /// Links the composer box to the floating mode menu: the menu anchors to
+  /// the whole composer so it can span the composer's full width.
+  final LayerLink menuLink;
   final bool multiline;
+
+  /// Chat composers sit at the bottom of the page: open the mode menu above
+  /// the "+" button. Entry composers open it below.
+  final bool menuOpensUpward;
 
   /// Inserts a mode tag at the cursor. The tag is a single code point in
   /// the text, so it edits like any other character — Backspace/Delete
@@ -1030,98 +1045,262 @@ class _MemoryComposer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = AppTheme.colors(context);
-    return Container(
-      constraints: const BoxConstraints(minHeight: 52),
-      padding: const EdgeInsets.fromLTRB(7, 5, 8, 5),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        border: Border.all(color: colors.border),
-        borderRadius: BorderRadius.circular(28),
-        boxShadow: [
-          BoxShadow(
-            color: colors.shadow.withValues(alpha: 0.08),
-            blurRadius: 28,
-            offset: Offset(0, 8),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final panelWidth = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : 280.0;
+        return CompositedTransformTarget(
+          link: menuLink,
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 52),
+            padding: const EdgeInsets.fromLTRB(7, 5, 8, 5),
+            decoration: BoxDecoration(
+              color: colors.surface,
+              border: Border.all(color: colors.border),
+              borderRadius: BorderRadius.circular(28),
+              boxShadow: [
+                BoxShadow(
+                  color: colors.shadow.withValues(alpha: 0.08),
+                  blurRadius: 28,
+                  offset: Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                _InputModeMenuButton(
+                  link: menuLink,
+                  panelWidth: panelWidth,
+                  opensUpward: menuOpensUpward,
+                  onSelected: _insertModeToken,
+                ),
+                Expanded(
+                  child: CallbackShortcuts(
+                    bindings: {
+                      const SingleActivator(
+                        LogicalKeyboardKey.enter,
+                        control: true,
+                      ): onSubmit,
+                      const SingleActivator(
+                        LogicalKeyboardKey.enter,
+                        meta: true,
+                      ): onSubmit,
+                    },
+                    child: TextField(
+                      controller: controller,
+                      focusNode: focusNode,
+                      enabled: true,
+                      // Desktop single-line fields select all on focus gain —
+                      // that would highlight a just-inserted mode tag.
+                      selectAllOnFocus: false,
+                      minLines: 1,
+                      maxLines: multiline ? 3 : 1,
+                      textInputAction: multiline
+                          ? TextInputAction.newline
+                          : TextInputAction.send,
+                      onSubmitted: multiline ? null : (_) => onSubmit(),
+                      decoration: InputDecoration(
+                        hintText: hintText,
+                        hoverColor: Colors.transparent,
+                        focusColor: Colors.transparent,
+                        filled: false,
+                        fillColor: Colors.transparent,
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        disabledBorder: InputBorder.none,
+                        isDense: true,
+                      ),
+                      style: Theme.of(context).textTheme.bodyLarge,
+                    ),
+                  ),
+                ),
+                IconButton.filled(
+                  onPressed: answering ? null : onSubmit,
+                  style: IconButton.styleFrom(
+                    backgroundColor: colors.text,
+                    disabledBackgroundColor: colors.surfaceMuted,
+                  ),
+                  icon: answering
+                      ? SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: colors.textSubtle,
+                          ),
+                        )
+                      : Icon(
+                          Icons.arrow_upward_rounded,
+                          color: colors.onAccent,
+                        ),
+                ),
+              ],
+            ),
           ),
-        ],
-      ),
-      child: Row(
-        children: [
-          PopupMenuButton<MemoryInputMode>(
-            tooltip: '输入模式',
-            // The composer sits at the bottom of the page — open upwards.
-            position: PopupMenuPosition.over,
-            icon: Icon(Icons.add_rounded, color: colors.textMuted),
-            onSelected: _insertModeToken,
-            itemBuilder: (context) => [
-              for (final mode in memoryInputModes)
-                PopupMenuItem<MemoryInputMode>(
-                  value: mode,
-                  child: Row(
+        );
+      },
+    );
+  }
+}
+
+/// The "+" button and its floating mode menu: a rounded panel that follows
+/// the button (below it for the entry composer, above it for the bottom
+/// chat composer) and closes on any outside tap. Styled after the attachment
+/// menus in chat apps: icon, label and a muted description per row.
+class _InputModeMenuButton extends StatefulWidget {
+  const _InputModeMenuButton({
+    required this.link,
+    required this.panelWidth,
+    required this.onSelected,
+    this.opensUpward = false,
+  });
+
+  /// Shared with the composer's [CompositedTransformTarget] so the menu
+  /// anchors to the whole composer.
+  final LayerLink link;
+
+  /// The composer's width — the menu panel spans it.
+  final double panelWidth;
+  final ValueChanged<MemoryInputMode> onSelected;
+  final bool opensUpward;
+
+  @override
+  State<_InputModeMenuButton> createState() => _InputModeMenuButtonState();
+}
+
+class _InputModeMenuButtonState extends State<_InputModeMenuButton> {
+  final Object _tapRegionGroupId = Object();
+  OverlayEntry? _menuEntry;
+
+  void _toggleMenu() {
+    if (_menuEntry == null) {
+      _openMenu();
+    } else {
+      _closeMenu();
+    }
+  }
+
+  void _openMenu() {
+    final entry = OverlayEntry(builder: _buildMenuPanel);
+    _menuEntry = entry;
+    Overlay.of(context).insert(entry);
+  }
+
+  void _closeMenu() {
+    _menuEntry?.remove();
+    _menuEntry = null;
+  }
+
+  void _select(MemoryInputMode mode) {
+    _closeMenu();
+    widget.onSelected(mode);
+  }
+
+  @override
+  void dispose() {
+    _menuEntry?.remove();
+    super.dispose();
+  }
+
+  Widget _buildMenuPanel(BuildContext context) {
+    final colors = AppTheme.colors(context);
+    // Overlay entries get tight full-screen constraints; the Positioned
+    // loosens them so the follower sizes to the panel and the anchors apply
+    // to the panel itself instead of a full-screen box.
+    return Stack(
+      children: [
+        Positioned(
+          left: 0,
+          top: 0,
+          child: CompositedTransformFollower(
+            link: widget.link,
+            targetAnchor: widget.opensUpward
+                ? Alignment.topLeft
+                : Alignment.bottomLeft,
+            followerAnchor: widget.opensUpward
+                ? Alignment.bottomLeft
+                : Alignment.topLeft,
+            offset: Offset(0, widget.opensUpward ? -8 : 8),
+            child: TapRegion(
+              groupId: _tapRegionGroupId,
+              child: Material(
+                color: colors.surface,
+                elevation: 8,
+                shadowColor: colors.shadow.withValues(alpha: 0.24),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  side: BorderSide(color: colors.border),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: SizedBox(
+                  key: const ValueKey('input-mode-menu-panel'),
+                  width: widget.panelWidth,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(mode.icon, size: 16),
-                      const SizedBox(width: 10),
-                      Text(mode.label),
+                      for (final mode in memoryInputModes)
+                        InkWell(
+                          onTap: () => _select(mode),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 12,
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  mode.icon,
+                                  size: 18,
+                                  color: colors.textMuted,
+                                ),
+                                const SizedBox(width: 12),
+                                Text(
+                                  mode.label,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                    color: colors.text,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    mode.description,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: colors.textMuted,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 ),
-            ],
-          ),
-          Expanded(
-            child: CallbackShortcuts(
-              bindings: {
-                const SingleActivator(LogicalKeyboardKey.enter, control: true):
-                    onSubmit,
-                const SingleActivator(LogicalKeyboardKey.enter, meta: true):
-                    onSubmit,
-              },
-              child: TextField(
-                controller: controller,
-                focusNode: focusNode,
-                enabled: true,
-                // Desktop single-line fields select all on focus gain —
-                // that would highlight a just-inserted mode tag.
-                selectAllOnFocus: false,
-                minLines: 1,
-                maxLines: multiline ? 3 : 1,
-                textInputAction: multiline
-                    ? TextInputAction.newline
-                    : TextInputAction.send,
-                onSubmitted: multiline ? null : (_) => onSubmit(),
-                decoration: InputDecoration(
-                  hintText: hintText,
-                  hoverColor: Colors.transparent,
-                  focusColor: Colors.transparent,
-                  filled: false,
-                  fillColor: Colors.transparent,
-                  border: InputBorder.none,
-                  enabledBorder: InputBorder.none,
-                  focusedBorder: InputBorder.none,
-                  disabledBorder: InputBorder.none,
-                  isDense: true,
-                ),
-                style: Theme.of(context).textTheme.bodyLarge,
               ),
             ),
           ),
-          IconButton.filled(
-            onPressed: answering ? null : onSubmit,
-            style: IconButton.styleFrom(
-              backgroundColor: colors.text,
-              disabledBackgroundColor: colors.surfaceMuted,
-            ),
-            icon: answering
-                ? SizedBox(
-                    width: 14,
-                    height: 14,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: colors.textSubtle,
-                    ),
-                  )
-                : Icon(Icons.arrow_upward_rounded, color: colors.onAccent),
-          ),
-        ],
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = AppTheme.colors(context);
+    return TapRegion(
+      groupId: _tapRegionGroupId,
+      onTapOutside: (_) => _closeMenu(),
+      child: IconButton(
+        tooltip: '输入模式',
+        onPressed: _toggleMenu,
+        icon: Icon(Icons.add_rounded, color: colors.textMuted),
       ),
     );
   }

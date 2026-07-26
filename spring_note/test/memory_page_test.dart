@@ -280,6 +280,53 @@ void main() {
     expect(inputController.text, '下一条预先输入的回忆问题');
   });
 
+  testWidgets('input mode menu opens as a panel below the entry + button', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 760);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: MemoryPage(
+            localDataState: _localDataState(),
+            conversationService: _FakeMemoryConversationService(),
+            searchService: const _FakeMemorySearchService(),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.add_rounded));
+    await tester.pumpAndSettle();
+
+    final composer = find.byWidgetPredicate(
+      (widget) =>
+          widget is Container &&
+          widget.constraints == const BoxConstraints(minHeight: 52),
+    );
+    expect(composer, findsOneWidget);
+    final panel = find.byKey(const ValueKey('input-mode-menu-panel'));
+    expect(panel, findsOneWidget);
+
+    // The panel spans the composer: same left edge and width, just below it.
+    expect(tester.getTopLeft(panel).dx, tester.getTopLeft(composer).dx);
+    expect(tester.getSize(panel).width, tester.getSize(composer).width);
+    expect(
+      tester.getTopLeft(panel).dy,
+      greaterThanOrEqualTo(tester.getBottomLeft(composer).dy),
+    );
+    expect(
+      tester.getTopLeft(panel).dy,
+      lessThan(tester.getBottomLeft(composer).dy + 24),
+    );
+    expect(find.text('以思维导图呈现回答'), findsOneWidget);
+  });
+
   testWidgets(
     'mind map mode tag edits like text and injects the prompt only for the model',
     (tester) async {

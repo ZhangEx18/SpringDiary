@@ -10,6 +10,7 @@ class MemoryInputMode {
   const MemoryInputMode({
     required this.id,
     required this.label,
+    required this.description,
     required this.icon,
     required this.token,
     required this.prompt,
@@ -18,10 +19,13 @@ class MemoryInputMode {
   /// Stable identifier, e.g. `springtree`.
   final String id;
 
-  /// Chip label shown inside the input field, e.g. `思维导图`.
+  /// Tag label shown inside the input field, e.g. `思维导图`.
   final String label;
 
-  /// Icon shown in the "+" menu.
+  /// Short muted hint shown next to the label in the "+" menu.
+  final String description;
+
+  /// Icon shown in the "+" menu and in the input-field tag.
   final IconData icon;
 
   /// Single private-use code point embedded in the input text.
@@ -35,6 +39,7 @@ class MemoryInputMode {
 const MemoryInputMode mindMapInputMode = MemoryInputMode(
   id: 'springtree',
   label: '思维导图',
+  description: '以思维导图呈现回答',
   icon: Icons.account_tree_outlined,
   token: '\u{e100}',
   prompt: r'''
