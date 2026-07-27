@@ -415,4 +415,69 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('inline view caps large trees and reports the hidden count', (
+    tester,
+  ) async {
+    // 1 root + 30 branches + 120 children = 151 nodes; the inline cap of
+    // 120 keeps the root, all 30 branches and the first 89 children in
+    // breadth-first order (子项 22-0 is node 120, 子项 22-1 is 121st).
+    final source = StringBuffer('- 根\n');
+    for (var i = 0; i < 30; i++) {
+      source.writeln('  - 分支 $i');
+      for (var j = 0; j < 4; j++) {
+        source.writeln('    - 子项 $i-$j');
+      }
+    }
+    await tester.pumpWidget(_wrap(source.toString()));
+    await tester.pumpAndSettle();
+
+    final cards = find.byWidgetPredicate(
+      (w) =>
+          w.key is ValueKey<String> &&
+          (w.key! as ValueKey<String>).value.startsWith('springtree_'),
+    );
+    expect(cards.evaluate().length, 120);
+    expect(find.text('子项 22-0'), findsOneWidget);
+    expect(find.text('子项 22-1'), findsNothing);
+    expect(find.text('+31'), findsOneWidget);
+
+    // The fullscreen dialog mounts the complete tree.
+    await tester.tap(find.byIcon(Icons.fullscreen_rounded));
+    await tester.pumpAndSettle();
+    expect(find.text('子项 29-3'), findsOneWidget);
+  });
+
+  testWidgets('inlineNodeLimit can be lifted for the memoir page', (
+    tester,
+  ) async {
+    final source = StringBuffer('- 根\n');
+    for (var i = 0; i < 30; i++) {
+      source.writeln('  - 分支 $i');
+      for (var j = 0; j < 4; j++) {
+        source.writeln('    - 子项 $i-$j');
+      }
+    }
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: SpringTreeBlock(
+              source: source.toString(),
+              inlineNodeLimit: null,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final cards = find.byWidgetPredicate(
+      (w) =>
+          w.key is ValueKey<String> &&
+          (w.key! as ValueKey<String>).value.startsWith('springtree_'),
+    );
+    expect(cards.evaluate().length, 151);
+    expect(find.text('+31'), findsNothing);
+  });
 }

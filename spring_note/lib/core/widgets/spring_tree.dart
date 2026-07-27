@@ -1,3 +1,4 @@
+import 'dart:collection';
 import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
@@ -220,15 +221,22 @@ class _RadialMindmapAlgorithm extends Algorithm {
 /// Shared `codeBuilder` for every `GptMarkdown` instance in the app.
 ///
 /// Routes ```springtree fences to the [SpringTreeBlock] mind map and keeps
-/// every other language on the regular highlighted code block.
+/// every other language on the regular highlighted code block. Pass
+/// `inlineNodeLimit: null` where the inline node cap should not apply
+/// (the memoir page).
 Widget buildSpringCodeBlock(
   BuildContext context,
   String name,
   String code,
-  bool closed,
-) {
+  bool closed, {
+  int? inlineNodeLimit = SpringTreeBlock.defaultInlineNodeLimit,
+}) {
   if (name.trim().toLowerCase() == 'springtree') {
-    return SpringTreeBlock(source: code, isComplete: closed);
+    return SpringTreeBlock(
+      source: code,
+      isComplete: closed,
+      inlineNodeLimit: inlineNodeLimit,
+    );
   }
   return MarkdownCodeBlock(language: name, code: code);
 }
@@ -246,7 +254,11 @@ class SpringTreeBlock extends StatefulWidget {
     required this.source,
     this.isComplete = true,
     this.expand = false,
+    this.inlineNodeLimit = defaultInlineNodeLimit,
   });
+
+  /// Default for [inlineNodeLimit].
+  static const int defaultInlineNodeLimit = 120;
 
   /// Raw body of the code fence (the indented list).
   final String source;
@@ -257,6 +269,15 @@ class SpringTreeBlock extends StatefulWidget {
   /// Fill all the height the parent offers (fullscreen dialog) instead of
   /// sizing the canvas from the leaf count.
   final bool expand;
+
+  /// Max nodes the inline (non-fullscreen) map mounts. Mounting node
+  /// widgets is the dominant cost of rendering a large tree, so the inline
+  /// block mounts only the first [inlineNodeLimit] nodes (breadth-first,
+  /// so every mounted node's parent is mounted too) and reports the rest
+  /// in the header. Null means no limit — for the memoir page, a single
+  /// scrollable page where note-switch performance does not apply. The
+  /// fullscreen dialog (`expand: true`) always mounts everything.
+  final int? inlineNodeLimit;
 
   @override
   State<SpringTreeBlock> createState() => _SpringTreeBlockState();
@@ -318,6 +339,10 @@ class _SpringTreeBlockState extends State<SpringTreeBlock> {
   /// opacity/scale animations — several expensive frames of widget rebuilds
   /// and save-layers, i.e. visible switch lag.
   static const int _maxAnimatedInitialNodes = 24;
+
+  /// How many nodes the inline cap currently hides (always 0 when
+  /// [SpringTreeBlock.expand] is true or the limit was lifted).
+  int _hiddenNodeCount = 0;
 
   /// Node ids of the very first parse, captured lazily on first build.
   late final Set<String> _initialNodeIds = _items.keys.toSet();
@@ -566,16 +591,23 @@ class _SpringTreeBlockState extends State<SpringTreeBlock> {
 
   void _rebuildGraph() {
     final tree = parseSpringTree(widget.source);
+    // Breadth-first collection, so every collected node's parent is
+    // collected as well and edges stay valid. The inline cap stops
+    // collecting at [SpringTreeBlock.inlineNodeLimit] while the walk
+    // continues, just for the total count shown in the header.
     final wanted = <String, SpringTreeNode>{};
-
-    void collect(SpringTreeNode item) {
-      wanted[item.id] = item;
-      for (final child in item.children) {
-        collect(child);
+    final limit = widget.inlineNodeLimit;
+    final cap = widget.expand || limit == null ? 1 << 30 : limit;
+    var totalNodes = 0;
+    final queue = ListQueue<SpringTreeNode>.from(tree.roots);
+    while (queue.isNotEmpty) {
+      final item = queue.removeFirst();
+      totalNodes++;
+      if (wanted.length < cap) {
+        wanted[item.id] = item;
       }
+      queue.addAll(item.children);
     }
-
-    tree.roots.forEach(collect);
     final useVirtualRoot = tree.roots.length > 1;
 
     // Remove vanished nodes, deepest first so Graph.removeNode's recursive
@@ -599,6 +631,12 @@ class _SpringTreeBlockState extends State<SpringTreeBlock> {
     // edges never need rewiring — only label text changes in place, which is
     // picked up from _items when the node widget rebuilds.
     void ensure(SpringTreeNode item, Node? parent) {
+      // Cut away by the inline cap: breadth-first collection means no
+      // descendant of an unwanted node is wanted either, so the whole
+      // subtree can be skipped.
+      if (!wanted.containsKey(item.id)) {
+        return;
+      }
       final node = _nodes.putIfAbsent(item.id, () {
         final created = Node.Id(item.id);
         _graph.addNode(created);
@@ -630,6 +668,7 @@ class _SpringTreeBlockState extends State<SpringTreeBlock> {
     setState(() {
       _tree = tree;
       _items = wanted;
+      _hiddenNodeCount = totalNodes - wanted.length;
     });
     _scheduleFit();
   }
@@ -783,6 +822,22 @@ class _SpringTreeBlockState extends State<SpringTreeBlock> {
                 color: colors.textSubtle,
                 fontSize: 10,
                 height: 1,
+              ),
+            ),
+          ],
+          if (_hiddenNodeCount > 0) ...[
+            const SizedBox(width: 8),
+            Tooltip(
+              message:
+                  '内联视图最多显示 ${widget.inlineNodeLimit} 个节点，'
+                  '其余 $_hiddenNodeCount 个请通过全屏查看',
+              child: Text(
+                '+$_hiddenNodeCount',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: colors.textSubtle,
+                  fontSize: 10,
+                  height: 1,
+                ),
               ),
             ),
           ],

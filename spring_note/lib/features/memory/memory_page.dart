@@ -1729,7 +1729,16 @@ class _MemoryMessageView extends StatelessWidget {
             inlineComponents: springMarkdownInlineComponents,
             unOrderedListBuilder: springMarkdownUnorderedListBuilder,
             tableBuilder: springMarkdownTableBuilder,
-            codeBuilder: buildSpringCodeBlock,
+            // The memoir page is a single scrollable page with no note
+            // switching, so springtree blocks render without the inline
+            // node cap.
+            codeBuilder: (context, name, code, closed) => buildSpringCodeBlock(
+              context,
+              name,
+              code,
+              closed,
+              inlineNodeLimit: null,
+            ),
             imageBuilder: (context, url, width, height) => SpringMarkdownImage(
               url: url,
               width: width,
