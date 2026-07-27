@@ -31,6 +31,12 @@ Widget? buildMarkdownLocalImage({
     width: width,
     height: height,
     fit: fit,
+    // Decode near display resolution (the frame caps at 680x520 logical):
+    // full-resolution photos would otherwise occupy tens of MB each in the
+    // image cache. Mirrors _StorageLocalImage in the settings panel.
+    cacheWidth: 1400,
+    cacheHeight: 1400,
+    filterQuality: FilterQuality.medium,
     errorBuilder: errorBuilder,
   );
 }

@@ -60,6 +60,12 @@ dependency_overrides:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  integration_test:
+    sdk: flutter
+  # Leak tracking is enabled in test/flutter_test_config.dart.
+  leak_tracker_flutter_testing: 3.0.10
+  # Used by integration_test/memory_churn_test.dart to read RSS/heap metrics.
+  vm_service: 15.2.0
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is

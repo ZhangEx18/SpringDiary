@@ -367,6 +367,10 @@ class SpringMarkdownImage extends StatelessWidget {
         width: width,
         height: height,
         fit: BoxFit.contain,
+        // Same decode cap as local images (see buildMarkdownLocalImage).
+        cacheWidth: 1400,
+        cacheHeight: 1400,
+        filterQuality: FilterQuality.medium,
         errorBuilder: (context, error, stackTrace) =>
             const _ImageFallbackIcon(),
       );

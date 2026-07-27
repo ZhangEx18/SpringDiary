@@ -793,8 +793,11 @@ class _YearHeatmapState extends State<_YearHeatmap> {
   }
 
   void _removeTooltipOverlay() {
-    _tooltipOverlay?.remove();
+    // remove() only detaches the entry; dispose() releases it for real.
+    final entry = _tooltipOverlay;
     _tooltipOverlay = null;
+    entry?.remove();
+    entry?.dispose();
   }
 
   void _alignToLatestAfterLayout() {
@@ -1485,8 +1488,11 @@ class _UsageBarState extends State<_UsageBar> {
   }
 
   void _removeTooltipOverlay() {
-    _tooltipOverlay?.remove();
+    // remove() only detaches the entry; dispose() releases it for real.
+    final entry = _tooltipOverlay;
     _tooltipOverlay = null;
+    entry?.remove();
+    entry?.dispose();
   }
 
   List<_UsageTooltipRow> _providerTooltipRows() {

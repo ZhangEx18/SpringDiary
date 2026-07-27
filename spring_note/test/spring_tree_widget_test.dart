@@ -182,6 +182,24 @@ void main() {
     }
   });
 
+  testWidgets('graph stays hidden until the initial fit is applied', (
+    tester,
+  ) async {
+    final gateFinder = find.ancestor(
+      of: find.byType(InteractiveViewer),
+      matching: find.byType(Opacity),
+    );
+
+    await tester.pumpWidget(_wrap('- root\n  - a\n  - b\n'));
+    // Right after the first frame the fit post-frame callback has run but
+    // its setState rebuild has not: the tree still shows the first build,
+    // which hides the graph instead of flashing the unfitted identity view.
+    expect(tester.widget<Opacity>(gateFinder).opacity, 0);
+
+    await tester.pumpAndSettle();
+    expect(tester.widget<Opacity>(gateFinder).opacity, 1);
+  });
+
   testWidgets('dense trees start fitted and offer zoom controls', (
     tester,
   ) async {
@@ -341,5 +359,60 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('springtree'), findsOneWidget);
+  });
+
+  testWidgets('survives graph → fallback → graph transitions', (tester) async {
+    // Regression test: graphview disposes the shared TransformationController
+    // when its GraphView unmounts, so re-entering the graph branch must
+    // recreate the controller instead of reusing the dead one (and dispose
+    // must not double-dispose it).
+    await tester.pumpWidget(_wrap('- root\n  - a\n'));
+    await tester.pumpAndSettle();
+    expect(find.byType(InteractiveViewer), findsOneWidget);
+
+    await tester.pumpWidget(_wrap('   \n---\n'));
+    await tester.pumpAndSettle();
+    expect(find.byType(InteractiveViewer), findsNothing);
+
+    await tester.pumpWidget(_wrap('- root\n  - a\n'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('root'), findsOneWidget);
+    expect(find.byType(InteractiveViewer), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    // Leaving the tree again in the fallback state must not leak or throw
+    // either.
+    await tester.pumpWidget(_wrap('   \n---\n'));
+    await tester.pumpAndSettle();
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('small trees play the grow animation on mount', (tester) async {
+    await tester.pumpWidget(_wrap('- root\n  - a\n  - b\n'));
+    await tester.pump();
+
+    expect(find.byType(TweenAnimationBuilder<double>), findsWidgets);
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('large trees mount statically without the grow animation', (
+    tester,
+  ) async {
+    // Regression test for preview/split switch lag: remounting a large tree
+    // must not start hundreds of simultaneous opacity/scale animations.
+    final source = StringBuffer('- 根\n');
+    for (var i = 0; i < 40; i++) {
+      source.writeln('  - 分支 $i');
+    }
+    await tester.pumpWidget(_wrap(source.toString()));
+    await tester.pump();
+
+    expect(find.byType(TweenAnimationBuilder<double>), findsNothing);
+    expect(find.text('分支 39'), findsOneWidget);
+    expect(find.byKey(const ValueKey('springtree_0.39')), findsOneWidget);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
   });
 }

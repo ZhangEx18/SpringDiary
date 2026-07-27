@@ -1751,8 +1751,12 @@ class _NotesKindMenuButtonState extends State<_NotesKindMenuButton> {
   }
 
   void _removeOverlay({bool updateState = true}) {
-    _overlayEntry?.remove();
+    // OverlayEntry must be disposed after removal, or leak tracking (and
+    // the framework contract) counts it as leaked.
+    final entry = _overlayEntry;
     _overlayEntry = null;
+    entry?.remove();
+    entry?.dispose();
     if (updateState && mounted) {
       setState(() {});
     }
@@ -2299,6 +2303,31 @@ class _EditorWorkspaceState extends State<_EditorWorkspace> {
   final ScrollController _editorScrollController = ScrollController();
   final ScrollController _previewScrollController = ScrollController();
 
+  /// The mode the body currently renders. Lags [widget.mode] by one frame
+  /// on every switch, see [didUpdateWidget].
+  late _EditorWorkspaceMode _bodyMode = widget.mode;
+  bool _bodySwitchPending = false;
+
+  @override
+  void didUpdateWidget(covariant _EditorWorkspace oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Defer the heavy body swap by one frame: the header's mode highlight
+    // animation (180ms) gets a cheap first frame instead of being swallowed
+    // by the mount of a large preview/editor subtree.
+    if (widget.mode != _bodyMode && !_bodySwitchPending) {
+      _bodySwitchPending = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _bodyMode = widget.mode;
+          _bodySwitchPending = false;
+        });
+      });
+    }
+  }
+
   @override
   void dispose() {
     _editorScrollController.dispose();
@@ -2340,12 +2369,12 @@ class _EditorWorkspaceState extends State<_EditorWorkspace> {
       markdown: widget.markdown,
       localImageBasePath: widget.localImageBasePath,
       scrollController: _previewScrollController,
-      padding: widget.mode == _EditorWorkspaceMode.split
+      padding: _bodyMode == _EditorWorkspaceMode.split
           ? const EdgeInsets.fromLTRB(32, _notesEditorTopContentPadding, 32, 56)
           : const EdgeInsets.fromLTRB(32, 20, 32, 56),
     );
 
-    return switch (widget.mode) {
+    return switch (_bodyMode) {
       _EditorWorkspaceMode.edit => editor,
       _EditorWorkspaceMode.preview => preview,
       _EditorWorkspaceMode.split => Row(
@@ -2801,13 +2830,21 @@ class _WorkspaceModeSegmentedControl extends StatelessWidget {
     required TextDirection textDirection,
     required TextScaler textScaler,
   }) {
+    // TextPainter holds a native ui.Paragraph after layout and must be
+    // disposed; leaking one per measured segment adds up quickly because
+    // this control rebuilds on every editor status change.
     final painter = TextPainter(
       text: TextSpan(text: label, style: style),
       maxLines: 1,
       textDirection: textDirection,
       textScaler: textScaler,
-    )..layout();
-    return painter.width;
+    );
+    try {
+      painter.layout();
+      return painter.width;
+    } finally {
+      painter.dispose();
+    }
   }
 }
 

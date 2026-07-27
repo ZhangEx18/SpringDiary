@@ -1335,8 +1335,11 @@ class _InputModeMenuButtonState extends State<_InputModeMenuButton> {
   }
 
   void _closeMenu() {
-    _menuEntry?.remove();
+    // remove() only detaches the entry; dispose() releases it for real.
+    final entry = _menuEntry;
     _menuEntry = null;
+    entry?.remove();
+    entry?.dispose();
   }
 
   void _select(MemoryInputMode mode) {
@@ -1346,7 +1349,7 @@ class _InputModeMenuButtonState extends State<_InputModeMenuButton> {
 
   @override
   void dispose() {
-    _menuEntry?.remove();
+    _closeMenu();
     super.dispose();
   }
 

@@ -465,7 +465,7 @@ void main() {
       );
 
       expect(image, isA<Image>());
-      expect((image as Image).image, isA<FileImage>());
+      expect(_unwrapResizeImage((image as Image).image), isA<FileImage>());
     },
   );
 
@@ -482,7 +482,7 @@ void main() {
       );
 
       expect(image, isA<Image>());
-      expect((image as Image).image, isA<FileImage>());
+      expect(_unwrapResizeImage((image as Image).image), isA<FileImage>());
     },
   );
 
@@ -508,7 +508,7 @@ void main() {
       );
 
       expect(image, isA<Image>());
-      final provider = (image as Image).image;
+      final provider = _unwrapResizeImage((image as Image).image);
       expect(provider, isA<FileImage>());
       expect(
         (provider as FileImage).file.path,
@@ -538,7 +538,7 @@ void main() {
       );
 
       expect(image, isA<Image>());
-      final provider = (image as Image).image;
+      final provider = _unwrapResizeImage((image as Image).image);
       expect(provider, isA<FileImage>());
       expect((provider as FileImage).file.path, imageFile.path);
     },
@@ -561,7 +561,7 @@ void main() {
     );
 
     expect(image, isA<Image>());
-    final provider = (image as Image).image;
+    final provider = _unwrapResizeImage((image as Image).image);
     expect(provider, isA<FileImage>());
     expect((provider as FileImage).file.path, imageFile.path);
   });
@@ -728,7 +728,7 @@ void main() {
 
     final image = tester.widget<Image>(find.byType(Image));
 
-    expect(image.image, isA<NetworkImage>());
+    expect(_unwrapResizeImage(image.image), isA<NetworkImage>());
   });
 }
 
@@ -738,6 +738,13 @@ Widget _imageErrorBuilder(
   StackTrace? stackTrace,
 ) {
   return const SizedBox.shrink();
+}
+
+/// Preview images are wrapped in a ResizeImage that caps decode resolution;
+/// unwraps it and returns the underlying provider for assertions.
+ImageProvider _unwrapResizeImage(ImageProvider provider) {
+  expect(provider, isA<ResizeImage>());
+  return (provider as ResizeImage).imageProvider;
 }
 
 final _pngBytes = base64Decode(

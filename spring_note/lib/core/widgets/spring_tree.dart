@@ -289,17 +289,48 @@ class _SpringTreeBlockState extends State<SpringTreeBlock> {
   Map<String, SpringTreeNode> _items = <String, SpringTreeNode>{};
   bool _copied = false;
 
-  /// View transform for the graph canvas. Disposed by [GraphView] once it
-  /// takes ownership, so it must not be disposed here.
-  final TransformationController _viewTransform = TransformationController();
-  late final GraphViewController _graphController = GraphViewController(
-    transformationController: _viewTransform,
-  );
+  /// View transform for the graph canvas, recreated whenever the graph
+  /// branch remounts after a fallback.
+  ///
+  /// graphview 1.5.1's GraphView disposes even an externally provided
+  /// TransformationController in its own dispose, so ownership follows the
+  /// widget tree: while the graph branch is mounted the controller belongs
+  /// to GraphView; while the fallback code block is shown (unparseable
+  /// source) it belongs to this state. [_graphBranchMounted] and
+  /// [_transformDisposedByGraphView] track that transfer so the controller
+  /// is recreated after a GraphView unmount and disposed exactly once.
+  late TransformationController _viewTransform;
+  late GraphViewController _graphController;
+
+  /// Whether the last build mounted a GraphView (which then owns
+  /// [_viewTransform] and disposes it on unmount).
+  bool _graphBranchMounted = false;
+
+  /// Whether a previously mounted GraphView already disposed
+  /// [_viewTransform]; the next graph build must recreate it first, and
+  /// [dispose] must not dispose it again.
+  bool _transformDisposedByGraphView = false;
+
+  /// Above this many nodes in the very first parse, the initial batch skips
+  /// the grow animation. The animation exists so nodes arriving one by one
+  /// during streaming "grow" in; on a full remount of a large tree (every
+  /// preview/split switch) it instead runs hundreds of simultaneous
+  /// opacity/scale animations — several expensive frames of widget rebuilds
+  /// and save-layers, i.e. visible switch lag.
+  static const int _maxAnimatedInitialNodes = 24;
+
+  /// Node ids of the very first parse, captured lazily on first build.
+  late final Set<String> _initialNodeIds = _items.keys.toSet();
 
   /// Size of the graph canvas, tracked from [LayoutBuilder] constraints.
   Size _viewportSize = Size.zero;
   bool _userInteractedWithView = false;
   bool _applyingFit = false;
+
+  /// True while the graph stays hidden until the initial fit transform has
+  /// been applied (first frame after a mount); prevents a one-frame flash
+  /// of the unfitted identity-transform graph.
+  bool _awaitingInitialFit = true;
 
   final Algorithm _algorithm = _RadialMindmapAlgorithm(
     BuchheimWalkerConfiguration(
@@ -313,7 +344,19 @@ class _SpringTreeBlockState extends State<SpringTreeBlock> {
   @override
   void initState() {
     super.initState();
+    _createViewTransform();
     _rebuildGraph();
+  }
+
+  /// Creates the view transform and the graphview controller wrapping it,
+  /// and attaches the user-interaction listener. Called from [initState]
+  /// and again whenever the graph branch remounts after a fallback, because
+  /// the unmounted GraphView disposed the previous controller.
+  void _createViewTransform() {
+    _viewTransform = TransformationController();
+    _graphController = GraphViewController(
+      transformationController: _viewTransform,
+    );
     // Any transform change that did not come from _fitGraphIntoView is the
     // user panning/zooming; afterwards the view is left alone.
     _viewTransform.addListener(() {
@@ -340,6 +383,12 @@ class _SpringTreeBlockState extends State<SpringTreeBlock> {
       );
     }
     _panPointers.clear();
+    // Dispose the transform only while this state still owns it: a mounted
+    // GraphView disposes it during unmount, and an already unmounted one
+    // left it disposed.
+    if (!_graphBranchMounted && !_transformDisposedByGraphView) {
+      _viewTransform.dispose();
+    }
     super.dispose();
   }
 
@@ -350,30 +399,38 @@ class _SpringTreeBlockState extends State<SpringTreeBlock> {
   /// for readability. Skipped once the user takes over the canvas.
   void _scheduleFit() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || _userInteractedWithView) {
+      // _transformDisposedByGraphView: the callback may outlive the graph
+      // branch that scheduled it; its controller is dead by then.
+      if (!mounted || _transformDisposedByGraphView) {
         return;
       }
-      final bounds = _graph.calculateGraphBounds();
-      if (bounds.isEmpty || _viewportSize.isEmpty) {
-        return;
+      if (!_userInteractedWithView) {
+        final bounds = _graph.calculateGraphBounds();
+        if (!bounds.isEmpty && !_viewportSize.isEmpty) {
+          const padding = 28.0;
+          final fitScale = math.min(
+            (_viewportSize.width - padding * 2) / bounds.width,
+            (_viewportSize.height - padding * 2) / bounds.height,
+          );
+          final scale = math.min(1.0, fitScale);
+          final dx =
+              (_viewportSize.width - bounds.width * scale) / 2 -
+              bounds.left * scale;
+          final dy =
+              (_viewportSize.height - bounds.height * scale) / 2 -
+              bounds.top * scale;
+          _applyingFit = true;
+          _viewTransform.value = Matrix4.identity()
+            ..translateByDouble(dx, dy, 0, 1)
+            ..scaleByDouble(scale, scale, 1, 1);
+          _applyingFit = false;
+        }
       }
-      const padding = 28.0;
-      final fitScale = math.min(
-        (_viewportSize.width - padding * 2) / bounds.width,
-        (_viewportSize.height - padding * 2) / bounds.height,
-      );
-      final scale = math.min(1.0, fitScale);
-      final dx =
-          (_viewportSize.width - bounds.width * scale) / 2 -
-          bounds.left * scale;
-      final dy =
-          (_viewportSize.height - bounds.height * scale) / 2 -
-          bounds.top * scale;
-      _applyingFit = true;
-      _viewTransform.value = Matrix4.identity()
-        ..translateByDouble(dx, dy, 0, 1)
-        ..scaleByDouble(scale, scale, 1, 1);
-      _applyingFit = false;
+      // Reveal the graph whether or not a fit was applied this frame;
+      // otherwise an early return above would keep it hidden forever.
+      if (_awaitingInitialFit) {
+        setState(() => _awaitingInitialFit = false);
+      }
     });
   }
 
@@ -592,9 +649,23 @@ class _SpringTreeBlockState extends State<SpringTreeBlock> {
   @override
   Widget build(BuildContext context) {
     if (_tree.isEmpty) {
-      // Nothing parseable (yet) — behave like an ordinary code block.
+      // Nothing parseable (yet) — behave like an ordinary code block. The
+      // GraphView replaced by this build disposes the transform it owns.
+      if (_graphBranchMounted) {
+        _graphBranchMounted = false;
+        _transformDisposedByGraphView = true;
+      }
       return MarkdownCodeBlock(language: 'springtree', code: widget.source);
     }
+    if (_transformDisposedByGraphView) {
+      // Reviving the graph branch after a fallback: the previous transform
+      // is dead, so start over with a fresh, unfitted view.
+      _createViewTransform();
+      _transformDisposedByGraphView = false;
+      _userInteractedWithView = false;
+      _awaitingInitialFit = true;
+    }
+    _graphBranchMounted = true;
 
     final colors = AppTheme.colors(context);
 
@@ -604,33 +675,42 @@ class _SpringTreeBlockState extends State<SpringTreeBlock> {
         return Stack(
           children: [
             Positioned.fill(
-              child: Listener(
-                onPointerSignal: _claimWheelEvent,
-                onPointerDown: _trackMousePan,
-                child: _buildPanClaimer(
-                  child: GraphView.builder(
-                    // One persistent graph, synced in place; the element
-                    // tree diffs node widgets by their stable ValueKeys,
-                    // so only new nodes animate.
-                    graph: _graph,
-                    algorithm: _algorithm,
-                    controller: _graphController,
-                    // Keep position animation off: graphview restarts a
-                    // 600ms position lerp on every graph rebuild, so
-                    // during streaming/typing it never converges and
-                    // nodes overlap. New nodes still get a grow
-                    // animation from _buildNode.
-                    animated: false,
-                    // centerGraph must stay off: graphview implements it
-                    // by laying the graph out around (100000, 100000),
-                    // far outside the initial viewport, so the block
-                    // would render blank.
-                    centerGraph: false,
-                    paint: Paint()
-                      ..color = colors.border
-                      ..strokeWidth = 1.4
-                      ..style = PaintingStyle.stroke,
-                    builder: _buildNode,
+              // Hidden until the initial fit transform has been applied, so
+              // the first frame never shows the unfitted identity view.
+              child: Opacity(
+                opacity: _awaitingInitialFit ? 0 : 1,
+                // Isolate graph repaints (animations, pan/zoom) from the
+                // surrounding markdown content.
+                child: RepaintBoundary(
+                  child: Listener(
+                    onPointerSignal: _claimWheelEvent,
+                    onPointerDown: _trackMousePan,
+                    child: _buildPanClaimer(
+                      child: GraphView.builder(
+                        // One persistent graph, synced in place; the element
+                        // tree diffs node widgets by their stable ValueKeys,
+                        // so only new nodes animate.
+                        graph: _graph,
+                        algorithm: _algorithm,
+                        controller: _graphController,
+                        // Keep position animation off: graphview restarts a
+                        // 600ms position lerp on every graph rebuild, so
+                        // during streaming/typing it never converges and
+                        // nodes overlap. New nodes still get a grow
+                        // animation from _buildNode.
+                        animated: false,
+                        // centerGraph must stay off: graphview implements it
+                        // by laying the graph out around (100000, 100000),
+                        // far outside the initial viewport, so the block
+                        // would render blank.
+                        centerGraph: false,
+                        paint: Paint()
+                          ..color = colors.border
+                          ..strokeWidth = 1.4
+                          ..style = PaintingStyle.stroke,
+                        builder: _buildNode,
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -799,6 +879,15 @@ class _SpringTreeBlockState extends State<SpringTreeBlock> {
     final item = _items[id]!;
     // The ValueKey lets GraphView reuse this widget's element across graph
     // rebuilds, so the grow animation only runs for genuinely new nodes.
+    if (_initialNodeIds.length > _maxAnimatedInitialNodes &&
+        _initialNodeIds.contains(id)) {
+      // Large tree mounted wholesale: render the initial batch statically
+      // instead of animating every node at once.
+      return KeyedSubtree(
+        key: ValueKey('springtree_$id'),
+        child: _buildNodeCard(item),
+      );
+    }
     return TweenAnimationBuilder<double>(
       key: ValueKey('springtree_$id'),
       tween: Tween<double>(begin: 0, end: 1),

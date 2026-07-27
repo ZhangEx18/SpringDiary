@@ -1472,13 +1472,20 @@ class _ChoiceSettingRow<T> extends StatelessWidget {
     required TextDirection textDirection,
     required TextScaler textScaler,
   }) {
+    // TextPainter holds a native ui.Paragraph after layout and must be
+    // disposed.
     final painter = TextPainter(
       text: TextSpan(text: label, style: style),
       maxLines: 1,
       textDirection: textDirection,
       textScaler: textScaler,
-    )..layout();
-    return painter.width;
+    );
+    try {
+      painter.layout();
+      return painter.width;
+    } finally {
+      painter.dispose();
+    }
   }
 }
 
