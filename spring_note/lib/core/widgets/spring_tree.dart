@@ -332,20 +332,24 @@ class _SpringTreeBlockState extends State<SpringTreeBlock> {
   /// [dispose] must not dispose it again.
   bool _transformDisposedByGraphView = false;
 
-  /// Above this many nodes in the very first parse, the initial batch skips
-  /// the grow animation. The animation exists so nodes arriving one by one
-  /// during streaming "grow" in; on a full remount of a large tree (every
-  /// preview/split switch) it instead runs hundreds of simultaneous
-  /// opacity/scale animations — several expensive frames of widget rebuilds
-  /// and save-layers, i.e. visible switch lag.
+  /// Above this many nodes added by a single graph rebuild, that whole batch
+  /// skips the grow animation. The animation exists so nodes arriving one by
+  /// one during streaming "grow" in; when a rebuild mounts dozens of nodes at
+  /// once (first mount, or switching to a note whose tree differs
+  /// structurally) it instead runs that many simultaneous opacity/scale
+  /// animations — several expensive frames of widget rebuilds and
+  /// save-layers, i.e. visible switch lag.
   static const int _maxAnimatedInitialNodes = 24;
 
   /// How many nodes the inline cap currently hides (always 0 when
   /// [SpringTreeBlock.expand] is true or the limit was lifted).
   int _hiddenNodeCount = 0;
 
-  /// Node ids of the very first parse, captured lazily on first build.
-  late final Set<String> _initialNodeIds = _items.keys.toSet();
+  /// Ids that must render without the grow animation: every batch a single
+  /// [_rebuildGraph] added above [_maxAnimatedInitialNodes]. Pruned to live
+  /// nodes on every rebuild, so a node removed and later re-added by a small
+  /// streaming diff animates again.
+  final Set<String> _staticRenderIds = <String>{};
 
   /// Size of the graph canvas, tracked from [LayoutBuilder] constraints.
   Size _viewportSize = Size.zero;
@@ -630,6 +634,7 @@ class _SpringTreeBlockState extends State<SpringTreeBlock> {
     // Add new nodes and edges. A node's parent is encoded in its path id, so
     // edges never need rewiring — only label text changes in place, which is
     // picked up from _items when the node widget rebuilds.
+    final addedIds = <String>[];
     void ensure(SpringTreeNode item, Node? parent) {
       // Cut away by the inline cap: breadth-first collection means no
       // descendant of an unwanted node is wanted either, so the whole
@@ -640,6 +645,7 @@ class _SpringTreeBlockState extends State<SpringTreeBlock> {
       final node = _nodes.putIfAbsent(item.id, () {
         final created = Node.Id(item.id);
         _graph.addNode(created);
+        addedIds.add(item.id);
         return created;
       });
       if (parent != null) {
@@ -664,6 +670,13 @@ class _SpringTreeBlockState extends State<SpringTreeBlock> {
         ensure(root, origin);
       }
     }
+
+    // A wholesale swap (first mount, note switch to a different tree) renders
+    // its batch statically; small streaming diffs keep the grow animation.
+    if (addedIds.length > _maxAnimatedInitialNodes) {
+      _staticRenderIds.addAll(addedIds);
+    }
+    _staticRenderIds.removeWhere((id) => !wanted.containsKey(id));
 
     setState(() {
       _tree = tree;
@@ -934,10 +947,9 @@ class _SpringTreeBlockState extends State<SpringTreeBlock> {
     final item = _items[id]!;
     // The ValueKey lets GraphView reuse this widget's element across graph
     // rebuilds, so the grow animation only runs for genuinely new nodes.
-    if (_initialNodeIds.length > _maxAnimatedInitialNodes &&
-        _initialNodeIds.contains(id)) {
-      // Large tree mounted wholesale: render the initial batch statically
-      // instead of animating every node at once.
+    if (_staticRenderIds.contains(id)) {
+      // Mounted as part of a large batch (first mount, note switch): render
+      // statically instead of animating dozens of nodes at once.
       return KeyedSubtree(
         key: ValueKey('springtree_$id'),
         child: _buildNodeCard(item),
