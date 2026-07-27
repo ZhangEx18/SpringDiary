@@ -187,14 +187,33 @@ class _MemoryPageState extends State<MemoryPage> {
     _entryFocusNode.requestFocus();
   }
 
-  Future<void> _sendFromEntry() => _send(_entryController.text);
+  Future<void> _sendFromEntry() =>
+      _send(_entryController.text, tagSource: _entryController);
 
-  Future<void> _sendFromChat() => _send(_chatController.text);
+  Future<void> _sendFromChat() =>
+      _send(_chatController.text, tagSource: _chatController);
 
-  Future<void> _send(String rawQuestion) async {
+  Future<void> _send(
+    String rawQuestion, {
+    TextEditingController? tagSource,
+  }) async {
     // Mode tags (e.g. 思维导图) live in the input text; strip them from the
     // displayed question and turn their prompts into a model-only suffix.
-    final resolved = resolveMemoryInputModes(rawQuestion);
+    // Quick-action buttons send canned text, so their caller passes the
+    // composer as [tagSource]: the tags sitting in it apply to that
+    // message too — a visible tag means the mode is on, however the
+    // message is sent.
+    var resolved = resolveMemoryInputModes(rawQuestion);
+    if (tagSource != null) {
+      final tagModes = resolveMemoryInputModes(tagSource.text).modes;
+      resolved = MemoryInputModeResolution(
+        userText: resolved.userText,
+        modes: [
+          for (final mode in memoryInputModes)
+            if (resolved.modes.contains(mode) || tagModes.contains(mode)) mode,
+        ],
+      );
+    }
     final question = resolved.userText.trim();
     if (question.isEmpty || _answering) {
       return;
@@ -218,7 +237,14 @@ class _MemoryPageState extends State<MemoryPage> {
       _answering = true;
       _waitingForMemoryResponse = false;
       _entryController.clear();
-      _chatController.clear();
+      // Keep the mode tags instead of clearing them: after a send the
+      // conversation view shows the chat composer, so the tags live
+      // there — the user sees the mode is still on and can delete the
+      // tag with one Backspace instead of re-selecting it every message.
+      // (Empty when no mode was active, which clears the composer.)
+      _chatController.text = [
+        for (final mode in resolved.modes) mode.token,
+      ].join();
     });
     await _persist();
     _scrollToBottom();
@@ -769,17 +795,17 @@ class _MemoryPageState extends State<MemoryPage> {
                   _QuickPromptChip(
                     icon: Icons.history_rounded,
                     label: '查看今天日报',
-                    onTap: () => _send('查看今天的日报'),
+                    onTap: () => _send('查看今天的日报', tagSource: _entryController),
                   ),
                   _QuickPromptChip(
                     icon: Icons.auto_awesome_rounded,
                     label: '查看本周日报',
-                    onTap: () => _send('查看本周的日报'),
+                    onTap: () => _send('查看本周的日报', tagSource: _entryController),
                   ),
                   _QuickPromptChip(
                     icon: Icons.calendar_month_rounded,
                     label: '查看本月月报',
-                    onTap: () => _send('查看本月月报'),
+                    onTap: () => _send('查看本月月报', tagSource: _entryController),
                   ),
                 ],
               ),
