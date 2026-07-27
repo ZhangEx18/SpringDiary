@@ -20,6 +20,15 @@
 
 Windows 使用 Ctrl、Alt、Win 等平台按键名称；macOS 使用 Command、Option、Control 等名称。应用按照当前系统显示对应名称。
 
+## 发送消息
+
+`设置 > 快捷键`中的“发送消息”选项控制首页快速输入框和回忆书对话输入框的发送方式：
+
+- **Ctrl+Enter / Cmd+Enter**：默认方式。按下 `Ctrl+Enter`（macOS 为 `Cmd+Enter`）发送消息，按 `Enter` 插入换行。
+- **Enter**：按下 `Enter` 直接发送消息，按 `Ctrl+Enter`（macOS 为 `Cmd+Enter`）插入换行。
+
+切换后即时生效，不需要重启应用。
+
 ## 无法触发时
 
 先确认 SpringNote 仍在运行且没有退出托盘，再确认快捷键没有被其他软件占用。修改后重新保存，并用一个不常见的组合测试。

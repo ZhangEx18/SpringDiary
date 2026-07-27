@@ -60,7 +60,7 @@ export default defineConfig({
                 items: [
                   { text: 'AI 能力介绍', link: '/guide/memory-ai' },
                   { text: 'AI 思考模式', link: '/guide/memory-thinking' },
-                  { text: '开启新对话', link: '/guide/memory-conversation' }
+                  { text: '回忆书对话', link: '/guide/memory-conversation' }
                 ]
               },
               {
