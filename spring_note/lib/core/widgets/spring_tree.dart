@@ -339,7 +339,7 @@ class _SpringTreeBlockState extends State<SpringTreeBlock> {
   /// structurally) it instead runs that many simultaneous opacity/scale
   /// animations — several expensive frames of widget rebuilds and
   /// save-layers, i.e. visible switch lag.
-  static const int _maxAnimatedInitialNodes = 24;
+  static const int _maxAnimatedInitialNodes = 96;
 
   /// How many nodes the inline cap currently hides (always 0 when
   /// [SpringTreeBlock.expand] is true or the limit was lifted).

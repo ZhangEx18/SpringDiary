@@ -402,16 +402,17 @@ void main() {
   ) async {
     // Regression test for preview/split switch lag: remounting a large tree
     // must not start hundreds of simultaneous opacity/scale animations.
+    // "Large" means above the animated-batch threshold (currently 96).
     final source = StringBuffer('- 根\n');
-    for (var i = 0; i < 40; i++) {
+    for (var i = 0; i < 100; i++) {
       source.writeln('  - 分支 $i');
     }
     await tester.pumpWidget(_wrap(source.toString()));
     await tester.pump();
 
     expect(find.byType(TweenAnimationBuilder<double>), findsNothing);
-    expect(find.text('分支 39'), findsOneWidget);
-    expect(find.byKey(const ValueKey('springtree_0.39')), findsOneWidget);
+    expect(find.text('分支 99'), findsOneWidget);
+    expect(find.byKey(const ValueKey('springtree_0.99')), findsOneWidget);
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
   });
