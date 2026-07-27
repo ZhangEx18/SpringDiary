@@ -785,6 +785,7 @@ class _MemoryPageState extends State<MemoryPage> {
                 answering: _answering,
                 onSubmit: _sendFromEntry,
                 menuLink: _entryMenuLink,
+                submitWithEnter: widget.localDataState.config.submitWithEnter,
               ),
               const SizedBox(height: 18),
               Wrap(
@@ -901,6 +902,8 @@ class _MemoryPageState extends State<MemoryPage> {
                         multiline: true,
                         menuOpensUpward: true,
                         menuLink: _chatMenuLink,
+                        submitWithEnter:
+                            widget.localDataState.config.submitWithEnter,
                       ),
                     ),
                   ),
@@ -1073,6 +1076,7 @@ class _MemoryComposer extends StatelessWidget {
     required this.menuLink,
     this.multiline = false,
     this.menuOpensUpward = false,
+    this.submitWithEnter = false,
   });
 
   final TextEditingController controller;
@@ -1089,6 +1093,12 @@ class _MemoryComposer extends StatelessWidget {
   /// Chat composers sit at the bottom of the page: open the mode menu above
   /// the "+" button. Entry composers open it below.
   final bool menuOpensUpward;
+
+  /// True when plain Enter submits and Ctrl/Cmd+Enter inserts the newline;
+  /// false keeps the default (Ctrl/Cmd+Enter submits, Enter newlines).
+  /// Only affects multiline composers — single-line ones always send on
+  /// Enter via [TextField.onSubmitted].
+  final bool submitWithEnter;
 
   /// Inserts a mode tag at the cursor. The tag is a single code point in
   /// the text, so it edits like any other character — Backspace/Delete
@@ -1109,6 +1119,54 @@ class _MemoryComposer extends StatelessWidget {
     // Opening the "+" menu stole the focus — give it back so the caret
     // lands right after the inserted tag and typing continues seamlessly.
     focusNode.requestFocus();
+  }
+
+  /// Inserts a line break at the caret, replacing any selected text. Used
+  /// for the newline shortcut when [submitWithEnter] is on: the field's
+  /// default Enter handling is intercepted for submit, so the modifier
+  /// combo has to insert the newline manually.
+  void _insertNewline() {
+    final value = controller.value;
+    final text = value.text;
+    final selection = value.selection;
+    final start = selection.isValid
+        ? selection.start.clamp(0, text.length)
+        : text.length;
+    final end = selection.isValid
+        ? selection.end.clamp(0, text.length)
+        : text.length;
+    controller.value = TextEditingValue(
+      text: text.replaceRange(start, end, '\n'),
+      selection: TextSelection.collapsed(offset: start + 1),
+    );
+  }
+
+  /// Sends on a bare Enter when [submitWithEnter] is on. This cannot be a
+  /// CallbackShortcuts binding: while an IME composition is active the key
+  /// must stay unhandled so the platform input method confirms the
+  /// candidate instead of sending the half-composed message.
+  KeyEventResult _handleEnterKey(FocusNode node, KeyEvent event) {
+    if (!multiline || !submitWithEnter || event is! KeyDownEvent) {
+      return KeyEventResult.ignored;
+    }
+    final key = event.logicalKey;
+    if (key != LogicalKeyboardKey.enter &&
+        key != LogicalKeyboardKey.numpadEnter) {
+      return KeyEventResult.ignored;
+    }
+    final keyboard = HardwareKeyboard.instance;
+    if (keyboard.isControlPressed ||
+        keyboard.isMetaPressed ||
+        keyboard.isShiftPressed ||
+        keyboard.isAltPressed) {
+      return KeyEventResult.ignored;
+    }
+    final composing = controller.value.composing;
+    if (composing.isValid && !composing.isCollapsed) {
+      return KeyEventResult.ignored;
+    }
+    onSubmit();
+    return KeyEventResult.handled;
   }
 
   @override
@@ -1145,43 +1203,65 @@ class _MemoryComposer extends StatelessWidget {
                   onSelected: _insertModeToken,
                 ),
                 Expanded(
-                  child: CallbackShortcuts(
-                    bindings: {
-                      const SingleActivator(
-                        LogicalKeyboardKey.enter,
-                        control: true,
-                      ): onSubmit,
-                      const SingleActivator(
-                        LogicalKeyboardKey.enter,
-                        meta: true,
-                      ): onSubmit,
-                    },
-                    child: TextField(
-                      controller: controller,
-                      focusNode: focusNode,
-                      enabled: true,
-                      // Desktop single-line fields select all on focus gain —
-                      // that would highlight a just-inserted mode tag.
-                      selectAllOnFocus: false,
-                      minLines: 1,
-                      maxLines: multiline ? 3 : 1,
-                      textInputAction: multiline
-                          ? TextInputAction.newline
-                          : TextInputAction.send,
-                      onSubmitted: multiline ? null : (_) => onSubmit(),
-                      decoration: InputDecoration(
-                        hintText: hintText,
-                        hoverColor: Colors.transparent,
-                        focusColor: Colors.transparent,
-                        filled: false,
-                        fillColor: Colors.transparent,
-                        border: InputBorder.none,
-                        enabledBorder: InputBorder.none,
-                        focusedBorder: InputBorder.none,
-                        disabledBorder: InputBorder.none,
-                        isDense: true,
+                  child: Focus(
+                    onKeyEvent: _handleEnterKey,
+                    child: CallbackShortcuts(
+                      bindings: {
+                        if (multiline && submitWithEnter) ...{
+                          const SingleActivator(
+                            LogicalKeyboardKey.enter,
+                            control: true,
+                          ): _insertNewline,
+                          const SingleActivator(
+                            LogicalKeyboardKey.enter,
+                            meta: true,
+                          ): _insertNewline,
+                          const SingleActivator(
+                            LogicalKeyboardKey.numpadEnter,
+                            control: true,
+                          ): _insertNewline,
+                          const SingleActivator(
+                            LogicalKeyboardKey.numpadEnter,
+                            meta: true,
+                          ): _insertNewline,
+                        } else ...{
+                          const SingleActivator(
+                            LogicalKeyboardKey.enter,
+                            control: true,
+                          ): onSubmit,
+                          const SingleActivator(
+                            LogicalKeyboardKey.enter,
+                            meta: true,
+                          ): onSubmit,
+                        },
+                      },
+                      child: TextField(
+                        controller: controller,
+                        focusNode: focusNode,
+                        enabled: true,
+                        // Desktop single-line fields select all on focus gain —
+                        // that would highlight a just-inserted mode tag.
+                        selectAllOnFocus: false,
+                        minLines: 1,
+                        maxLines: multiline ? 3 : 1,
+                        textInputAction: multiline
+                            ? TextInputAction.newline
+                            : TextInputAction.send,
+                        onSubmitted: multiline ? null : (_) => onSubmit(),
+                        decoration: InputDecoration(
+                          hintText: hintText,
+                          hoverColor: Colors.transparent,
+                          focusColor: Colors.transparent,
+                          filled: false,
+                          fillColor: Colors.transparent,
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          disabledBorder: InputBorder.none,
+                          isDense: true,
+                        ),
+                        style: Theme.of(context).textTheme.bodyLarge,
                       ),
-                      style: Theme.of(context).textTheme.bodyLarge,
                     ),
                   ),
                 ),

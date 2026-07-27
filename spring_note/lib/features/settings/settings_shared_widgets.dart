@@ -669,49 +669,6 @@ class _ThemeModeSegment extends StatelessWidget {
   }
 }
 
-class _ShortcutSettingRow extends StatelessWidget {
-  const _ShortcutSettingRow({required this.label, required this.shortcut});
-
-  final String label;
-  final String shortcut;
-
-  @override
-  Widget build(BuildContext context) {
-    return _SettingRowShell(
-      label: label,
-      child: SizedBox(width: 220, child: _ShortcutKeyField(shortcut)),
-    );
-  }
-}
-
-class _ShortcutKeyField extends StatelessWidget {
-  const _ShortcutKeyField(this.label);
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = AppTheme.colors(context);
-    return Container(
-      height: 42,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: colors.inputFill,
-        border: Border.all(color: colors.border),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      alignment: Alignment.centerLeft,
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-          color: colors.text,
-          fontFeatures: const [FontFeature.tabularFigures()],
-        ),
-      ),
-    );
-  }
-}
-
 class _SettingRowShell extends StatelessWidget {
   const _SettingRowShell({
     required this.label,
@@ -934,11 +891,13 @@ class _DropdownSelectField extends StatefulWidget {
     required this.value,
     required this.options,
     required this.onChanged,
+    this.height = 36,
   });
 
   final String value;
   final Map<String, String> options;
   final ValueChanged<String> onChanged;
+  final double height;
 
   @override
   State<_DropdownSelectField> createState() => _DropdownSelectFieldState();
@@ -1049,7 +1008,7 @@ class _DropdownSelectFieldState extends State<_DropdownSelectField> {
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 130),
                   curve: Curves.easeOutCubic,
-                  height: 36,
+                  height: widget.height,
                   padding: const EdgeInsets.symmetric(horizontal: 14),
                   decoration: BoxDecoration(
                     color: active ? colors.surfaceHover : colors.inputFill,

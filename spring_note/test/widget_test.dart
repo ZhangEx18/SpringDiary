@@ -633,6 +633,77 @@ void main() {
     });
   }
 
+  testWidgets('home input submits with enter when submit shortcut is enter', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final fakeDailyNoteService = _FakeDailyNoteService();
+    final fakeHomeOverviewService = _FakeHomeOverviewService();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: HomePage(
+          localDataState: _testLocalDataState(
+            config: AppConfig.defaults().copyWith(submitShortcut: 'enter'),
+          ),
+          dailyNoteService: fakeDailyNoteService,
+          homeOverviewService: fakeHomeOverviewService,
+        ),
+      ),
+    );
+
+    await tester.enterText(find.byType(TextField), '回车直接发送的内容');
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await _pumpUntil(
+      tester,
+      () => fakeDailyNoteService.savedNote != null,
+      'daily note to be saved after enter',
+    );
+
+    expect(fakeDailyNoteService.savedNote?.rawInput, contains('回车直接发送的内容'));
+  });
+
+  testWidgets('home input ctrl enter inserts newline in enter submit mode', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final fakeDailyNoteService = _FakeDailyNoteService();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: HomePage(
+          localDataState: _testLocalDataState(
+            config: AppConfig.defaults().copyWith(submitShortcut: 'enter'),
+          ),
+          dailyNoteService: fakeDailyNoteService,
+          homeOverviewService: _FakeHomeOverviewService(),
+        ),
+      ),
+    );
+
+    await tester.enterText(find.byType(TextField), '第一行');
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pump();
+
+    expect(fakeDailyNoteService.savedNote, isNull);
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller?.text,
+      '第一行\n',
+    );
+  });
+
   testWidgets('home attachment buttons add files to submitted note', (
     WidgetTester tester,
   ) async {

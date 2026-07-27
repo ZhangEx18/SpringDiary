@@ -793,6 +793,7 @@ class _HomePageState extends State<HomePage> {
                 onRemoveAttachment: _removeAttachment,
                 onRemovePendingImage: _removePendingImage,
                 onSubmit: _submit,
+                submitWithEnter: widget.localDataState.config.submitWithEnter,
               ),
               const SizedBox(height: 32),
               _OverviewGrid(
@@ -1626,6 +1627,7 @@ class _QuickCaptureCard extends StatelessWidget {
     required this.onRemoveAttachment,
     required this.onRemovePendingImage,
     required this.onSubmit,
+    required this.submitWithEnter,
   });
 
   final TextEditingController controller;
@@ -1640,6 +1642,58 @@ class _QuickCaptureCard extends StatelessWidget {
   final ValueChanged<HomeAttachment> onRemoveAttachment;
   final ValueChanged<PendingImage> onRemovePendingImage;
   final VoidCallback onSubmit;
+
+  /// True when plain Enter submits and Ctrl/Cmd+Enter inserts the newline;
+  /// false keeps the default (Ctrl/Cmd+Enter submits, Enter newlines).
+  final bool submitWithEnter;
+
+  /// Inserts a line break at the caret, replacing any selected text. Used
+  /// for the newline shortcut when [submitWithEnter] is on: the field's
+  /// default Enter handling is intercepted for submit, so the modifier
+  /// combo has to insert the newline manually.
+  void _insertNewline() {
+    final value = controller.value;
+    final text = value.text;
+    final selection = value.selection;
+    final start = selection.isValid
+        ? selection.start.clamp(0, text.length)
+        : text.length;
+    final end = selection.isValid
+        ? selection.end.clamp(0, text.length)
+        : text.length;
+    controller.value = TextEditingValue(
+      text: text.replaceRange(start, end, '\n'),
+      selection: TextSelection.collapsed(offset: start + 1),
+    );
+  }
+
+  /// Sends on a bare Enter when [submitWithEnter] is on. This cannot be a
+  /// CallbackShortcuts binding: while an IME composition is active the key
+  /// must stay unhandled so the platform input method confirms the
+  /// candidate instead of sending the half-composed message.
+  KeyEventResult _handleEnterKey(FocusNode node, KeyEvent event) {
+    if (!submitWithEnter || event is! KeyDownEvent) {
+      return KeyEventResult.ignored;
+    }
+    final key = event.logicalKey;
+    if (key != LogicalKeyboardKey.enter &&
+        key != LogicalKeyboardKey.numpadEnter) {
+      return KeyEventResult.ignored;
+    }
+    final keyboard = HardwareKeyboard.instance;
+    if (keyboard.isControlPressed ||
+        keyboard.isMetaPressed ||
+        keyboard.isShiftPressed ||
+        keyboard.isAltPressed) {
+      return KeyEventResult.ignored;
+    }
+    final composing = controller.value.composing;
+    if (composing.isValid && !composing.isCollapsed) {
+      return KeyEventResult.ignored;
+    }
+    onSubmit();
+    return KeyEventResult.handled;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1684,51 +1738,77 @@ class _QuickCaptureCard extends StatelessWidget {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              CallbackShortcuts(
-                bindings: {
-                  const SingleActivator(
-                    LogicalKeyboardKey.enter,
-                    control: true,
-                  ): onSubmit,
-                  const SingleActivator(LogicalKeyboardKey.enter, meta: true):
-                      onSubmit,
-                  if (!isSubmitting)
-                    const SingleActivator(
-                      LogicalKeyboardKey.keyV,
-                      control: true,
-                    ): onPasteShortcut,
-                  if (!isSubmitting)
-                    const SingleActivator(LogicalKeyboardKey.keyV, meta: true):
-                        onPasteShortcut,
-                },
-                child: SizedBox(
-                  height: 96,
-                  child: TextField(
-                    controller: controller,
-                    focusNode: focusNode,
-                    enabled: true,
-                    expands: true,
-                    minLines: null,
-                    maxLines: null,
-                    textAlignVertical: TextAlignVertical.top,
-                    textInputAction: TextInputAction.newline,
-                    decoration: InputDecoration(
-                      hintText: '写下你的想法，AI 将自动整理并生成结构化内容...',
-                      hintStyle: Theme.of(context).textTheme.bodyMedium
-                          ?.copyWith(color: colors.textSubtle),
-                      hoverColor: Colors.transparent,
-                      focusColor: Colors.transparent,
-                      filled: false,
-                      fillColor: Colors.transparent,
-                      contentPadding: EdgeInsets.zero,
-                      border: InputBorder.none,
-                      enabledBorder: InputBorder.none,
-                      focusedBorder: InputBorder.none,
-                    ),
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: colors.text,
-                      fontSize: 14,
-                      height: 1.625,
+              Focus(
+                onKeyEvent: _handleEnterKey,
+                child: CallbackShortcuts(
+                  bindings: {
+                    if (submitWithEnter) ...{
+                      const SingleActivator(
+                        LogicalKeyboardKey.enter,
+                        control: true,
+                      ): _insertNewline,
+                      const SingleActivator(
+                        LogicalKeyboardKey.enter,
+                        meta: true,
+                      ): _insertNewline,
+                      const SingleActivator(
+                        LogicalKeyboardKey.numpadEnter,
+                        control: true,
+                      ): _insertNewline,
+                      const SingleActivator(
+                        LogicalKeyboardKey.numpadEnter,
+                        meta: true,
+                      ): _insertNewline,
+                    } else ...{
+                      const SingleActivator(
+                        LogicalKeyboardKey.enter,
+                        control: true,
+                      ): onSubmit,
+                      const SingleActivator(
+                        LogicalKeyboardKey.enter,
+                        meta: true,
+                      ): onSubmit,
+                    },
+                    if (!isSubmitting)
+                      const SingleActivator(
+                        LogicalKeyboardKey.keyV,
+                        control: true,
+                      ): onPasteShortcut,
+                    if (!isSubmitting)
+                      const SingleActivator(
+                        LogicalKeyboardKey.keyV,
+                        meta: true,
+                      ): onPasteShortcut,
+                  },
+                  child: SizedBox(
+                    height: 96,
+                    child: TextField(
+                      controller: controller,
+                      focusNode: focusNode,
+                      enabled: true,
+                      expands: true,
+                      minLines: null,
+                      maxLines: null,
+                      textAlignVertical: TextAlignVertical.top,
+                      textInputAction: TextInputAction.newline,
+                      decoration: InputDecoration(
+                        hintText: '写下你的想法，AI 将自动整理并生成结构化内容...',
+                        hintStyle: Theme.of(context).textTheme.bodyMedium
+                            ?.copyWith(color: colors.textSubtle),
+                        hoverColor: Colors.transparent,
+                        focusColor: Colors.transparent,
+                        filled: false,
+                        fillColor: Colors.transparent,
+                        contentPadding: EdgeInsets.zero,
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                      ),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: colors.text,
+                        fontSize: 14,
+                        height: 1.625,
+                      ),
                     ),
                   ),
                 ),

@@ -65,6 +65,7 @@ class AppConfig {
     required this.providers,
     required this.defaultModels,
     required this.hotkeys,
+    required this.submitShortcut,
   });
 
   final WallpaperSettings wallpaperSettings;
@@ -99,6 +100,16 @@ class AppConfig {
   final List<ProviderConfig> providers;
   final Map<String, String?> defaultModels;
   final Map<String, String?> hotkeys;
+
+  /// Send-shortcut mode for the quick-capture and memory chat inputs:
+  /// 'ctrlEnter' (default) sends with Ctrl+Enter (Cmd+Enter on macOS) and
+  /// lets plain Enter insert a newline; 'enter' swaps the two.
+  final String submitShortcut;
+
+  /// True when plain Enter sends and Ctrl/Cmd+Enter inserts the newline.
+  bool get submitWithEnter => submitShortcut == 'enter';
+
+  static const String defaultSubmitShortcut = 'ctrlEnter';
 
   static String get defaultToggleWindowHotkey =>
       defaultTargetPlatform == TargetPlatform.macOS
@@ -142,6 +153,7 @@ class AppConfig {
         'memoryBookModel': null,
       },
       hotkeys: {'toggleWindow': defaultToggleWindowHotkey},
+      submitShortcut: defaultSubmitShortcut,
     );
   }
 
@@ -218,6 +230,7 @@ class AppConfig {
         AppConfig.defaults().defaultModels,
       ),
       hotkeys: _readStringMap(json['hotkeys'], AppConfig.defaults().hotkeys),
+      submitShortcut: _readSubmitShortcut(json['submitShortcut']),
     );
   }
 
@@ -256,6 +269,7 @@ class AppConfig {
       'providers': providers.map((provider) => provider.toJson()).toList(),
       'defaultModels': defaultModels,
       'hotkeys': hotkeys,
+      'submitShortcut': submitShortcut,
     };
   }
 
@@ -291,6 +305,7 @@ class AppConfig {
     List<ProviderConfig>? providers,
     Map<String, String?>? defaultModels,
     Map<String, String?>? hotkeys,
+    String? submitShortcut,
   }) {
     final nextShowTrayIcon = showTrayIcon ?? this.showTrayIcon;
     final nextCloseToTray =
@@ -341,6 +356,7 @@ class AppConfig {
       providers: providers ?? this.providers,
       defaultModels: defaultModels ?? this.defaultModels,
       hotkeys: hotkeys ?? this.hotkeys,
+      submitShortcut: submitShortcut ?? this.submitShortcut,
     );
   }
 
@@ -388,6 +404,10 @@ class AppConfig {
       'edit' || 'split' || 'preview' => normalized,
       _ => 'split',
     };
+  }
+
+  static String _readSubmitShortcut(Object? value) {
+    return value == 'enter' ? 'enter' : defaultSubmitShortcut;
   }
 
   static List<ProviderConfig> _readProviders(Object? value) {

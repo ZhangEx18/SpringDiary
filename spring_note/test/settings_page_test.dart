@@ -380,7 +380,7 @@ void main() {
     );
   });
 
-  testWidgets('hotkeys page lists local submit shortcuts', (
+  testWidgets('hotkeys page lets the user pick the submit shortcut', (
     WidgetTester tester,
   ) async {
     tester.view.physicalSize = const Size(1440, 900);
@@ -388,12 +388,13 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
+    final service = _MemoryLocalDataService(AppConfig.defaults());
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.light(),
         home: SettingsPage(
           localDataState: _state(AppConfig.defaults()),
-          localDataService: _MemoryLocalDataService(AppConfig.defaults()),
+          localDataService: service,
         ),
       ),
     );
@@ -401,17 +402,21 @@ void main() {
     await tester.tap(find.text('快捷键').first);
     await tester.pump();
 
+    final modifierSends = Platform.isMacOS ? 'Cmd+Enter' : 'Ctrl+Enter';
+
     expect(find.text('输入快捷键'), findsOneWidget);
-    expect(find.text('首页快速输入'), findsOneWidget);
-    expect(find.text('回忆书对话输入'), findsOneWidget);
-    expect(
-      find.text(Platform.isMacOS ? 'Cmd+Enter' : 'Ctrl+Enter'),
-      findsNWidgets(2),
-    );
-    expect(
-      find.text(Platform.isMacOS ? 'Ctrl+Enter' : 'Cmd+Enter'),
-      findsNothing,
-    );
+    expect(find.text('发送消息'), findsOneWidget);
+    expect(find.text(modifierSends), findsOneWidget);
+    expect(find.text('Enter'), findsNothing);
+
+    await tester.tap(find.text(modifierSends));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Enter').last);
+    await tester.pumpAndSettle();
+
+    expect(service.savedConfig.submitShortcut, 'enter');
+    expect(find.text('Enter'), findsOneWidget);
+    expect(find.text(modifierSends), findsNothing);
   });
 
   testWidgets('hotkeys page records a global keyboard shortcut', (

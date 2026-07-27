@@ -13,7 +13,6 @@ class _HotkeysPanel extends StatelessWidget {
     final toggleWindowEnabled =
         hotkeysSupported && toggleWindow.trim().isNotEmpty;
     final defaultToggleWindow = AppConfig.defaultToggleWindowHotkey;
-    final submitShortcut = Platform.isMacOS ? 'Cmd+Enter' : 'Ctrl+Enter';
     return _SettingsScrollFrame(
       maxWidth: 1120,
       children: [
@@ -73,11 +72,44 @@ class _HotkeysPanel extends StatelessWidget {
         _SettingsCard(
           title: '输入快捷键',
           children: [
-            _ShortcutSettingRow(label: '首页快速输入', shortcut: submitShortcut),
-            _ShortcutSettingRow(label: '回忆书对话输入', shortcut: submitShortcut),
+            _SubmitShortcutSettingRow(
+              value: config.submitShortcut,
+              onChanged: (value) =>
+                  onChanged(config.copyWith(submitShortcut: value)),
+            ),
           ],
         ),
       ],
+    );
+  }
+}
+
+class _SubmitShortcutSettingRow extends StatelessWidget {
+  const _SubmitShortcutSettingRow({
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String value;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final modifier = Platform.isMacOS ? 'Cmd' : 'Ctrl';
+    return _SettingRowShell(
+      label: '发送消息',
+      child: SizedBox(
+        width: 220,
+        child: _DropdownSelectField(
+          height: 42,
+          value: value == 'enter' ? 'enter' : AppConfig.defaultSubmitShortcut,
+          options: {
+            AppConfig.defaultSubmitShortcut: '$modifier+Enter',
+            'enter': 'Enter',
+          },
+          onChanged: onChanged,
+        ),
+      ),
     );
   }
 }
