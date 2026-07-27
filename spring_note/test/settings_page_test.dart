@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/painting.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:spring_note/core/models/app_config.dart';
@@ -149,6 +150,13 @@ void main() {
       if (directory != null && await directory.exists()) {
         await directory.delete(recursive: true);
       }
+    });
+    // The previews decode real images that remain in the global image cache
+    // after the widget tree is unmounted; evict them so the leak tracker
+    // does not report the cached dart:ui Image as not-disposed.
+    addTearDown(() async {
+      PaintingBinding.instance.imageCache.clear();
+      await tester.pump();
     });
     final imageBytes = base64Decode(
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwC'
