@@ -985,13 +985,9 @@ class _SpringTreeBlockState extends State<SpringTreeBlock> {
           color: isRoot ? colors.text : depthColor,
           width: isRoot ? 1 : 1.4,
         ),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x14000000),
-            blurRadius: 4,
-            offset: Offset(0, 2),
-          ),
-        ],
+        // No boxShadow: every graph repaint (note switches, streaming
+        // growth) redraws all nodes inside one RepaintBoundary, and a
+        // blurred shadow per node costs 10-40ms of raster on large trees.
       ),
       child: Text(
         item.label,
