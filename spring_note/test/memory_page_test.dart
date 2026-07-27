@@ -473,6 +473,87 @@ void main() {
       );
     });
   }
+
+  testWidgets(
+    'memory entry does not submit with bare enter in ctrl enter mode',
+    (tester) async {
+      tester.view.physicalSize = const Size(1200, 760);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final conversationService = _FakeMemoryConversationService();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: MemoryPage(
+              localDataState: _localDataState(),
+              conversationService: conversationService,
+              searchService: const _FakeMemorySearchService(),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      await tester.enterText(find.byType(TextField), '回车不应该发送');
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      for (var index = 0; index < 20; index++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+
+      expect(conversationService.savedMessages, isEmpty);
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller?.text,
+        '回车不应该发送',
+      );
+    },
+  );
+
+  testWidgets('memory entry submits with bare enter in enter mode', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 760);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final conversationService = _FakeMemoryConversationService();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: MemoryPage(
+            localDataState: _localDataState(
+              config: AppConfig.defaults().copyWith(submitShortcut: 'enter'),
+            ),
+            conversationService: conversationService,
+            searchService: const _FakeMemorySearchService(),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.enterText(find.byType(TextField), '回车直接询问回忆');
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    for (var index = 0; index < 20; index++) {
+      await tester.pump(const Duration(milliseconds: 100));
+      if (conversationService.savedMessages.any(
+        (message) => message.role == 'user' && message.content == '回车直接询问回忆',
+      )) {
+        break;
+      }
+    }
+
+    expect(
+      conversationService.savedMessages,
+      contains(
+        isA<MemoryMessage>()
+            .having((message) => message.role, 'role', 'user')
+            .having((message) => message.content, 'content', '回车直接询问回忆'),
+      ),
+    );
+  });
 }
 
 class _FakeMemoryConversationService extends MemoryConversationService {
@@ -546,6 +627,7 @@ LocalDataState _localDataState({
   String dailyNotesDirectory = 'D:\\Temp\\SpringNote\\notes\\daily',
   String weeklyNotesDirectory = 'D:\\Temp\\SpringNote\\notes\\weekly',
   String monthlyNotesDirectory = 'D:\\Temp\\SpringNote\\notes\\monthly',
+  AppConfig? config,
 }) {
   return LocalDataState(
     dataDirectory: dataDirectory,
@@ -553,7 +635,7 @@ LocalDataState _localDataState({
     dailyNotesDirectory: dailyNotesDirectory,
     weeklyNotesDirectory: weeklyNotesDirectory,
     monthlyNotesDirectory: monthlyNotesDirectory,
-    config: AppConfig.defaults(),
+    config: config ?? AppConfig.defaults(),
   );
 }
 

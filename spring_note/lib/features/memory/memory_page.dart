@@ -899,7 +899,6 @@ class _MemoryPageState extends State<MemoryPage> {
                         hintText: '继续追问你的回忆...',
                         answering: _answering,
                         onSubmit: _sendFromChat,
-                        multiline: true,
                         menuOpensUpward: true,
                         menuLink: _chatMenuLink,
                         submitWithEnter:
@@ -1074,7 +1073,6 @@ class _MemoryComposer extends StatelessWidget {
     required this.answering,
     required this.onSubmit,
     required this.menuLink,
-    this.multiline = false,
     this.menuOpensUpward = false,
     this.submitWithEnter = false,
   });
@@ -1088,7 +1086,6 @@ class _MemoryComposer extends StatelessWidget {
   /// Links the composer box to the floating mode menu: the menu anchors to
   /// the whole composer so it can span the composer's full width.
   final LayerLink menuLink;
-  final bool multiline;
 
   /// Chat composers sit at the bottom of the page: open the mode menu above
   /// the "+" button. Entry composers open it below.
@@ -1096,8 +1093,6 @@ class _MemoryComposer extends StatelessWidget {
 
   /// True when plain Enter submits and Ctrl/Cmd+Enter inserts the newline;
   /// false keeps the default (Ctrl/Cmd+Enter submits, Enter newlines).
-  /// Only affects multiline composers — single-line ones always send on
-  /// Enter via [TextField.onSubmitted].
   final bool submitWithEnter;
 
   /// Inserts a mode tag at the cursor. The tag is a single code point in
@@ -1141,12 +1136,12 @@ class _MemoryComposer extends StatelessWidget {
     );
   }
 
-  /// Sends on a bare Enter when [submitWithEnter] is on. This cannot be a
+  /// Bare-Enter handling for the composer. This cannot be a
   /// CallbackShortcuts binding: while an IME composition is active the key
   /// must stay unhandled so the platform input method confirms the
   /// candidate instead of sending the half-composed message.
   KeyEventResult _handleEnterKey(FocusNode node, KeyEvent event) {
-    if (!multiline || !submitWithEnter || event is! KeyDownEvent) {
+    if (event is! KeyDownEvent) {
       return KeyEventResult.ignored;
     }
     final key = event.logicalKey;
@@ -1159,10 +1154,15 @@ class _MemoryComposer extends StatelessWidget {
         keyboard.isMetaPressed ||
         keyboard.isShiftPressed ||
         keyboard.isAltPressed) {
+      // Modifier combos are covered by the CallbackShortcuts bindings.
       return KeyEventResult.ignored;
     }
     final composing = controller.value.composing;
     if (composing.isValid && !composing.isCollapsed) {
+      return KeyEventResult.ignored;
+    }
+    if (!submitWithEnter) {
+      // Ctrl/Cmd+Enter mode: a bare Enter keeps its default newline.
       return KeyEventResult.ignored;
     }
     onSubmit();
@@ -1207,7 +1207,7 @@ class _MemoryComposer extends StatelessWidget {
                     onKeyEvent: _handleEnterKey,
                     child: CallbackShortcuts(
                       bindings: {
-                        if (multiline && submitWithEnter) ...{
+                        if (submitWithEnter) ...{
                           const SingleActivator(
                             LogicalKeyboardKey.enter,
                             control: true,
@@ -1239,15 +1239,12 @@ class _MemoryComposer extends StatelessWidget {
                         controller: controller,
                         focusNode: focusNode,
                         enabled: true,
-                        // Desktop single-line fields select all on focus gain —
-                        // that would highlight a just-inserted mode tag.
+                        // Desktop fields select all on focus gain — that
+                        // would highlight a just-inserted mode tag.
                         selectAllOnFocus: false,
                         minLines: 1,
-                        maxLines: multiline ? 3 : 1,
-                        textInputAction: multiline
-                            ? TextInputAction.newline
-                            : TextInputAction.send,
-                        onSubmitted: multiline ? null : (_) => onSubmit(),
+                        maxLines: 3,
+                        textInputAction: TextInputAction.newline,
                         decoration: InputDecoration(
                           hintText: hintText,
                           hoverColor: Colors.transparent,
