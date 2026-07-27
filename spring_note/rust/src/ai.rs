@@ -1048,7 +1048,8 @@ const WEEKLY_REPORT_SYSTEM_PROMPT: &str = r#"你是 SpringNote 的周报整理�
 3. Markdown 要层次清楚、阅读舒服；可以使用标题、段落、列表、重点小结，但避免机械堆栏目。
 4. 优先呈现这一周真正发生了什么、推进到了哪里、遇到什么卡点、接下来怎么走。
 5. 语气自然，像一个认真复盘工作的人的周报，不要像 AI 模板。
-6. 只输出最终 Markdown，不要解释。"#;
+6. 全文第一行必须是一级标题，格式固定为 `# XXXX-WXX 周报`（ISO 周，取自用户消息中的周期，例如 `# 2026-W30 周报`），不得自拟、追加或省略。
+7. 只输出最终 Markdown，不要解释。"#;
 
 const MONTHLY_REPORT_SYSTEM_PROMPT: &str = r#"你是 SpringNote 的月报整理助手。请基于月度周报 Markdown 生成一篇自然、有复盘感、可继续编辑的月报。
 写作原则：
@@ -1057,7 +1058,8 @@ const MONTHLY_REPORT_SYSTEM_PROMPT: &str = r#"你是 SpringNote 的月报整理�
 3. Markdown 要美观、有呼吸感；可以使用标题、短段落、列表、总结和展望，但不要写成僵硬表格。
 4. 重点体现这个月的主线、阶段性变化、值得保留的经验、还没解决的问题和自然的下一步。
 5. 语气克制、真诚、有人的表达，不要过度包装，也不要像 AI 汇报模板。
-6. 只输出最终 Markdown，不要解释。"#;
+6. 全文第一行必须是一级标题，格式固定为 `# XXXX-XX 月报`（取自用户消息中的周期，例如 `# 2026-07 月报`），不得自拟、追加或省略。
+7. 只输出最终 Markdown，不要解释。"#;
 
 const MEMORY_TOOL_SYSTEM_PROMPT: &str = r#"你是 SpringNote 的回忆书问答助手。你必须基于用户的历史日报、周报、月报回答问题。
 你可以自主调用工具检索或读取记录；需要信息时先调用工具，不要让应用预先替你检索。
@@ -1263,6 +1265,10 @@ mod tests {
 
         assert!(weekly_prompt.contains("周报整理助手"));
         assert!(monthly_prompt.contains("月报整理助手"));
+        assert!(weekly_prompt.contains("全文第一行必须是一级标题"));
+        assert!(monthly_prompt.contains("全文第一行必须是一级标题"));
+        assert!(weekly_prompt.contains("`# XXXX-WXX 周报`"));
+        assert!(monthly_prompt.contains("`# XXXX-XX 月报`"));
         assert!(weekly_prompt.ends_with(MARKDOWN_ATTACHMENT_PRESERVATION_INSTRUCTION));
         assert!(monthly_prompt.ends_with(MARKDOWN_ATTACHMENT_PRESERVATION_INSTRUCTION));
     }
