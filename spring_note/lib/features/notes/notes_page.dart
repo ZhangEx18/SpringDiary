@@ -2308,6 +2308,27 @@ class _EditorWorkspaceState extends State<_EditorWorkspace> {
   late _EditorWorkspaceMode _bodyMode = widget.mode;
   bool _bodySwitchPending = false;
 
+  /// Whether each pane has been shown at least once. Panes mount lazily on
+  /// first use and then stay alive, hidden via [Visibility] with its size
+  /// maintained: switching modes used to unmount and remount the editor's
+  /// full-document TextField and the preview's whole markdown/graph subtree,
+  /// which was the source of the visible switch jank on large documents.
+  late bool _editorMounted = _bodyMode != _EditorWorkspaceMode.preview;
+  late bool _previewMounted = _bodyMode != _EditorWorkspaceMode.edit;
+
+  /// The markdown the preview renders. Trails [widget.markdown] while the
+  /// preview is hidden, so typing in edit mode never rebuilds a pane nobody
+  /// sees; refreshed on the frame the preview becomes visible again.
+  late String _shownMarkdown = widget.markdown;
+
+  /// Cached preview subtree, recreated only when one of its inputs changes.
+  /// Handing the element tree an identical instance on other builds skips
+  /// the whole subtree, keeping the hidden-but-alive preview at zero cost.
+  Widget? _previewPane;
+  String? _previewPaneMarkdown;
+  String? _previewPaneBasePath;
+  EdgeInsetsGeometry? _previewPanePadding;
+
   @override
   void didUpdateWidget(covariant _EditorWorkspace oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -2356,6 +2377,11 @@ class _EditorWorkspaceState extends State<_EditorWorkspace> {
   }
 
   Widget _buildBody(SpringThemeColors colors) {
+    final showEditor = _bodyMode != _EditorWorkspaceMode.preview;
+    final showPreview = _bodyMode != _EditorWorkspaceMode.edit;
+    _editorMounted = _editorMounted || showEditor;
+    _previewMounted = _previewMounted || showPreview;
+
     final editor = _EditorContent(
       controller: widget.controller,
       editorRevision: widget.editorRevision,
@@ -2365,27 +2391,83 @@ class _EditorWorkspaceState extends State<_EditorWorkspace> {
       onPointerFocus: widget.onPointerFocus,
       scrollController: _editorScrollController,
     );
-    final preview = _PreviewContent(
-      markdown: widget.markdown,
-      localImageBasePath: widget.localImageBasePath,
-      scrollController: _previewScrollController,
-      padding: _bodyMode == _EditorWorkspaceMode.split
-          ? const EdgeInsets.fromLTRB(32, _notesEditorTopContentPadding, 32, 56)
-          : const EdgeInsets.fromLTRB(32, 20, 32, 56),
-    );
 
-    return switch (_bodyMode) {
-      _EditorWorkspaceMode.edit => editor,
-      _EditorWorkspaceMode.preview => preview,
-      _EditorWorkspaceMode.split => Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(child: editor),
-          Container(width: 1, color: colors.divider.withValues(alpha: 0.5)),
-          Expanded(child: preview),
-        ],
-      ),
-    };
+    final previewPadding = _bodyMode == _EditorWorkspaceMode.split
+        ? const EdgeInsets.fromLTRB(32, _notesEditorTopContentPadding, 32, 56)
+        : const EdgeInsets.fromLTRB(32, 20, 32, 56);
+    if (showPreview) {
+      _shownMarkdown = widget.markdown;
+    }
+    if (_previewPane == null ||
+        _previewPaneMarkdown != _shownMarkdown ||
+        _previewPaneBasePath != widget.localImageBasePath ||
+        _previewPanePadding != previewPadding) {
+      _previewPaneMarkdown = _shownMarkdown;
+      _previewPaneBasePath = widget.localImageBasePath;
+      _previewPanePadding = previewPadding;
+      _previewPane = _PreviewContent(
+        markdown: _shownMarkdown,
+        localImageBasePath: widget.localImageBasePath,
+        scrollController: _previewScrollController,
+        padding: previewPadding,
+      );
+    }
+
+    // Both panes live in one Stack. A hidden pane keeps its solo-mode
+    // geometry (full width), so an edit↔preview reveal needs no relayout,
+    // only a paint; entering/leaving split relayouts both panes once
+    // because their width genuinely changes.
+    final previewPane = _previewPane!;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final fullWidth = constraints.maxWidth;
+        final halfWidth = fullWidth / 2;
+        final split = _bodyMode == _EditorWorkspaceMode.split;
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            if (_editorMounted)
+              Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                width: split ? halfWidth : fullWidth,
+                child: Visibility(
+                  key: const ValueKey('notes-workspace-pane-editor'),
+                  visible: showEditor,
+                  maintainState: true,
+                  maintainAnimation: true,
+                  maintainSize: true,
+                  child: editor,
+                ),
+              ),
+            if (_previewMounted)
+              Positioned(
+                left: split ? halfWidth : 0,
+                top: 0,
+                bottom: 0,
+                width: split ? halfWidth : fullWidth,
+                child: Visibility(
+                  key: const ValueKey('notes-workspace-pane-preview'),
+                  visible: showPreview,
+                  maintainState: true,
+                  maintainAnimation: true,
+                  maintainSize: true,
+                  child: previewPane,
+                ),
+              ),
+            if (split)
+              Positioned(
+                left: halfWidth - 0.5,
+                top: 0,
+                bottom: 0,
+                width: 1,
+                child: ColoredBox(color: colors.divider.withValues(alpha: 0.5)),
+              ),
+          ],
+        );
+      },
+    );
   }
 }
 

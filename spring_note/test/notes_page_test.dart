@@ -152,18 +152,25 @@ final value = 1;
     await tester.enterText(find.byType(TextField).last, edited);
     await tester.pump();
 
+    // Both panes stay mounted after their first use (hidden via Visibility
+    // with maintained size), so mode switches are asserted through the
+    // panes' visibility flags instead of their presence in the tree.
+    bool paneVisible(String key) =>
+        tester.widget<Visibility>(find.byKey(ValueKey(key))).visible;
+
     await tester.tap(
       find.byKey(const ValueKey('notes-workspace-mode-preview')),
     );
     await tester.pumpAndSettle();
-    expect(find.byType(TextField), findsOneWidget);
+    expect(paneVisible('notes-workspace-pane-editor'), isFalse);
+    expect(paneVisible('notes-workspace-pane-preview'), isTrue);
     expect(find.byType(SelectionArea), findsOneWidget);
     expect(find.text('三态内容', findRichText: true), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('notes-workspace-mode-edit')));
     await tester.pumpAndSettle();
-    expect(find.byType(TextField), findsWidgets);
-    expect(find.byType(SelectionArea), findsNothing);
+    expect(paneVisible('notes-workspace-pane-editor'), isTrue);
+    expect(paneVisible('notes-workspace-pane-preview'), isFalse);
     expect(
       tester.widget<TextField>(find.byType(TextField).last).controller?.text,
       edited,
@@ -171,7 +178,8 @@ final value = 1;
 
     await tester.tap(find.byKey(const ValueKey('notes-workspace-mode-split')));
     await tester.pumpAndSettle();
-    expect(find.byType(TextField), findsWidgets);
+    expect(paneVisible('notes-workspace-pane-editor'), isTrue);
+    expect(paneVisible('notes-workspace-pane-preview'), isTrue);
     expect(find.byType(SelectionArea), findsOneWidget);
     expect(find.text('三态内容', findRichText: true), findsOneWidget);
   });
