@@ -211,6 +211,7 @@ MemoryMessage _copyMemoryMessage(
     toolCallId: message.toolCallId,
     toolCalls: message.toolCalls,
     sources: message.sources,
+    modeIds: message.modeIds,
   );
 }
 

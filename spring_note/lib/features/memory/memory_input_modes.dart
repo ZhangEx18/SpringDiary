@@ -110,6 +110,31 @@ class MemoryInputModeResolution {
   String get promptSuffix => modes.map((mode) => mode.prompt).join('\n\n');
 }
 
+/// Resolves stored mode ids to registered modes, keeping registry order
+/// and skipping unknown ids (e.g. a mode removed by a newer app version).
+List<MemoryInputMode> memoryInputModesForIds(List<String> ids) => [
+  for (final mode in memoryInputModes)
+    if (ids.contains(mode.id)) mode,
+];
+
+/// Note appended (request view only) to a past user message that was sent
+/// with [modes] active, so the model knows the following reply's special
+/// format was tag-driven rather than the default way to answer.
+String modeRequestNote(Iterable<MemoryInputMode> modes) {
+  final labels = modes.map((mode) => '「${mode.label}」').join('、');
+  return '（本条消息发送时选择了 $labels 模式，当次回答使用了该模式要求的特殊格式。）';
+}
+
+/// Reminder appended (request view only) to the latest user message when the
+/// history contains mode-forced replies but the current message carries no
+/// mode tag. Refers to [modes] by label so it stays valid for modes whose
+/// forced format is not a code fence.
+String noModeReplyReminder(Iterable<MemoryInputMode> modes) {
+  final labels = modes.map((mode) => '「${mode.label}」').join('、');
+  return '（本条消息未选择任何输出模式，请用普通文字回答，'
+      '不要沿用此前 $labels 回答中的特殊格式。）';
+}
+
 /// Strips mode tags from [input] and collects the modes they activate.
 MemoryInputModeResolution resolveMemoryInputModes(String input) {
   final active = <MemoryInputMode>[];

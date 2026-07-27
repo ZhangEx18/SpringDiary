@@ -208,6 +208,9 @@ class _MemoryPageState extends State<MemoryPage> {
       role: 'user',
       content: question,
       createdAt: now,
+      // Record which modes were active so later requests can explain the
+      // resulting reply's format without guessing from its content.
+      modeIds: [for (final mode in resolved.modes) mode.id],
     );
 
     setState(() {
@@ -242,19 +245,58 @@ class _MemoryPageState extends State<MemoryPage> {
   /// The conversation as the model should see it: identical to [_messages]
   /// except the latest user message additionally carries the active
   /// input-mode prompt. Storage and bubbles keep the clean text.
+  ///
+  /// User messages sent with mode tags record their mode ids (see
+  /// [MemoryMessage.modeIds]); in the request view they carry a note so
+  /// the model knows the following reply's special format was tag-driven.
+  /// Without it the history reads as "ordinary question → specially
+  /// formatted answer", and the model keeps emitting that format after
+  /// the user drops the tag.
   List<MemoryMessage> _requestMessages(String? modelQuestion) {
-    if (modelQuestion == null) {
-      return _messages;
+    final view = <MemoryMessage>[];
+    final historyModes = <MemoryInputMode>{};
+    for (final message in _messages) {
+      if (message.role == 'user' && message.modeIds.isNotEmpty) {
+        final modes = memoryInputModesForIds(message.modeIds);
+        if (modes.isNotEmpty) {
+          historyModes.addAll(modes);
+          view.add(
+            MemoryMessage(
+              role: message.role,
+              content:
+                  '${message.content.trimRight()}\n\n${modeRequestNote(modes)}',
+              createdAt: message.createdAt,
+              modeIds: message.modeIds,
+            ),
+          );
+          continue;
+        }
+      }
+      view.add(message);
     }
-    final view = [..._messages];
-    for (var i = view.length - 1; i >= 0; i--) {
-      if (view[i].role == 'user') {
-        view[i] = MemoryMessage(
-          role: 'user',
-          content: modelQuestion,
-          createdAt: view[i].createdAt,
-        );
-        break;
+
+    var requestQuestion = modelQuestion;
+    if (requestQuestion == null && historyModes.isNotEmpty) {
+      // No mode tag this turn: explicitly cancel the output format the
+      // annotated history would otherwise keep suggesting.
+      for (var i = view.length - 1; i >= 0; i--) {
+        if (view[i].role == 'user') {
+          requestQuestion =
+              '${view[i].content}\n\n${noModeReplyReminder(historyModes)}';
+          break;
+        }
+      }
+    }
+    if (requestQuestion != null) {
+      for (var i = view.length - 1; i >= 0; i--) {
+        if (view[i].role == 'user') {
+          view[i] = MemoryMessage(
+            role: 'user',
+            content: requestQuestion,
+            createdAt: view[i].createdAt,
+          );
+          break;
+        }
       }
     }
     return view;
@@ -543,6 +585,7 @@ class _MemoryPageState extends State<MemoryPage> {
       toolCallId: message.toolCallId,
       toolCalls: message.toolCalls,
       sources: message.sources,
+      modeIds: message.modeIds,
     );
   }
 

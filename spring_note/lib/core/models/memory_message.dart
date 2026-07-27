@@ -9,6 +9,7 @@ class MemoryMessage {
     this.toolCallId,
     this.toolCalls = const [],
     this.sources = const [],
+    this.modeIds = const [],
   });
 
   final String role;
@@ -20,6 +21,12 @@ class MemoryMessage {
   final String? toolCallId;
   final List<MemoryToolCallMessage> toolCalls;
   final List<MemorySource> sources;
+
+  /// Ids of the composer input modes (see `memory_input_modes.dart`) that
+  /// were active when this user message was sent; empty when no mode tag
+  /// was used. Recorded so later requests can explain the resulting
+  /// reply's format without guessing from its content.
+  final List<String> modeIds;
 
   factory MemoryMessage.fromJson(Map<String, Object?> json) {
     return MemoryMessage(
@@ -36,6 +43,9 @@ class MemoryMessage {
       toolCallId: json['toolCallId']?.toString(),
       toolCalls: _readToolCalls(json['toolCalls']),
       sources: _readSources(json['sources']),
+      modeIds: json['modeIds'] is List
+          ? (json['modeIds'] as List).map((id) => id.toString()).toList()
+          : const [],
     );
   }
 
@@ -53,6 +63,7 @@ class MemoryMessage {
         'toolCalls': toolCalls.map((toolCall) => toolCall.toJson()).toList(),
       if (sources.isNotEmpty)
         'sources': sources.map((source) => source.toJson()).toList(),
+      if (modeIds.isNotEmpty) 'modeIds': modeIds,
     };
   }
 
