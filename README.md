@@ -16,7 +16,7 @@ Instead of static records, we model a living system:
 
 <div align="center">
 <div>
-<img src="https://img.shields.io/badge/Platform-Windows%20%7C%20macOS-e8f5ef?style=flat-square&labelColor=263a36">
+<a href="https://qm.qq.com/q/c6QiowtYSA"><img src="https://img.shields.io/badge/Group-170%20ONLINE-c9dce8?style=flat-square&labelColor=263a36&logo=qq&logoColor=white"></a>
 <img src="https://img.shields.io/badge/Flutter-3.x-d7e8e4?style=flat-square&labelColor=263a36&logo=flutter">
 <img src="https://img.shields.io/badge/Rust-2024-e8dfd8?style=flat-square&labelColor=263a36&logo=rust">
 <img src="https://img.shields.io/badge/License-AGPL--3.0-f2e8e5?style=flat-square&labelColor=5b403a">
