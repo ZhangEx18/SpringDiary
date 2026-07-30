@@ -179,4 +179,4 @@ Instead of static records, we model a living system:
   <img src="https://count.getloli.com/@SpringNote?name=SpringNote&theme=miku&padding=7&offset=0&align=center&scale=0.3&pixelated=1&darkmode=auto" alt="visitor count" />
 </p>
 
-[![Star History Chart](https://api.star-history.com/chart?repos=Radiant303/SpringNote&type=date&legend=top-left&sealed_token=vqcJIzVC4GTop-uWrSwTiBM2dz5DWuy6R6b-qZBONxLNKhi_HNBJL9IycZ6Gk3nM-UHckGxN6ulrqXHakvF7TsuZSTKb1OS32wDZzxXkZgZ9mtC6f433o_C3G8c45KMZyk9W91TSlU7S8gN1fceRDhcirBaVQCmyOVDRvpNS8znBQ9H0qfF1J4ZrAsxe)](https://www.star-history.com/?repos=Radiant303%2FSpringNote&type=date&legend=top-left)
+[![Star History Chart](https://api.star-history.com/chart?repos=Radiant303/SpringNote&type=date&legend=top-left&sealed_token=GD4g7Mlo0LVV9WahCTkgmdeB4LneMiVy1HvOlv59QgOYv9GbY7C2yT5b4TK0fvbgxLJLKR7jglKhMek04iRyeh6_NkURNIkQrpqVqGe9KQKBbm6StCexBQ)](https://www.star-history.com/?repos=Radiant303%2FSpringNote&type=date&legend=top-left)
