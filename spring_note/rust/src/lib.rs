@@ -3,6 +3,7 @@ pub mod ai_claude;
 pub mod ai_gemini;
 pub mod ai_log;
 pub mod ai_openai;
+pub(crate) mod ai_tools;
 pub mod api;
 pub mod cloud_sync;
 pub mod note_image_cleanup;

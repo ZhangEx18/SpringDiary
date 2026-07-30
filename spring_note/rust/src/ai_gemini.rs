@@ -5,7 +5,7 @@ use crate::ai::{
 };
 use crate::ai_log::{ApiNetworkLog, write_api_network_log};
 use crate::frb_generated::StreamSink;
-use crate::{ai_openai, stats};
+use crate::{ai_tools, stats};
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::time::Instant;
@@ -523,25 +523,16 @@ fn tool_response_object(content: &str) -> Value {
         .unwrap_or_else(|| json!({"result": content}))
 }
 
-/// 复用 OpenAI 侧的回忆书工具定义,转换为老接口 functionDeclarations 声明格式。
+/// 复用中立的回忆书工具定义（ai_tools），转换为老接口 functionDeclarations 声明格式。
 fn gemini_memory_tools() -> Value {
-    let declarations = ai_openai::memory_tools_json()
-        .as_array()
-        .cloned()
-        .unwrap_or_default()
+    let declarations = ai_tools::memory_tools()
         .into_iter()
-        .filter_map(|item| {
-            let function = item.get("function")?;
-            Some(json!({
-                "name": function.get("name").cloned().unwrap_or(Value::String(String::new())),
-                "description": function.get("description").cloned().unwrap_or(Value::String(String::new())),
-                "parameters": classic_schema(
-                    &function
-                        .get("parameters")
-                        .cloned()
-                        .unwrap_or_else(|| json!({"type": "object", "properties": {}}))
-                )
-            }))
+        .map(|tool| {
+            json!({
+                "name": tool.name,
+                "description": tool.description,
+                "parameters": classic_schema(&tool.parameters)
+            })
         })
         .collect::<Vec<_>>();
     json!([{"functionDeclarations": declarations}])
@@ -1229,10 +1220,11 @@ mod tests {
         );
 
         let declarations = body["tools"][0]["functionDeclarations"].as_array().unwrap();
-        assert_eq!(declarations.len(), 10);
-        assert_eq!(declarations[0]["name"], "get_current_date");
+        let definitions = ai_tools::memory_tools();
+        assert_eq!(declarations.len(), definitions.len());
+        assert_eq!(declarations[0]["name"], definitions[0].name);
         assert!(declarations[0].get("strict").is_none());
-        assert_eq!(declarations[1]["name"], "keyword_search");
+        assert_eq!(declarations[1]["name"], definitions[1].name);
         // 老接口 Schema 的 type 枚举必须大写。
         assert_eq!(declarations[1]["parameters"]["type"], "OBJECT");
         assert_eq!(
@@ -1256,15 +1248,23 @@ mod tests {
                 .get("additionalProperties")
                 .is_none()
         );
-        // minLength / pattern / minItems / maxItems 属于受支持子集,必须保留。
+        // 受支持子集内的约束必须原样保留,具体取值由 ai_tools 的定义测试覆盖。
+        let definitions = ai_tools::memory_tools();
         let keywords = &declarations[1]["parameters"]["properties"]["keywords"];
-        assert_eq!(keywords["items"]["minLength"], 2);
-        assert_eq!(keywords["maxItems"], 8);
+        let source_keywords = &definitions[1].parameters["properties"]["keywords"];
+        assert_eq!(
+            keywords["items"]["minLength"],
+            source_keywords["items"]["minLength"]
+        );
+        assert_eq!(keywords["maxItems"], source_keywords["maxItems"]);
         assert_eq!(
             declarations[5]["parameters"]["properties"]["date"]["pattern"],
-            "^20\\d{2}-(0[1-9]|1[0-2])-([0-2][0-9]|3[0-1])$"
+            definitions[5].parameters["properties"]["date"]["pattern"]
         );
-        assert_eq!(declarations[1]["parameters"]["required"][0], "keywords");
+        assert_eq!(
+            declarations[1]["parameters"]["required"],
+            definitions[1].parameters["required"]
+        );
     }
 
     #[test]

@@ -4,6 +4,7 @@ use crate::ai::{
     extract_text, http_client, http_stream_client, usage_from_value,
 };
 use crate::ai_log::{ApiNetworkLog, write_api_network_log};
+use crate::ai_tools;
 use crate::frb_generated::StreamSink;
 use crate::stats;
 use serde_json::{Value, json};
@@ -984,252 +985,42 @@ fn read_string_field(value: &Value, key: &str) -> String {
         .to_string()
 }
 
-pub fn memory_tools_json() -> Value {
-    json!([
-        {
-            "type": "function",
-            "function": {
-                "name": "get_current_date",
-                "strict": true,
-                "description": "Get the current local date, ISO week label, and week number. Use this before resolving relative dates such as today, yesterday, this week, this month.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {},
-                    "required": [],
-                    "additionalProperties": false
-                }
-            }
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "keyword_search",
-                "strict": true,
-                "description": "Run one global indexed search across SpringNote daily, weekly, and monthly Markdown records. Use this only when the record type is unknown or the answer may span multiple types; prefer a scoped search when the user names daily, weekly, or monthly records. When calling keyword_search, submit all distinctive keywords in this single call. Every keyword must contain at least two Unicode characters. Each result includes truncated and totalCharacters fields: truncated is true when the snippet is clipped to a character limit (clipped parts are marked with '...'), and totalCharacters is the record's full length.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "keywords": {
-                            "type": "array",
-                            "description": "All concise keywords or phrases needed for one global search, sorted by importance.",
-                            "minItems": 1,
-                            "maxItems": 8,
-                            "items": {
-                                "type": "string",
-                                "description": "A concise keyword or phrase containing at least two Unicode characters.",
-                                "minLength": 2
-                            }
-                        }
-                    },
-                    "required": ["keywords"],
-                    "additionalProperties": false
-                }
-            }
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "search_daily_notes",
-                "strict": true,
-                "description": "Search only SpringNote daily Markdown notes. Use this instead of keyword_search when the request is limited to daily notes or day-level records. Submit all distinctive keywords in this single call. Every keyword must contain at least two Unicode characters. Each result includes truncated and totalCharacters fields: truncated is true when the snippet is clipped to a character limit (clipped parts are marked with '...'), and totalCharacters is the record's full length.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "keywords": {
-                            "type": "array",
-                            "description": "All concise keywords or phrases needed for one daily-note search, sorted by importance.",
-                            "minItems": 1,
-                            "maxItems": 8,
-                            "items": {
-                                "type": "string",
-                                "description": "A concise keyword or phrase containing at least two Unicode characters.",
-                                "minLength": 2
-                            }
-                        }
-                    },
-                    "required": ["keywords"],
-                    "additionalProperties": false
-                }
-            }
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "search_weekly_notes",
-                "strict": true,
-                "description": "Search only SpringNote weekly Markdown reports. Use this instead of keyword_search when the request is limited to weekly reports. Submit all distinctive keywords in this single call. Every keyword must contain at least two Unicode characters. Each result includes truncated and totalCharacters fields: truncated is true when the snippet is clipped to a character limit (clipped parts are marked with '...'), and totalCharacters is the record's full length.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "keywords": {
-                            "type": "array",
-                            "description": "All concise keywords or phrases needed for one weekly-report search, sorted by importance.",
-                            "minItems": 1,
-                            "maxItems": 8,
-                            "items": {
-                                "type": "string",
-                                "description": "A concise keyword or phrase containing at least two Unicode characters.",
-                                "minLength": 2
-                            }
-                        }
-                    },
-                    "required": ["keywords"],
-                    "additionalProperties": false
-                }
-            }
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "search_monthly_notes",
-                "strict": true,
-                "description": "Search only SpringNote monthly Markdown reports. Use this instead of keyword_search when the request is limited to monthly reports. Submit all distinctive keywords in this single call. Every keyword must contain at least two Unicode characters. Each result includes truncated and totalCharacters fields: truncated is true when the snippet is clipped to a character limit (clipped parts are marked with '...'), and totalCharacters is the record's full length.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "keywords": {
-                            "type": "array",
-                            "description": "All concise keywords or phrases needed for one monthly-report search, sorted by importance.",
-                            "minItems": 1,
-                            "maxItems": 8,
-                            "items": {
-                                "type": "string",
-                                "description": "A concise keyword or phrase containing at least two Unicode characters.",
-                                "minLength": 2
-                            }
-                        }
-                    },
-                    "required": ["keywords"],
-                    "additionalProperties": false
-                }
-            }
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "read_daily_note",
-                "strict": true,
-                "description": "Read the daily Markdown note for a specific date. The result includes truncated and totalCharacters fields: truncated is true when the snippet is clipped to a character limit (clipped parts are marked with '...'), and totalCharacters is the record's full length.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "date": {
-                            "type": "string",
-                            "description": "The date in YYYY-MM-DD format.",
-                            "pattern": "^20\\d{2}-(0[1-9]|1[0-2])-([0-2][0-9]|3[0-1])$"
-                        }
-                    },
-                    "required": ["date"],
-                    "additionalProperties": false
-                }
-            }
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "read_week_daily_notes",
-                "strict": true,
-                "description": "Read all available daily notes in a date range, typically one week. Each result includes truncated and totalCharacters fields: truncated is true when the snippet is clipped to a character limit (clipped parts are marked with '...'), and totalCharacters is the record's full length.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "startDate": {
-                            "type": "string",
-                            "description": "Range start date in YYYY-MM-DD format.",
-                            "pattern": "^20\\d{2}-(0[1-9]|1[0-2])-([0-2][0-9]|3[0-1])$"
-                        },
-                        "endDate": {
-                            "type": "string",
-                            "description": "Range end date in YYYY-MM-DD format.",
-                            "pattern": "^20\\d{2}-(0[1-9]|1[0-2])-([0-2][0-9]|3[0-1])$"
-                        }
-                    },
-                    "required": ["startDate", "endDate"],
-                    "additionalProperties": false
-                }
-            }
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "read_weekly_note",
-                "strict": true,
-                "description": "Read only the SpringNote weekly report Markdown for a specific ISO week. Do not return daily notes. The result includes truncated and totalCharacters fields: truncated is true when the snippet is clipped to a character limit (clipped parts are marked with '...'), and totalCharacters is the record's full length.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "week": {
-                            "type": "string",
-                            "description": "The ISO week in YYYY-Www format, for example 2026-W28.",
-                            "pattern": "^20\\d{2}-W(0[1-9]|[1-4]\\d|5[0-3])$"
-                        }
-                    },
-                    "required": ["week"],
-                    "additionalProperties": false
-                }
-            }
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "read_month_weekly_notes",
-                "strict": true,
-                "description": "Read all available SpringNote weekly report Markdown files whose ISO weeks overlap a specific calendar month. Return weekly reports only, not daily notes or the monthly report. Each result includes truncated and totalCharacters fields: truncated is true when the snippet is clipped to a character limit (clipped parts are marked with '...'), and totalCharacters is the record's full length.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "month": {
-                            "type": "string",
-                            "description": "The calendar month in YYYY-MM format.",
-                            "pattern": "^20\\d{2}-(0[1-9]|1[0-2])$"
-                        }
-                    },
-                    "required": ["month"],
-                    "additionalProperties": false
-                }
-            }
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "read_month_report",
-                "strict": true,
-                "description": "Read only the monthly report Markdown for a specific month. Do not return daily notes. The result includes truncated and totalCharacters fields: truncated is true when the snippet is clipped to a character limit (clipped parts are marked with '...'), and totalCharacters is the record's full length.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "month": {
-                            "type": "string",
-                            "description": "The month in YYYY-MM format.",
-                            "pattern": "^20\\d{2}-(0[1-9]|1[0-2])$"
-                        }
-                    },
-                    "required": ["month"],
-                    "additionalProperties": false
-                }
-            }
-        }
-    ])
+/// 把中立的回忆书工具定义（ai_tools）转换为 Chat Completions 的 tools 格式。
+fn memory_tools_json() -> Value {
+    Value::Array(
+        ai_tools::memory_tools()
+            .into_iter()
+            .map(|tool| {
+                json!({
+                    "type": "function",
+                    "function": {
+                        "name": tool.name,
+                        "strict": tool.strict,
+                        "description": tool.description,
+                        "parameters": tool.parameters
+                    }
+                })
+            })
+            .collect(),
+    )
 }
 
+/// Responses 接口的 tools 格式：function 字段拍平到顶层。
 fn responses_memory_tools_json() -> Value {
-    let tools = memory_tools_json()
-        .as_array()
-        .cloned()
-        .unwrap_or_default()
-        .into_iter()
-        .filter_map(|item| {
-            let function = item.get("function")?;
-            Some(json!({
-                "type": "function",
-                "name": function.get("name").cloned().unwrap_or(Value::String(String::new())),
-                "description": function.get("description").cloned().unwrap_or(Value::String(String::new())),
-                "parameters": function.get("parameters").cloned().unwrap_or_else(|| json!({ "type": "object", "properties": {} })),
-                "strict": function.get("strict").cloned().unwrap_or(Value::Bool(true))
-            }))
-        })
-        .collect::<Vec<_>>();
-    Value::Array(tools)
+    Value::Array(
+        ai_tools::memory_tools()
+            .into_iter()
+            .map(|tool| {
+                json!({
+                    "type": "function",
+                    "name": tool.name,
+                    "description": tool.description,
+                    "parameters": tool.parameters,
+                    "strict": tool.strict
+                })
+            })
+            .collect(),
+    )
 }
 
 fn parse_tool_calls(message: &Value) -> Vec<AiToolCall> {
@@ -2042,57 +1833,19 @@ mod tests {
         assert_eq!(body["messages"][0]["role"], "system");
         assert_eq!(body["messages"][1]["role"], "user");
         assert_eq!(body["tool_choice"], "auto");
-        assert_eq!(body["tools"][0]["function"]["strict"], true);
-        assert_eq!(
-            body["tools"][1]["function"]["parameters"]["required"][0],
-            "keywords"
-        );
-        assert_eq!(
-            body["tools"][1]["function"]["parameters"]["additionalProperties"],
-            false
-        );
-        assert_eq!(
-            body["tools"][1]["function"]["parameters"]["properties"]["keywords"]["items"]["minLength"],
-            2
-        );
-        assert_eq!(
-            body["tools"][1]["function"]["parameters"]["properties"]["keywords"]["maxItems"],
-            8
-        );
-        assert!(
-            body["tools"][1]["function"]["description"]
-                .as_str()
-                .unwrap()
-                .contains("submit all distinctive keywords in this single call")
-        );
-        assert_eq!(body["tools"][2]["function"]["name"], "search_daily_notes");
-        assert_eq!(body["tools"][3]["function"]["name"], "search_weekly_notes");
-        assert_eq!(body["tools"][4]["function"]["name"], "search_monthly_notes");
-        assert_eq!(body["tools"][7]["function"]["name"], "read_weekly_note");
-        assert_eq!(
-            body["tools"][7]["function"]["parameters"]["required"][0],
-            "week"
-        );
-        assert_eq!(
-            body["tools"][8]["function"]["name"],
-            "read_month_weekly_notes"
-        );
-        assert_eq!(
-            body["tools"][8]["function"]["parameters"]["required"][0],
-            "month"
-        );
-        assert!(
-            body["tools"][0]["function"]["description"]
-                .as_str()
-                .unwrap()
-                .contains("ISO week")
-        );
-        assert!(
-            body["tools"][1]["function"]["description"]
-                .as_str()
-                .unwrap()
-                .contains("prefer a scoped search")
-        );
+
+        // 工具内容（名称、顺序、Schema、描述）由 ai_tools 统一定义并测试，
+        // 这里只验证中立定义被原样封装进 Chat Completions 的 function 格式。
+        let definitions = ai_tools::memory_tools();
+        let tools = body["tools"].as_array().unwrap();
+        assert_eq!(tools.len(), definitions.len());
+        for (tool, definition) in tools.iter().zip(definitions.iter()) {
+            assert_eq!(tool["type"], "function");
+            assert_eq!(tool["function"]["name"], definition.name);
+            assert_eq!(tool["function"]["strict"], definition.strict);
+            assert_eq!(tool["function"]["description"], definition.description);
+            assert_eq!(tool["function"]["parameters"], definition.parameters);
+        }
     }
 
     #[test]
@@ -2148,8 +1901,14 @@ mod tests {
         assert_eq!(body["instructions"], "system");
         assert_eq!(body["tool_choice"], "auto");
         assert!(body.get("messages").is_none());
-        assert_eq!(body["tools"][1]["name"], "keyword_search");
-        assert_eq!(body["tools"][1]["strict"], true);
+        // Responses 格式把 function 字段拍平到顶层，内容仍来自 ai_tools 的中立定义。
+        let definitions = ai_tools::memory_tools();
+        let tools = body["tools"].as_array().unwrap();
+        assert_eq!(tools.len(), definitions.len());
+        assert_eq!(tools[1]["name"], definitions[1].name);
+        assert_eq!(tools[1]["strict"], definitions[1].strict);
+        assert_eq!(tools[1]["parameters"], definitions[1].parameters);
+        assert!(tools[1].get("function").is_none());
         assert_eq!(body["input"][1]["type"], "function_call");
         assert_eq!(body["input"][1]["call_id"], "call_1");
         assert_eq!(body["input"][1]["name"], "keyword_search");

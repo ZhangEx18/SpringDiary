@@ -5,7 +5,7 @@ use crate::ai::{
 };
 use crate::ai_log::{ApiNetworkLog, write_api_network_log};
 use crate::frb_generated::StreamSink;
-use crate::{ai_openai, stats};
+use crate::{ai_tools, stats};
 use serde_json::{Value, json};
 use std::time::Instant;
 
@@ -432,27 +432,21 @@ fn parse_tool_arguments(arguments: &str) -> Value {
         .unwrap_or_else(|| json!({}))
 }
 
-/// 复用 OpenAI 侧的回忆书工具定义,转换为 /v1/messages 工具格式。
-/// 非严格模式的 input_schema 接受任意 JSON Schema,minLength/pattern 等原样保留。
+/// 复用中立的回忆书工具定义（ai_tools），转换为 /v1/messages 工具格式。
+/// 非严格模式的 input_schema 接受任意 JSON Schema，minLength/pattern 等原样保留。
 fn claude_memory_tools() -> Value {
-    let tools = ai_openai::memory_tools_json()
-        .as_array()
-        .cloned()
-        .unwrap_or_default()
-        .into_iter()
-        .filter_map(|item| {
-            let function = item.get("function")?;
-            Some(json!({
-                "name": function.get("name").cloned().unwrap_or(Value::String(String::new())),
-                "description": function.get("description").cloned().unwrap_or(Value::String(String::new())),
-                "input_schema": function
-                    .get("parameters")
-                    .cloned()
-                    .unwrap_or_else(|| json!({"type": "object", "properties": {}}))
-            }))
-        })
-        .collect::<Vec<_>>();
-    Value::Array(tools)
+    Value::Array(
+        ai_tools::memory_tools()
+            .into_iter()
+            .map(|tool| {
+                json!({
+                    "name": tool.name,
+                    "description": tool.description,
+                    "input_schema": tool.parameters
+                })
+            })
+            .collect(),
+    )
 }
 
 /// 与 Rust 侧 parse_structured_note 解析逻辑匹配的输出 Schema;
@@ -1141,17 +1135,21 @@ mod tests {
         // 思考开启时不能自定义 temperature。
         assert!(body.get("temperature").is_none());
 
+        // 工具内容（数量、Schema、描述）由 ai_tools 统一定义并测试，
+        // 这里只验证中立定义被原样映射为 input_schema，不带 strict/type 包装。
+        let definitions = ai_tools::memory_tools();
         let tools = body["tools"].as_array().unwrap();
-        assert_eq!(tools.len(), 10);
+        assert_eq!(tools.len(), definitions.len());
         let keyword_search = tools
             .iter()
             .find(|tool| tool["name"] == "keyword_search")
             .unwrap();
-        assert!(keyword_search.get("description").is_some());
-        // 非严格模式的 input_schema 保留 minItems / maxItems 等约束,不带 strict 包装。
-        let keywords = &keyword_search["input_schema"]["properties"]["keywords"];
-        assert_eq!(keywords["minItems"], 1);
-        assert_eq!(keywords["maxItems"], 8);
+        let definition = definitions
+            .iter()
+            .find(|tool| tool.name == "keyword_search")
+            .unwrap();
+        assert_eq!(keyword_search["description"], definition.description);
+        assert_eq!(keyword_search["input_schema"], definition.parameters);
         assert!(keyword_search.get("strict").is_none());
         assert!(keyword_search.get("type").is_none());
     }
