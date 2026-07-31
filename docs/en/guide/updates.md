@@ -35,6 +35,29 @@ If some AI features are unavailable after upgrading, check:
 
 Do not delete existing configuration directly.
 
+## v1.0.6 (2026-07-31)
+
+### Mind Map Q&A Mode
+
+### UI Improvements
+
+- Improved the Memory Book input box.
+- Refined website styles and improved the user manual.
+
+### New Features
+
+- Added Mind Map Q&A mode: insert the "Mind Map" tag from the "+" menu in the Memory Book input box, and AI replies render as a radial mind map. Note Markdown preview supports the same format.
+- Added a send-shortcut option: the home and Memory Book inputs can send with Enter or with Ctrl/Cmd+Enter.
+- Improved note edit/preview switching for a smoother experience with large documents.
+- Optimized Markdown image decoding to load at display size, reducing memory usage.
+- Refined weekly and monthly report prompts with a unified title format.
+
+### Bug Fixes
+
+- Fixed abnormal memory retention of mind maps.
+- Fixed dead zones on the Memory Book page where clicks did not register.
+- Fixed the mobile home page failing to open the official documentation.
+
 ## v1.0.5 (2026-07-24)
 
 ### Daily, Weekly & Monthly Report Regeneration
