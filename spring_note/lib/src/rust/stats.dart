@@ -59,6 +59,24 @@ class DailyTokenUsage {
           totalTokens == other.totalTokens;
 }
 
+class MoodEntry {
+  final String date;
+  final String mood;
+
+  const MoodEntry({required this.date, required this.mood});
+
+  @override
+  int get hashCode => date.hashCode ^ mood.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MoodEntry &&
+          runtimeType == other.runtimeType &&
+          date == other.date &&
+          mood == other.mood;
+}
+
 class ProviderTokenUsage {
   final String date;
   final String providerName;
@@ -128,6 +146,7 @@ class StatsSummary {
   final int dailyNotes;
   final int weeklyNotes;
   final int monthlyNotes;
+  final int diaryNotes;
   final int inputTokens;
   final int outputTokens;
   final int cachedTokens;
@@ -142,6 +161,7 @@ class StatsSummary {
     required this.dailyNotes,
     required this.weeklyNotes,
     required this.monthlyNotes,
+    required this.diaryNotes,
     required this.inputTokens,
     required this.outputTokens,
     required this.cachedTokens,
@@ -158,6 +178,7 @@ class StatsSummary {
       dailyNotes.hashCode ^
       weeklyNotes.hashCode ^
       monthlyNotes.hashCode ^
+      diaryNotes.hashCode ^
       inputTokens.hashCode ^
       outputTokens.hashCode ^
       cachedTokens.hashCode ^
@@ -176,6 +197,7 @@ class StatsSummary {
           dailyNotes == other.dailyNotes &&
           weeklyNotes == other.weeklyNotes &&
           monthlyNotes == other.monthlyNotes &&
+          diaryNotes == other.diaryNotes &&
           inputTokens == other.inputTokens &&
           outputTokens == other.outputTokens &&
           cachedTokens == other.cachedTokens &&

@@ -246,7 +246,8 @@ LocalDataState _state(Directory root) {
   final daily = '$notes${Platform.pathSeparator}daily';
   final weekly = '$notes${Platform.pathSeparator}weekly';
   final monthly = '$notes${Platform.pathSeparator}monthly';
-  for (final path in [daily, weekly, monthly]) {
+  final diary = '$notes${Platform.pathSeparator}diary';
+  for (final path in [daily, weekly, monthly, diary]) {
     Directory(path).createSync(recursive: true);
   }
   return LocalDataState(
@@ -255,6 +256,7 @@ LocalDataState _state(Directory root) {
     dailyNotesDirectory: daily,
     weeklyNotesDirectory: weekly,
     monthlyNotesDirectory: monthly,
+    diaryNotesDirectory: diary,
     config: AppConfig.defaults().copyWith(cloudSync: _syncConfig()),
   );
 }

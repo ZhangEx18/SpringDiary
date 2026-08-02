@@ -53,7 +53,7 @@ class NoteService {
   }) async {
     final date = now ?? DateTime.now();
     final name = switch (kind) {
-      NoteKind.daily => _formatDate(date),
+      NoteKind.daily || NoteKind.diary => _formatDate(date),
       NoteKind.weekly => _formatIsoWeek(date),
       NoteKind.monthly =>
         '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}',

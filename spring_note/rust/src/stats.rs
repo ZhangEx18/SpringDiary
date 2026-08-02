@@ -16,6 +16,7 @@ pub struct StatsSummary {
     pub daily_notes: i32,
     pub weekly_notes: i32,
     pub monthly_notes: i32,
+    pub diary_notes: i32,
     pub input_tokens: i32,
     pub output_tokens: i32,
     pub cached_tokens: i32,
@@ -45,6 +46,12 @@ pub struct ProviderTokenUsage {
     pub provider_name: String,
     pub model_id: String,
     pub tokens: i32,
+}
+
+#[derive(Clone, Debug)]
+pub struct MoodEntry {
+    pub date: String,
+    pub mood: String,
 }
 
 #[derive(Clone, Debug)]
@@ -167,6 +174,51 @@ pub fn record_app_startup(app_data_dir: &str) -> Result<()> {
     Ok(())
 }
 
+pub fn record_diary_entry(app_data_dir: &str, date: &str, mood: &str) -> Result<()> {
+    let mut connection = open_connection(app_data_dir)?;
+    initialize(&connection)?;
+    let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+
+    tx.execute(
+        "INSERT INTO mood_records (date, mood) VALUES (?1, ?2)
+         ON CONFLICT(date, mood) DO NOTHING",
+        params![date, mood],
+    )?;
+    tx.execute(
+        "INSERT INTO daily_stats (date, diary_entries)
+        VALUES (?1, 1)
+        ON CONFLICT(date) DO UPDATE SET
+            diary_entries = diary_entries + excluded.diary_entries",
+        params![date],
+    )?;
+
+    tx.commit()?;
+    Ok(())
+}
+
+pub fn get_mood_distribution(
+    app_data_dir: &str,
+    start_date: &str,
+    end_date: &str,
+) -> Result<Vec<MoodEntry>> {
+    let connection = open_connection(app_data_dir)?;
+    initialize(&connection)?;
+    let mut statement = connection.prepare(
+        "SELECT date, mood FROM mood_records
+         WHERE date BETWEEN ?1 AND ?2
+         ORDER BY date",
+    )?;
+    let rows = statement
+        .query_map(params![start_date, end_date], |row| {
+            Ok(MoodEntry {
+                date: row.get(0)?,
+                mood: row.get(1)?,
+            })
+        })?
+        .collect::<Result<Vec<_>>>()?;
+    Ok(rows)
+}
+
 pub fn record_home_generation(app_data_dir: &str) -> Result<()> {
     increment_daily_stats(app_data_dir, 1, 0, 0, 0.0, 1)
 }
@@ -180,16 +232,18 @@ pub fn get_stats_snapshot(
     daily_notes_dir: &str,
     weekly_notes_dir: &str,
     monthly_notes_dir: &str,
+    diary_notes_dir: &str,
     start_date: &str,
     end_date: &str,
 ) -> Result<StatsSnapshot> {
     let connection = open_connection(app_data_dir)?;
     initialize(&connection)?;
 
-    let (daily_notes, weekly_notes, monthly_notes) = (
+    let (daily_notes, weekly_notes, monthly_notes, diary_notes) = (
         count_daily_markdown_files(daily_notes_dir, start_date, end_date),
         count_weekly_markdown_files(weekly_notes_dir, start_date, end_date),
         count_monthly_markdown_files(monthly_notes_dir, start_date, end_date),
+        count_daily_markdown_files(diary_notes_dir, start_date, end_date),
     );
 
     let summaries: i32 = connection.query_row(
@@ -295,10 +349,11 @@ pub fn get_stats_snapshot(
         summary: StatsSummary {
             summaries,
             fim_completions,
-            total_records: daily_notes + weekly_notes + monthly_notes,
+            total_records: daily_notes + weekly_notes + monthly_notes + diary_notes,
             daily_notes,
             weekly_notes,
             monthly_notes,
+            diary_notes,
             input_tokens,
             output_tokens,
             cached_tokens,
@@ -390,7 +445,14 @@ fn initialize(connection: &Connection) -> Result<()> {
             work_seconds INTEGER NOT NULL DEFAULT 0,
             coins REAL NOT NULL DEFAULT 0,
             active_count INTEGER NOT NULL DEFAULT 0,
-            app_launches INTEGER NOT NULL DEFAULT 0
+            app_launches INTEGER NOT NULL DEFAULT 0,
+            diary_entries INTEGER NOT NULL DEFAULT 0
+        );
+
+        CREATE TABLE IF NOT EXISTS mood_records (
+            date TEXT NOT NULL,
+            mood TEXT NOT NULL,
+            PRIMARY KEY (date, mood)
         );
 
         CREATE TABLE IF NOT EXISTS app_counters (
@@ -403,6 +465,12 @@ fn initialize(connection: &Connection) -> Result<()> {
         connection,
         "daily_stats",
         "app_launches",
+        "INTEGER NOT NULL DEFAULT 0",
+    )?;
+    ensure_column(
+        connection,
+        "daily_stats",
+        "diary_entries",
         "INTEGER NOT NULL DEFAULT 0",
     )?;
     Ok(())
@@ -620,9 +688,11 @@ mod tests {
         let daily = dir.join("notes").join("daily");
         let weekly = dir.join("notes").join("weekly");
         let monthly = dir.join("notes").join("monthly");
+        let diary = dir.join("notes").join("diary");
         fs::create_dir_all(&daily).unwrap();
         fs::create_dir_all(&weekly).unwrap();
         fs::create_dir_all(&monthly).unwrap();
+        fs::create_dir_all(&diary).unwrap();
         let today_date = Local::now().date_naive();
         let today = today_date.format("%Y-%m-%d").to_string();
         fs::write(daily.join(format!("{today}.md")), "# 日报").unwrap();
@@ -643,6 +713,7 @@ mod tests {
             &daily.to_string_lossy(),
             &weekly.to_string_lossy(),
             &monthly.to_string_lossy(),
+            &diary.to_string_lossy(),
             &today,
             &today,
         )
@@ -668,9 +739,11 @@ mod tests {
         let daily = dir.join("notes").join("daily");
         let weekly = dir.join("notes").join("weekly");
         let monthly = dir.join("notes").join("monthly");
+        let diary = dir.join("notes").join("diary");
         fs::create_dir_all(&daily).unwrap();
         fs::create_dir_all(&weekly).unwrap();
         fs::create_dir_all(&monthly).unwrap();
+        fs::create_dir_all(&diary).unwrap();
 
         for _ in 0..12 {
             record_home_generation(&app_data_dir).unwrap();
@@ -682,6 +755,7 @@ mod tests {
             &daily.to_string_lossy(),
             &weekly.to_string_lossy(),
             &monthly.to_string_lossy(),
+            &diary.to_string_lossy(),
             &today,
             &today,
         )
@@ -698,21 +772,25 @@ mod tests {
         let daily = dir.join("notes").join("daily");
         let weekly = dir.join("notes").join("weekly");
         let monthly = dir.join("notes").join("monthly");
+        let diary = dir.join("notes").join("diary");
         fs::create_dir_all(&daily).unwrap();
         fs::create_dir_all(&weekly).unwrap();
         fs::create_dir_all(&monthly).unwrap();
+        fs::create_dir_all(&diary).unwrap();
         fs::write(daily.join("2026-06-18.md"), "# 日报").unwrap();
         fs::write(daily.join("2026-05-01.md"), "# 日报").unwrap();
         fs::write(weekly.join("2026-W25.md"), "# 周报").unwrap();
         fs::write(weekly.join("2026-W20.md"), "# 周报").unwrap();
         fs::write(monthly.join("2026-06.md"), "# 月报").unwrap();
         fs::write(monthly.join("2026-04.md"), "# 月报").unwrap();
+        fs::write(diary.join("2026-06-18.md"), "# 日记").unwrap();
 
         let snapshot = get_stats_snapshot(
             &app_data_dir,
             &daily.to_string_lossy(),
             &weekly.to_string_lossy(),
             &monthly.to_string_lossy(),
+            &diary.to_string_lossy(),
             "2026-06-18",
             "2026-06-18",
         )
@@ -721,7 +799,8 @@ mod tests {
         assert_eq!(snapshot.summary.daily_notes, 1);
         assert_eq!(snapshot.summary.weekly_notes, 1);
         assert_eq!(snapshot.summary.monthly_notes, 1);
-        assert_eq!(snapshot.summary.total_records, 3);
+        assert_eq!(snapshot.summary.diary_notes, 1);
+        assert_eq!(snapshot.summary.total_records, 4);
         fs::remove_dir_all(dir).ok();
     }
 

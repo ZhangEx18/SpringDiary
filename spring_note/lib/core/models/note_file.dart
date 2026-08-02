@@ -1,7 +1,8 @@
 enum NoteKind {
   daily(label: '日报', directoryName: 'daily', suffix: '日报'),
   weekly(label: '周报', directoryName: 'weekly', suffix: '周报'),
-  monthly(label: '月报', directoryName: 'monthly', suffix: '月报');
+  monthly(label: '月报', directoryName: 'monthly', suffix: '月报'),
+  diary(label: '日记', directoryName: 'diary', suffix: '日记');
 
   const NoteKind({
     required this.label,

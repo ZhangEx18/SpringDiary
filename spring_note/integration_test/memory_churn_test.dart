@@ -340,6 +340,7 @@ void main() {
       dailyNotesDirectory: daily.path,
       weeklyNotesDirectory: weekly.path,
       monthlyNotesDirectory: monthly.path,
+      diaryNotesDirectory: '${root.path}${Platform.pathSeparator}notes${Platform.pathSeparator}diary',
       config: AppConfig.defaults(),
     );
 

@@ -1184,6 +1184,7 @@ LocalDataState _testLocalDataState({AppConfig? config}) {
     dailyNotesDirectory: _joinPath(notes, 'daily'),
     weeklyNotesDirectory: _joinPath(notes, 'weekly'),
     monthlyNotesDirectory: _joinPath(notes, 'monthly'),
+    diaryNotesDirectory: _joinPath(notes, 'diary'),
     config: config ?? AppConfig.defaults(),
   );
 }
@@ -1504,6 +1505,7 @@ class _FakeStatsService extends StatsService {
         dailyNotes: 0,
         weeklyNotes: 0,
         monthlyNotes: 0,
+        diaryNotes: 0,
         inputTokens: 0,
         outputTokens: 0,
         cachedTokens: 0,

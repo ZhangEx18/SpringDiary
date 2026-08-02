@@ -43,6 +43,7 @@ pub fn search_all_indexed_notes(
     daily_directory_path: String,
     weekly_directory_path: String,
     monthly_directory_path: String,
+    diary_directory_path: String,
     queries: Vec<String>,
     max_results: i32,
 ) -> NoteSearchResult {
@@ -50,6 +51,7 @@ pub fn search_all_indexed_notes(
         &daily_directory_path,
         &weekly_directory_path,
         &monthly_directory_path,
+        &diary_directory_path,
         &queries,
         max_results,
     )

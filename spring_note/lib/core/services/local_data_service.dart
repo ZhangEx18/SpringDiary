@@ -19,6 +19,7 @@ class LocalDataService {
   static const String _dailyDirectoryName = 'daily';
   static const String _weeklyDirectoryName = 'weekly';
   static const String _monthlyDirectoryName = 'monthly';
+  static const String _diaryDirectoryName = 'diary';
   static const String _noteIndexDatabaseName = '.springnote-note-index.db';
   static const String _appDataDirectoryName = 'SpringNote';
   static const String _windowsAppDataEnv = 'APPDATA';
@@ -122,12 +123,14 @@ class LocalDataService {
     final daily = Directory(_join(notes.path, _dailyDirectoryName));
     final weekly = Directory(_join(notes.path, _weeklyDirectoryName));
     final monthly = Directory(_join(notes.path, _monthlyDirectoryName));
+    final diary = Directory(_join(notes.path, _diaryDirectoryName));
 
     await Future.wait([
       root.create(recursive: true),
       daily.create(recursive: true),
       weekly.create(recursive: true),
       monthly.create(recursive: true),
+      diary.create(recursive: true),
     ]);
 
     final configFile = File(_join(root.path, _configFileName));
@@ -149,6 +152,7 @@ class LocalDataService {
       dailyNotesDirectory: daily.path,
       weeklyNotesDirectory: weekly.path,
       monthlyNotesDirectory: monthly.path,
+      diaryNotesDirectory: diary.path,
       config: nextConfig,
     );
   }

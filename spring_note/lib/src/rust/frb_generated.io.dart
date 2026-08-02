@@ -165,6 +165,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<MoodEntry> dco_decode_list_mood_entry(dynamic raw);
+
+  @protected
   List<NoteImageCleanupEntry> dco_decode_list_note_image_cleanup_entry(
     dynamic raw,
   );
@@ -200,6 +203,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ModelListResult dco_decode_model_list_result(dynamic raw);
+
+  @protected
+  MoodEntry dco_decode_mood_entry(dynamic raw);
 
   @protected
   NoteContentResult dco_decode_note_content_result(dynamic raw);
@@ -436,6 +442,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<MoodEntry> sse_decode_list_mood_entry(SseDeserializer deserializer);
+
+  @protected
   List<NoteImageCleanupEntry> sse_decode_list_note_image_cleanup_entry(
     SseDeserializer deserializer,
   );
@@ -481,6 +490,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ModelListResult sse_decode_model_list_result(SseDeserializer deserializer);
+
+  @protected
+  MoodEntry sse_decode_mood_entry(SseDeserializer deserializer);
 
   @protected
   NoteContentResult sse_decode_note_content_result(
@@ -778,6 +790,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_mood_entry(
+    List<MoodEntry> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_note_image_cleanup_entry(
     List<NoteImageCleanupEntry> self,
     SseSerializer serializer,
@@ -836,6 +854,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     ModelListResult self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_mood_entry(MoodEntry self, SseSerializer serializer);
 
   @protected
   void sse_encode_note_content_result(

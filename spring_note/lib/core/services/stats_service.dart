@@ -48,6 +48,7 @@ class StatsService {
         dailyNotesDir: localDataState.dailyNotesDirectory,
         weeklyNotesDir: localDataState.weeklyNotesDirectory,
         monthlyNotesDir: localDataState.monthlyNotesDirectory,
+        diaryNotesDir: localDataState.diaryNotesDirectory,
         startDate: formatDate(start),
         endDate: formatDate(end),
       );
@@ -71,6 +72,7 @@ class StatsService {
       dailyNotes: 0,
       weeklyNotes: 0,
       monthlyNotes: 0,
+      diaryNotes: 0,
       inputTokens: 0,
       outputTokens: 0,
       cachedTokens: 0,

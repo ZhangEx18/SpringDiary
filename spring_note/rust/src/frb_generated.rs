@@ -27,7 +27,7 @@
 // Section: imports
 
 use flutter_rust_bridge::for_generated::byteorder::{NativeEndian, ReadBytesExt, WriteBytesExt};
-use flutter_rust_bridge::for_generated::{Lifetimeable, Lockable, transform_result_dco};
+use flutter_rust_bridge::for_generated::{transform_result_dco, Lifetimeable, Lockable};
 use flutter_rust_bridge::{Handler, IntoIntoDart};
 
 // Section: boilerplate
@@ -38,7 +38,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.12.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 161729378;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1563926739;
 
 // Section: executor
 
@@ -282,6 +282,46 @@ fn wire__crate__api__ai_api__generate_weekly_report_impl(
         },
     )
 }
+fn wire__crate__api__stats_api__get_mood_distribution_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "get_mood_distribution",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_app_data_dir = <String>::sse_decode(&mut deserializer);
+            let api_start_date = <String>::sse_decode(&mut deserializer);
+            let api_end_date = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let output_ok =
+                        Result::<_, ()>::Ok(crate::api::stats_api::get_mood_distribution(
+                            api_app_data_dir,
+                            api_start_date,
+                            api_end_date,
+                        ))?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__stats_api__get_stats_snapshot_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -308,6 +348,7 @@ fn wire__crate__api__stats_api__get_stats_snapshot_impl(
             let api_daily_notes_dir = <String>::sse_decode(&mut deserializer);
             let api_weekly_notes_dir = <String>::sse_decode(&mut deserializer);
             let api_monthly_notes_dir = <String>::sse_decode(&mut deserializer);
+            let api_diary_notes_dir = <String>::sse_decode(&mut deserializer);
             let api_start_date = <String>::sse_decode(&mut deserializer);
             let api_end_date = <String>::sse_decode(&mut deserializer);
             deserializer.end();
@@ -319,6 +360,7 @@ fn wire__crate__api__stats_api__get_stats_snapshot_impl(
                             api_daily_notes_dir,
                             api_weekly_notes_dir,
                             api_monthly_notes_dir,
+                            api_diary_notes_dir,
                             api_start_date,
                             api_end_date,
                         ))?;
@@ -632,6 +674,46 @@ fn wire__crate__api__stats_api__record_app_startup_impl(
         },
     )
 }
+fn wire__crate__api__stats_api__record_diary_entry_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "record_diary_entry",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_app_data_dir = <String>::sse_decode(&mut deserializer);
+            let api_date = <String>::sse_decode(&mut deserializer);
+            let api_mood = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let output_ok =
+                        Result::<_, ()>::Ok(crate::api::stats_api::record_diary_entry(
+                            api_app_data_dir,
+                            api_date,
+                            api_mood,
+                        ))?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__stats_api__record_home_generation_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -844,6 +926,7 @@ fn wire__crate__api__note_index_api__search_all_indexed_notes_impl(
             let api_daily_directory_path = <String>::sse_decode(&mut deserializer);
             let api_weekly_directory_path = <String>::sse_decode(&mut deserializer);
             let api_monthly_directory_path = <String>::sse_decode(&mut deserializer);
+            let api_diary_directory_path = <String>::sse_decode(&mut deserializer);
             let api_queries = <Vec<String>>::sse_decode(&mut deserializer);
             let api_max_results = <i32>::sse_decode(&mut deserializer);
             deserializer.end();
@@ -854,6 +937,7 @@ fn wire__crate__api__note_index_api__search_all_indexed_notes_impl(
                             api_daily_directory_path,
                             api_weekly_directory_path,
                             api_monthly_directory_path,
+                            api_diary_directory_path,
                             api_queries,
                             api_max_results,
                         ))?;
@@ -1559,6 +1643,18 @@ impl SseDecode for Vec<crate::cloud_sync::DeleteModifyConflict> {
     }
 }
 
+impl SseDecode for Vec<crate::stats::MoodEntry> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::stats::MoodEntry>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Vec<crate::note_image_cleanup::NoteImageCleanupEntry> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -1729,6 +1825,18 @@ impl SseDecode for crate::ai::ModelListResult {
             models: var_models,
             error_code: var_errorCode,
             error_message: var_errorMessage,
+        };
+    }
+}
+
+impl SseDecode for crate::stats::MoodEntry {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_date = <String>::sse_decode(deserializer);
+        let mut var_mood = <String>::sse_decode(deserializer);
+        return crate::stats::MoodEntry {
+            date: var_date,
+            mood: var_mood,
         };
     }
 }
@@ -1988,6 +2096,7 @@ impl SseDecode for crate::stats::StatsSummary {
         let mut var_dailyNotes = <i32>::sse_decode(deserializer);
         let mut var_weeklyNotes = <i32>::sse_decode(deserializer);
         let mut var_monthlyNotes = <i32>::sse_decode(deserializer);
+        let mut var_diaryNotes = <i32>::sse_decode(deserializer);
         let mut var_inputTokens = <i32>::sse_decode(deserializer);
         let mut var_outputTokens = <i32>::sse_decode(deserializer);
         let mut var_cachedTokens = <i32>::sse_decode(deserializer);
@@ -2001,6 +2110,7 @@ impl SseDecode for crate::stats::StatsSummary {
             daily_notes: var_dailyNotes,
             weekly_notes: var_weeklyNotes,
             monthly_notes: var_monthlyNotes,
+            diary_notes: var_diaryNotes,
             input_tokens: var_inputTokens,
             output_tokens: var_outputTokens,
             cached_tokens: var_cachedTokens,
@@ -2132,98 +2242,107 @@ fn pde_ffi_dispatcher_primary_impl(
         6 => {
             wire__crate__api__ai_api__generate_weekly_report_impl(port, ptr, rust_vec_len, data_len)
         }
-        7 => {
+        7 => wire__crate__api__stats_api__get_mood_distribution_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        8 => {
             wire__crate__api__stats_api__get_stats_snapshot_impl(port, ptr, rust_vec_len, data_len)
         }
-        8 => wire__crate__api__note_index_api__index_note_file_impl(
+        9 => wire__crate__api__note_index_api__index_note_file_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        9 => wire__crate__api__ai_api__init_app_impl(port, ptr, rust_vec_len, data_len),
-        10 => wire__crate__api__note_index_api__list_indexed_notes_impl(
+        10 => wire__crate__api__ai_api__init_app_impl(port, ptr, rust_vec_len, data_len),
+        11 => wire__crate__api__note_index_api__list_indexed_notes_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        11 => wire__crate__api__note_index_api__load_note_content_impl(
+        12 => wire__crate__api__note_index_api__load_note_content_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        12 => wire__crate__api__ai_api__memory_tool_chat_impl(port, ptr, rust_vec_len, data_len),
-        13 => wire__crate__api__ai_api__memory_tool_chat_stream_impl(
+        13 => wire__crate__api__ai_api__memory_tool_chat_impl(port, ptr, rust_vec_len, data_len),
+        14 => wire__crate__api__ai_api__memory_tool_chat_stream_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        14 => wire__crate__api__ai_api__merge_daily_note_impl(port, ptr, rust_vec_len, data_len),
-        15 => {
+        15 => wire__crate__api__ai_api__merge_daily_note_impl(port, ptr, rust_vec_len, data_len),
+        16 => {
             wire__crate__api__stats_api__record_app_startup_impl(port, ptr, rust_vec_len, data_len)
         }
-        16 => wire__crate__api__stats_api__record_home_generation_impl(
+        17 => {
+            wire__crate__api__stats_api__record_diary_entry_impl(port, ptr, rust_vec_len, data_len)
+        }
+        18 => wire__crate__api__stats_api__record_home_generation_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        17 => wire__crate__api__stats_api__record_work_time_impl(port, ptr, rust_vec_len, data_len),
-        18 => wire__crate__api__note_index_api__refresh_note_index_impl(
+        19 => wire__crate__api__stats_api__record_work_time_impl(port, ptr, rust_vec_len, data_len),
+        20 => wire__crate__api__note_index_api__refresh_note_index_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        19 => {
+        21 => {
             wire__crate__api__report_api__regenerate_report_impl(port, ptr, rust_vec_len, data_len)
         }
-        20 => wire__crate__api__note_image_cleanup_api__scan_note_images_impl(
+        22 => wire__crate__api__note_image_cleanup_api__scan_note_images_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        21 => wire__crate__api__note_index_api__search_all_indexed_notes_impl(
+        23 => wire__crate__api__note_index_api__search_all_indexed_notes_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        22 => wire__crate__api__note_index_api__search_indexed_notes_impl(
+        24 => wire__crate__api__note_index_api__search_indexed_notes_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        23 => wire__crate__api__note_index_api__search_indexed_notes_by_kind_impl(
+        25 => wire__crate__api__note_index_api__search_indexed_notes_by_kind_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        24 => wire__crate__api__cloud_sync_api__sync_web_dav_notes_impl(
+        26 => wire__crate__api__cloud_sync_api__sync_web_dav_notes_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        25 => wire__crate__api__ai_api__test_provider_connection_impl(
+        27 => wire__crate__api__ai_api__test_provider_connection_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        26 => wire__crate__api__cloud_sync_api__test_web_dav_connection_impl(
+        28 => wire__crate__api__cloud_sync_api__test_web_dav_connection_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        27 => wire__crate__api__cloud_sync_api__upload_web_dav_note_impl(
+        29 => wire__crate__api__cloud_sync_api__upload_web_dav_note_impl(
             port,
             ptr,
             rust_vec_len,
@@ -2689,6 +2808,22 @@ impl flutter_rust_bridge::IntoIntoDart<crate::ai::ModelListResult> for crate::ai
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::stats::MoodEntry {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.date.into_into_dart().into_dart(),
+            self.mood.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::stats::MoodEntry {}
+impl flutter_rust_bridge::IntoIntoDart<crate::stats::MoodEntry> for crate::stats::MoodEntry {
+    fn into_into_dart(self) -> crate::stats::MoodEntry {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::note_index::NoteContentResult {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -3018,6 +3153,7 @@ impl flutter_rust_bridge::IntoDart for crate::stats::StatsSummary {
             self.daily_notes.into_into_dart().into_dart(),
             self.weekly_notes.into_into_dart().into_dart(),
             self.monthly_notes.into_into_dart().into_dart(),
+            self.diary_notes.into_into_dart().into_dart(),
             self.input_tokens.into_into_dart().into_dart(),
             self.output_tokens.into_into_dart().into_dart(),
             self.cached_tokens.into_into_dart().into_dart(),
@@ -3445,6 +3581,16 @@ impl SseEncode for Vec<crate::cloud_sync::DeleteModifyConflict> {
     }
 }
 
+impl SseEncode for Vec<crate::stats::MoodEntry> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::stats::MoodEntry>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for Vec<crate::note_image_cleanup::NoteImageCleanupEntry> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -3559,6 +3705,14 @@ impl SseEncode for crate::ai::ModelListResult {
         <Vec<crate::ai::AiModel>>::sse_encode(self.models, serializer);
         <String>::sse_encode(self.error_code, serializer);
         <String>::sse_encode(self.error_message, serializer);
+    }
+}
+
+impl SseEncode for crate::stats::MoodEntry {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.date, serializer);
+        <String>::sse_encode(self.mood, serializer);
     }
 }
 
@@ -3729,6 +3883,7 @@ impl SseEncode for crate::stats::StatsSummary {
         <i32>::sse_encode(self.daily_notes, serializer);
         <i32>::sse_encode(self.weekly_notes, serializer);
         <i32>::sse_encode(self.monthly_notes, serializer);
+        <i32>::sse_encode(self.diary_notes, serializer);
         <i32>::sse_encode(self.input_tokens, serializer);
         <i32>::sse_encode(self.output_tokens, serializer);
         <i32>::sse_encode(self.cached_tokens, serializer);
@@ -3806,7 +3961,7 @@ mod io {
     use flutter_rust_bridge::for_generated::byteorder::{
         NativeEndian, ReadBytesExt, WriteBytesExt,
     };
-    use flutter_rust_bridge::for_generated::{Lifetimeable, Lockable, transform_result_dco};
+    use flutter_rust_bridge::for_generated::{transform_result_dco, Lifetimeable, Lockable};
     use flutter_rust_bridge::{Handler, IntoIntoDart};
 
     // Section: boilerplate
@@ -3830,7 +3985,7 @@ mod web {
     };
     use flutter_rust_bridge::for_generated::wasm_bindgen;
     use flutter_rust_bridge::for_generated::wasm_bindgen::prelude::*;
-    use flutter_rust_bridge::for_generated::{Lifetimeable, Lockable, transform_result_dco};
+    use flutter_rust_bridge::for_generated::{transform_result_dco, Lifetimeable, Lockable};
     use flutter_rust_bridge::{Handler, IntoIntoDart};
 
     // Section: boilerplate

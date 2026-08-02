@@ -77,7 +77,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => 161729378;
+  int get rustContentHash => -1563926739;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -117,11 +117,18 @@ abstract class RustLibApi extends BaseApi {
     required ReportRequest request,
   });
 
+  Future<List<MoodEntry>> crateApiStatsApiGetMoodDistribution({
+    required String appDataDir,
+    required String startDate,
+    required String endDate,
+  });
+
   Future<StatsSnapshot> crateApiStatsApiGetStatsSnapshot({
     required String appDataDir,
     required String dailyNotesDir,
     required String weeklyNotesDir,
     required String monthlyNotesDir,
+    required String diaryNotesDir,
     required String startDate,
     required String endDate,
   });
@@ -158,6 +165,12 @@ abstract class RustLibApi extends BaseApi {
 
   Future<bool> crateApiStatsApiRecordAppStartup({required String appDataDir});
 
+  Future<bool> crateApiStatsApiRecordDiaryEntry({
+    required String appDataDir,
+    required String date,
+    required String mood,
+  });
+
   Future<bool> crateApiStatsApiRecordHomeGeneration({
     required String appDataDir,
   });
@@ -185,6 +198,7 @@ abstract class RustLibApi extends BaseApi {
     required String dailyDirectoryPath,
     required String weeklyDirectoryPath,
     required String monthlyDirectoryPath,
+    required String diaryDirectoryPath,
     required List<String> queries,
     required int maxResults,
   });
@@ -434,11 +448,49 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<List<MoodEntry>> crateApiStatsApiGetMoodDistribution({
+    required String appDataDir,
+    required String startDate,
+    required String endDate,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(appDataDir, serializer);
+          sse_encode_String(startDate, serializer);
+          sse_encode_String(endDate, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 7,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_mood_entry,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiStatsApiGetMoodDistributionConstMeta,
+        argValues: [appDataDir, startDate, endDate],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiStatsApiGetMoodDistributionConstMeta =>
+      const TaskConstMeta(
+        debugName: "get_mood_distribution",
+        argNames: ["appDataDir", "startDate", "endDate"],
+      );
+
+  @override
   Future<StatsSnapshot> crateApiStatsApiGetStatsSnapshot({
     required String appDataDir,
     required String dailyNotesDir,
     required String weeklyNotesDir,
     required String monthlyNotesDir,
+    required String diaryNotesDir,
     required String startDate,
     required String endDate,
   }) {
@@ -450,12 +502,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(dailyNotesDir, serializer);
           sse_encode_String(weeklyNotesDir, serializer);
           sse_encode_String(monthlyNotesDir, serializer);
+          sse_encode_String(diaryNotesDir, serializer);
           sse_encode_String(startDate, serializer);
           sse_encode_String(endDate, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 7,
+            funcId: 8,
             port: port_,
           );
         },
@@ -469,6 +522,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           dailyNotesDir,
           weeklyNotesDir,
           monthlyNotesDir,
+          diaryNotesDir,
           startDate,
           endDate,
         ],
@@ -485,6 +539,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           "dailyNotesDir",
           "weeklyNotesDir",
           "monthlyNotesDir",
+          "diaryNotesDir",
           "startDate",
           "endDate",
         ],
@@ -506,7 +561,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 8,
+            funcId: 9,
             port: port_,
           );
         },
@@ -536,7 +591,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 9,
+            funcId: 10,
             port: port_,
           );
         },
@@ -568,7 +623,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 10,
+            funcId: 11,
             port: port_,
           );
         },
@@ -603,7 +658,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 11,
+            funcId: 12,
             port: port_,
           );
         },
@@ -636,7 +691,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 12,
+            funcId: 13,
             port: port_,
           );
         },
@@ -675,7 +730,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             pdeCallFfi(
               generalizedFrbRustBinding,
               serializer,
-              funcId: 13,
+              funcId: 14,
               port: port_,
             );
           },
@@ -710,7 +765,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 14,
+            funcId: 15,
             port: port_,
           );
         },
@@ -738,7 +793,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 15,
+            funcId: 16,
             port: port_,
           );
         },
@@ -760,6 +815,43 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<bool> crateApiStatsApiRecordDiaryEntry({
+    required String appDataDir,
+    required String date,
+    required String mood,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(appDataDir, serializer);
+          sse_encode_String(date, serializer);
+          sse_encode_String(mood, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 17,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_bool,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiStatsApiRecordDiaryEntryConstMeta,
+        argValues: [appDataDir, date, mood],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiStatsApiRecordDiaryEntryConstMeta =>
+      const TaskConstMeta(
+        debugName: "record_diary_entry",
+        argNames: ["appDataDir", "date", "mood"],
+      );
+
+  @override
   Future<bool> crateApiStatsApiRecordHomeGeneration({
     required String appDataDir,
   }) {
@@ -771,7 +863,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 16,
+            funcId: 18,
             port: port_,
           );
         },
@@ -808,7 +900,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 17,
+            funcId: 19,
             port: port_,
           );
         },
@@ -843,7 +935,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 18,
+            funcId: 20,
             port: port_,
           );
         },
@@ -876,7 +968,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 19,
+            funcId: 21,
             port: port_,
           );
         },
@@ -909,7 +1001,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 20,
+            funcId: 22,
             port: port_,
           );
         },
@@ -935,6 +1027,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     required String dailyDirectoryPath,
     required String weeklyDirectoryPath,
     required String monthlyDirectoryPath,
+    required String diaryDirectoryPath,
     required List<String> queries,
     required int maxResults,
   }) {
@@ -945,12 +1038,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(dailyDirectoryPath, serializer);
           sse_encode_String(weeklyDirectoryPath, serializer);
           sse_encode_String(monthlyDirectoryPath, serializer);
+          sse_encode_String(diaryDirectoryPath, serializer);
           sse_encode_list_String(queries, serializer);
           sse_encode_i_32(maxResults, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 21,
+            funcId: 23,
             port: port_,
           );
         },
@@ -963,6 +1057,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           dailyDirectoryPath,
           weeklyDirectoryPath,
           monthlyDirectoryPath,
+          diaryDirectoryPath,
           queries,
           maxResults,
         ],
@@ -978,6 +1073,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           "dailyDirectoryPath",
           "weeklyDirectoryPath",
           "monthlyDirectoryPath",
+          "diaryDirectoryPath",
           "queries",
           "maxResults",
         ],
@@ -999,7 +1095,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 22,
+            funcId: 24,
             port: port_,
           );
         },
@@ -1038,7 +1134,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 23,
+            funcId: 25,
             port: port_,
           );
         },
@@ -1071,7 +1167,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 24,
+            funcId: 26,
             port: port_,
           );
         },
@@ -1110,7 +1206,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 25,
+            funcId: 27,
             port: port_,
           );
         },
@@ -1143,7 +1239,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 26,
+            funcId: 28,
             port: port_,
           );
         },
@@ -1179,7 +1275,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 27,
+            funcId: 29,
             port: port_,
           );
         },
@@ -1609,6 +1705,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<MoodEntry> dco_decode_list_mood_entry(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_mood_entry).toList();
+  }
+
+  @protected
   List<NoteImageCleanupEntry> dco_decode_list_note_image_cleanup_entry(
     dynamic raw,
   ) {
@@ -1727,6 +1829,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       models: dco_decode_list_ai_model(arr[1]),
       errorCode: dco_decode_String(arr[2]),
       errorMessage: dco_decode_String(arr[3]),
+    );
+  }
+
+  @protected
+  MoodEntry dco_decode_mood_entry(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return MoodEntry(
+      date: dco_decode_String(arr[0]),
+      mood: dco_decode_String(arr[1]),
     );
   }
 
@@ -1943,8 +2057,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   StatsSummary dco_decode_stats_summary(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 12)
-      throw Exception('unexpected arr length: expect 12 but see ${arr.length}');
+    if (arr.length != 13)
+      throw Exception('unexpected arr length: expect 13 but see ${arr.length}');
     return StatsSummary(
       summaries: dco_decode_i_32(arr[0]),
       fimCompletions: dco_decode_i_32(arr[1]),
@@ -1952,12 +2066,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       dailyNotes: dco_decode_i_32(arr[3]),
       weeklyNotes: dco_decode_i_32(arr[4]),
       monthlyNotes: dco_decode_i_32(arr[5]),
-      inputTokens: dco_decode_i_32(arr[6]),
-      outputTokens: dco_decode_i_32(arr[7]),
-      cachedTokens: dco_decode_i_32(arr[8]),
-      appLaunches: dco_decode_i_32(arr[9]),
-      workSeconds: dco_decode_i_32(arr[10]),
-      coins: dco_decode_f_64(arr[11]),
+      diaryNotes: dco_decode_i_32(arr[6]),
+      inputTokens: dco_decode_i_32(arr[7]),
+      outputTokens: dco_decode_i_32(arr[8]),
+      cachedTokens: dco_decode_i_32(arr[9]),
+      appLaunches: dco_decode_i_32(arr[10]),
+      workSeconds: dco_decode_i_32(arr[11]),
+      coins: dco_decode_f_64(arr[12]),
     );
   }
 
@@ -2553,6 +2668,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<MoodEntry> sse_decode_list_mood_entry(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <MoodEntry>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_mood_entry(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   List<NoteImageCleanupEntry> sse_decode_list_note_image_cleanup_entry(
     SseDeserializer deserializer,
   ) {
@@ -2728,6 +2855,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       errorCode: var_errorCode,
       errorMessage: var_errorMessage,
     );
+  }
+
+  @protected
+  MoodEntry sse_decode_mood_entry(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_date = sse_decode_String(deserializer);
+    var var_mood = sse_decode_String(deserializer);
+    return MoodEntry(date: var_date, mood: var_mood);
   }
 
   @protected
@@ -2993,6 +3128,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_dailyNotes = sse_decode_i_32(deserializer);
     var var_weeklyNotes = sse_decode_i_32(deserializer);
     var var_monthlyNotes = sse_decode_i_32(deserializer);
+    var var_diaryNotes = sse_decode_i_32(deserializer);
     var var_inputTokens = sse_decode_i_32(deserializer);
     var var_outputTokens = sse_decode_i_32(deserializer);
     var var_cachedTokens = sse_decode_i_32(deserializer);
@@ -3006,6 +3142,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       dailyNotes: var_dailyNotes,
       weeklyNotes: var_weeklyNotes,
       monthlyNotes: var_monthlyNotes,
+      diaryNotes: var_diaryNotes,
       inputTokens: var_inputTokens,
       outputTokens: var_outputTokens,
       cachedTokens: var_cachedTokens,
@@ -3540,6 +3677,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_mood_entry(
+    List<MoodEntry> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_mood_entry(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_list_note_image_cleanup_entry(
     List<NoteImageCleanupEntry> self,
     SseSerializer serializer,
@@ -3672,6 +3821,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_list_ai_model(self.models, serializer);
     sse_encode_String(self.errorCode, serializer);
     sse_encode_String(self.errorMessage, serializer);
+  }
+
+  @protected
+  void sse_encode_mood_entry(MoodEntry self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.date, serializer);
+    sse_encode_String(self.mood, serializer);
   }
 
   @protected
@@ -3854,6 +4010,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_i_32(self.dailyNotes, serializer);
     sse_encode_i_32(self.weeklyNotes, serializer);
     sse_encode_i_32(self.monthlyNotes, serializer);
+    sse_encode_i_32(self.diaryNotes, serializer);
     sse_encode_i_32(self.inputTokens, serializer);
     sse_encode_i_32(self.outputTokens, serializer);
     sse_encode_i_32(self.cachedTokens, serializer);

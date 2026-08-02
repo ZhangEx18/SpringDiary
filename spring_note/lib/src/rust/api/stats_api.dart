@@ -29,11 +29,32 @@ Future<bool> recordWorkTime({
   coins: coins,
 );
 
+Future<bool> recordDiaryEntry({
+  required String appDataDir,
+  required String date,
+  required String mood,
+}) => RustLib.instance.api.crateApiStatsApiRecordDiaryEntry(
+  appDataDir: appDataDir,
+  date: date,
+  mood: mood,
+);
+
+Future<List<MoodEntry>> getMoodDistribution({
+  required String appDataDir,
+  required String startDate,
+  required String endDate,
+}) => RustLib.instance.api.crateApiStatsApiGetMoodDistribution(
+  appDataDir: appDataDir,
+  startDate: startDate,
+  endDate: endDate,
+);
+
 Future<StatsSnapshot> getStatsSnapshot({
   required String appDataDir,
   required String dailyNotesDir,
   required String weeklyNotesDir,
   required String monthlyNotesDir,
+  required String diaryNotesDir,
   required String startDate,
   required String endDate,
 }) => RustLib.instance.api.crateApiStatsApiGetStatsSnapshot(
@@ -41,6 +62,7 @@ Future<StatsSnapshot> getStatsSnapshot({
   dailyNotesDir: dailyNotesDir,
   weeklyNotesDir: weeklyNotesDir,
   monthlyNotesDir: monthlyNotesDir,
+  diaryNotesDir: diaryNotesDir,
   startDate: startDate,
   endDate: endDate,
 );

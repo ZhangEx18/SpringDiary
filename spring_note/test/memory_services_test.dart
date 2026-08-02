@@ -66,6 +66,7 @@ void main() {
     final daily = Directory('${temp.path}${Platform.pathSeparator}daily');
     final weekly = Directory('${temp.path}${Platform.pathSeparator}weekly');
     final monthly = Directory('${temp.path}${Platform.pathSeparator}monthly');
+    final diary = Directory('${temp.path}${Platform.pathSeparator}diary');
     await Future.wait([
       daily.create(recursive: true),
       weekly.create(recursive: true),
@@ -89,6 +90,7 @@ void main() {
         dailyNotesDirectory: daily.path,
         weeklyNotesDirectory: weekly.path,
         monthlyNotesDirectory: monthly.path,
+        diaryNotesDirectory: diary.path,
         config: AppConfig.defaults(),
       ),
       keywords: const ['回忆书', '检索'],
@@ -112,6 +114,7 @@ void main() {
     final daily = Directory('${temp.path}${Platform.pathSeparator}daily');
     final weekly = Directory('${temp.path}${Platform.pathSeparator}weekly');
     final monthly = Directory('${temp.path}${Platform.pathSeparator}monthly');
+    final diary = Directory('${temp.path}${Platform.pathSeparator}diary');
     await Future.wait([
       daily.create(recursive: true),
       weekly.create(recursive: true),
@@ -129,6 +132,7 @@ void main() {
         dailyNotesDirectory: daily.path,
         weeklyNotesDirectory: weekly.path,
         monthlyNotesDirectory: monthly.path,
+        diaryNotesDirectory: diary.path,
         config: AppConfig.defaults(),
       ),
       keywords: const ['回'],
@@ -150,6 +154,7 @@ void main() {
     final daily = Directory('${temp.path}${Platform.pathSeparator}daily');
     final weekly = Directory('${temp.path}${Platform.pathSeparator}weekly');
     final monthly = Directory('${temp.path}${Platform.pathSeparator}monthly');
+    final diary = Directory('${temp.path}${Platform.pathSeparator}diary');
     await Future.wait([
       daily.create(recursive: true),
       weekly.create(recursive: true),
@@ -169,6 +174,7 @@ void main() {
             dailyNotesDirectory: daily.path,
             weeklyNotesDirectory: weekly.path,
             monthlyNotesDirectory: monthly.path,
+            diaryNotesDirectory: diary.path,
             config: AppConfig.defaults(),
           ),
           keywords: const ['春风'],
@@ -199,6 +205,7 @@ void main() {
       dailyNotesDirectory: daily.path,
       weeklyNotesDirectory: '${temp.path}${Platform.pathSeparator}weekly',
       monthlyNotesDirectory: '${temp.path}${Platform.pathSeparator}monthly',
+      diaryNotesDirectory: '${temp.path}${Platform.pathSeparator}diary',
       config: AppConfig.defaults(),
     );
     final service = MemorySearchService(
@@ -207,6 +214,7 @@ void main() {
             required dailyDirectoryPath,
             required weeklyDirectoryPath,
             required monthlyDirectoryPath,
+            required diaryDirectoryPath,
             required queries,
             required maxResults,
           }) async => const NoteSearchResult(
@@ -242,6 +250,7 @@ void main() {
     final daily = Directory('${temp.path}${Platform.pathSeparator}daily');
     final weekly = Directory('${temp.path}${Platform.pathSeparator}weekly');
     final monthly = Directory('${temp.path}${Platform.pathSeparator}monthly');
+    final diary = Directory('${temp.path}${Platform.pathSeparator}diary');
     await Future.wait([
       daily.create(recursive: true),
       weekly.create(recursive: true),
@@ -280,6 +289,7 @@ void main() {
       dailyNotesDirectory: daily.path,
       weeklyNotesDirectory: weekly.path,
       monthlyNotesDirectory: monthly.path,
+      diaryNotesDirectory: diary.path,
       config: AppConfig.defaults(),
     );
 
@@ -335,6 +345,7 @@ void main() {
         dailyNotesDirectory: '${temp.path}${Platform.pathSeparator}daily',
         weeklyNotesDirectory: weekly.path,
         monthlyNotesDirectory: '${temp.path}${Platform.pathSeparator}monthly',
+        diaryNotesDirectory: '${temp.path}${Platform.pathSeparator}diary',
         config: AppConfig.defaults(),
       );
 
@@ -376,6 +387,7 @@ void main() {
       dailyNotesDirectory: daily.path,
       weeklyNotesDirectory: '${temp.path}${Platform.pathSeparator}weekly',
       monthlyNotesDirectory: '${temp.path}${Platform.pathSeparator}monthly',
+      diaryNotesDirectory: '${temp.path}${Platform.pathSeparator}diary',
       config: AppConfig.defaults().copyWith(memoryResultMaxCharacters: 100),
     );
 
@@ -420,6 +432,7 @@ void main() {
         dailyNotesDirectory: '',
         weeklyNotesDirectory: '',
         monthlyNotesDirectory: '',
+        diaryNotesDirectory: '',
         config: AppConfig.defaults(),
       ),
       toolName: 'get_current_date',
@@ -467,6 +480,7 @@ void main() {
         dailyNotesDirectory: '${temp.path}${Platform.pathSeparator}daily',
         weeklyNotesDirectory: weekly.path,
         monthlyNotesDirectory: '${temp.path}${Platform.pathSeparator}monthly',
+        diaryNotesDirectory: '${temp.path}${Platform.pathSeparator}diary',
         config: AppConfig.defaults(),
       );
 
@@ -501,6 +515,7 @@ void main() {
     final daily = Directory('${temp.path}${Platform.pathSeparator}daily');
     final weekly = Directory('${temp.path}${Platform.pathSeparator}weekly');
     final monthly = Directory('${temp.path}${Platform.pathSeparator}monthly');
+    final diary = Directory('${temp.path}${Platform.pathSeparator}diary');
     await Future.wait([
       daily.create(recursive: true),
       weekly.create(recursive: true),
@@ -522,6 +537,7 @@ void main() {
       dailyNotesDirectory: daily.path,
       weeklyNotesDirectory: weekly.path,
       monthlyNotesDirectory: monthly.path,
+      diaryNotesDirectory: diary.path,
       config: AppConfig.defaults(),
     );
     final service = _indexedSearchService([
@@ -608,6 +624,7 @@ void main() {
       final daily = Directory('${temp.path}${Platform.pathSeparator}daily');
       final weekly = Directory('${temp.path}${Platform.pathSeparator}weekly');
       final monthly = Directory('${temp.path}${Platform.pathSeparator}monthly');
+      final diary = Directory('${temp.path}${Platform.pathSeparator}diary');
       await Future.wait([
         daily.create(recursive: true),
         weekly.create(recursive: true),
@@ -627,6 +644,7 @@ void main() {
           dailyNotesDirectory: daily.path,
           weeklyNotesDirectory: weekly.path,
           monthlyNotesDirectory: monthly.path,
+          diaryNotesDirectory: diary.path,
           config: AppConfig.defaults(),
         ),
         question: '什么时候删除 nacos 配置',
@@ -654,6 +672,7 @@ MemorySearchService _indexedSearchService(List<File> files) {
           required dailyDirectoryPath,
           required weeklyDirectoryPath,
           required monthlyDirectoryPath,
+          required diaryDirectoryPath,
           required queries,
           required maxResults,
         }) async {
