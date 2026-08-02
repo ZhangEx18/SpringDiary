@@ -11,6 +11,7 @@ typedef MemoryIndexedNoteSearch =
       required String dailyDirectoryPath,
       required String weeklyDirectoryPath,
       required String monthlyDirectoryPath,
+      required String diaryDirectoryPath,
       required List<String> queries,
       required int maxResults,
     });
@@ -189,6 +190,7 @@ class MemorySearchService {
       dailyDirectoryPath: localDataState.dailyNotesDirectory,
       weeklyDirectoryPath: localDataState.weeklyNotesDirectory,
       monthlyDirectoryPath: localDataState.monthlyNotesDirectory,
+      diaryDirectoryPath: localDataState.diaryNotesDirectory,
       queries: terms,
       maxResults: 200,
     );
@@ -221,6 +223,7 @@ class MemorySearchService {
       'daily' => localDataState.dailyNotesDirectory,
       'weekly' => localDataState.weeklyNotesDirectory,
       'monthly' => localDataState.monthlyNotesDirectory,
+      'diary' => localDataState.diaryNotesDirectory,
       _ => throw ArgumentError.value(kind, 'kind', 'Unknown note kind'),
     };
     final indexed = await indexedNoteKindSearch(

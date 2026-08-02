@@ -1531,6 +1531,7 @@ final _localDataState = LocalDataState(
   dailyNotesDirectory: 'D:\\Temp\\SpringNote\\notes\\daily',
   weeklyNotesDirectory: 'D:\\Temp\\SpringNote\\notes\\weekly',
   monthlyNotesDirectory: 'D:\\Temp\\SpringNote\\notes\\monthly',
+  diaryNotesDirectory: 'D:\\Temp\\SpringNote\\notes\\diary',
   config: AppConfig.defaults(),
 );
 
@@ -1568,6 +1569,7 @@ final _fimLocalDataState = LocalDataState(
   dailyNotesDirectory: 'D:\\Temp\\SpringNote\\notes\\daily',
   weeklyNotesDirectory: 'D:\\Temp\\SpringNote\\notes\\weekly',
   monthlyNotesDirectory: 'D:\\Temp\\SpringNote\\notes\\monthly',
+  diaryNotesDirectory: 'D:\\Temp\\SpringNote\\notes\\diary',
   config: AppConfig.defaults().copyWith(
     providers: const [
       ProviderConfig(
@@ -1635,6 +1637,7 @@ class _MemoryNoteService extends NoteService {
       NoteKind.daily => '2026-06-18.md',
       NoteKind.weekly => '2026-W25.md',
       NoteKind.monthly => '2026-06.md',
+      NoteKind.diary => '2026-06-18.md',
     };
     final path = '$directoryPath\\$name';
     contents.putIfAbsent(path, () => '# ${kind.label}\n');

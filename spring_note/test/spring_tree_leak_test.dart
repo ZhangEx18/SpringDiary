@@ -30,6 +30,7 @@ final _localDataState = LocalDataState(
   dailyNotesDirectory: 'D:\\Temp\\SpringNote\\notes\\daily',
   weeklyNotesDirectory: 'D:\\Temp\\SpringNote\\notes\\weekly',
   monthlyNotesDirectory: 'D:\\Temp\\SpringNote\\notes\\monthly',
+  diaryNotesDirectory: 'D:\\Temp\\SpringNote\\notes\\diary',
   config: AppConfig.defaults(),
 );
 

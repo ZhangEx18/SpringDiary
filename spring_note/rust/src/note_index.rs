@@ -206,6 +206,7 @@ pub fn search_all(
     daily_directory_path: &str,
     weekly_directory_path: &str,
     monthly_directory_path: &str,
+    diary_directory_path: &str,
     queries: &[String],
     max_results: i32,
 ) -> NoteSearchResult {
@@ -213,6 +214,7 @@ pub fn search_all(
         daily_directory_path,
         weekly_directory_path,
         monthly_directory_path,
+        diary_directory_path,
         queries,
         max_results,
     ) {
@@ -477,6 +479,7 @@ fn search_all_internal(
     daily_directory_path: &str,
     weekly_directory_path: &str,
     monthly_directory_path: &str,
+    diary_directory_path: &str,
     queries: &[String],
     max_results: i32,
 ) -> Result<Vec<NoteIndexEntry>, IndexError> {
@@ -486,12 +489,14 @@ fn search_all_internal(
     let daily = prepare_directory(daily_directory_path)?;
     let weekly = prepare_directory(weekly_directory_path)?;
     let monthly = prepare_directory(monthly_directory_path)?;
+    let diary = prepare_directory(diary_directory_path)?;
     let database_path = index_database_path(&daily)?;
     if index_database_path(&weekly)? != database_path
         || index_database_path(&monthly)? != database_path
+        || index_database_path(&diary)? != database_path
     {
         return Err(IndexError::Validation(
-            "日报、周报和月报目录未共用同一个索引数据库".to_owned(),
+            "日报、周报、月报和日记目录未共用同一个索引数据库".to_owned(),
         ));
     }
 
@@ -499,6 +504,7 @@ fn search_all_internal(
         (&daily, "daily"),
         (&weekly, "weekly"),
         (&monthly, "monthly"),
+        (&diary, "diary"),
     ] {
         refresh_internal(directory.to_string_lossy().as_ref(), kind)?;
     }
@@ -509,6 +515,7 @@ fn search_all_internal(
         &scope_key(&daily),
         &scope_key(&weekly),
         &scope_key(&monthly),
+        &scope_key(&diary),
         &expression,
         max_results.clamp(1, 200) as usize,
     )
@@ -568,6 +575,7 @@ fn fts_search_all_entries(
     daily_scope: &str,
     weekly_scope: &str,
     monthly_scope: &str,
+    diary_scope: &str,
     expression: &str,
     max_results: usize,
 ) -> Result<Vec<NoteIndexEntry>, rusqlite::Error> {
@@ -580,9 +588,10 @@ fn fts_search_all_entries(
          WHERE note_index_fts MATCH ?1
            AND ((note_index.scope = ?2 AND note_index.kind = 'daily')
              OR (note_index.scope = ?3 AND note_index.kind = 'weekly')
-             OR (note_index.scope = ?4 AND note_index.kind = 'monthly'))
+             OR (note_index.scope = ?4 AND note_index.kind = 'monthly')
+             OR (note_index.scope = ?5 AND note_index.kind = 'diary'))
          ORDER BY bm25(note_index_fts), note_index.name COLLATE NOCASE DESC
-         LIMIT ?5",
+         LIMIT ?6",
     )?;
     let rows = statement.query_map(
         params![
@@ -590,6 +599,7 @@ fn fts_search_all_entries(
             daily_scope,
             weekly_scope,
             monthly_scope,
+            diary_scope,
             max_results as i64,
         ],
         note_entry_from_row,
@@ -933,7 +943,7 @@ fn validate_note_path(directory: &Path, note_path: &str) -> Result<PathBuf, Inde
 
 fn validate_kind(kind: &str) -> Result<(), IndexError> {
     match kind {
-        "daily" | "weekly" | "monthly" => Ok(()),
+        "daily" | "weekly" | "monthly" | "diary" => Ok(()),
         _ => Err(IndexError::Validation("未知的便签类型".to_owned())),
     }
 }
@@ -1179,29 +1189,33 @@ mod tests {
         let daily = notes.join("daily");
         let weekly = notes.join("weekly");
         let monthly = notes.join("monthly");
+        let diary = notes.join("diary");
         fs::create_dir_all(&daily).unwrap();
         fs::create_dir_all(&weekly).unwrap();
         fs::create_dir_all(&monthly).unwrap();
+        fs::create_dir_all(&diary).unwrap();
         fs::write(daily.join("2026-07-12.md"), "# 日报\n\n完成全局检索\n").unwrap();
         fs::write(weekly.join("2026-W28.md"), "# 周报\n\n复盘全局检索\n").unwrap();
         fs::write(monthly.join("2026-07.md"), "# 月报\n\n总结全局检索\n").unwrap();
+        fs::write(diary.join("2026-07-12.md"), "# 日记\n\n记录全局检索感悟\n").unwrap();
 
         let result = search_all(
             daily.to_str().unwrap(),
             weekly.to_str().unwrap(),
             monthly.to_str().unwrap(),
+            diary.to_str().unwrap(),
             &["全局".to_owned(), "检索".to_owned(), "单".to_owned()],
             10,
         );
         assert!(result.ok, "{}", result.error_message);
-        assert_eq!(result.notes.len(), 3);
+        assert_eq!(result.notes.len(), 4);
         assert_eq!(
             result
                 .notes
                 .iter()
                 .map(|note| note.kind.as_str())
                 .collect::<HashSet<_>>(),
-            HashSet::from(["daily", "weekly", "monthly"]),
+            HashSet::from(["daily", "weekly", "monthly", "diary"]),
         );
 
         fs::remove_dir_all(root).unwrap();

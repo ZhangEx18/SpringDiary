@@ -7,6 +7,7 @@ class LocalDataState {
     required this.dailyNotesDirectory,
     required this.weeklyNotesDirectory,
     required this.monthlyNotesDirectory,
+    required this.diaryNotesDirectory,
     required this.config,
   });
 
@@ -15,6 +16,7 @@ class LocalDataState {
   final String dailyNotesDirectory;
   final String weeklyNotesDirectory;
   final String monthlyNotesDirectory;
+  final String diaryNotesDirectory;
   final AppConfig config;
 
   LocalDataState copyWith({
@@ -23,6 +25,7 @@ class LocalDataState {
     String? dailyNotesDirectory,
     String? weeklyNotesDirectory,
     String? monthlyNotesDirectory,
+    String? diaryNotesDirectory,
     AppConfig? config,
   }) {
     return LocalDataState(
@@ -32,6 +35,7 @@ class LocalDataState {
       weeklyNotesDirectory: weeklyNotesDirectory ?? this.weeklyNotesDirectory,
       monthlyNotesDirectory:
           monthlyNotesDirectory ?? this.monthlyNotesDirectory,
+      diaryNotesDirectory: diaryNotesDirectory ?? this.diaryNotesDirectory,
       config: config ?? this.config,
     );
   }

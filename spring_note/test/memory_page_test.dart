@@ -627,6 +627,7 @@ LocalDataState _localDataState({
   String dailyNotesDirectory = 'D:\\Temp\\SpringNote\\notes\\daily',
   String weeklyNotesDirectory = 'D:\\Temp\\SpringNote\\notes\\weekly',
   String monthlyNotesDirectory = 'D:\\Temp\\SpringNote\\notes\\monthly',
+  String diaryNotesDirectory = 'D:\\Temp\\SpringNote\\notes\\diary',
   AppConfig? config,
 }) {
   return LocalDataState(
@@ -635,6 +636,7 @@ LocalDataState _localDataState({
     dailyNotesDirectory: dailyNotesDirectory,
     weeklyNotesDirectory: weeklyNotesDirectory,
     monthlyNotesDirectory: monthlyNotesDirectory,
+    diaryNotesDirectory: diaryNotesDirectory,
     config: config ?? AppConfig.defaults(),
   );
 }

@@ -149,6 +149,7 @@ LocalDataState _state() {
     dailyNotesDirectory: r'D:\Temp\SpringNote\notes\daily',
     weeklyNotesDirectory: r'D:\Temp\SpringNote\notes\weekly',
     monthlyNotesDirectory: r'D:\Temp\SpringNote\notes\monthly',
+    diaryNotesDirectory: r'D:\Temp\SpringNote\notes\diary',
     config: AppConfig.defaults(),
   );
 }
@@ -161,6 +162,7 @@ LocalDataState _stateForRoot(String root) {
     dailyNotesDirectory: '$notes${Platform.pathSeparator}daily',
     weeklyNotesDirectory: '$notes${Platform.pathSeparator}weekly',
     monthlyNotesDirectory: '$notes${Platform.pathSeparator}monthly',
+    diaryNotesDirectory: '$notes${Platform.pathSeparator}diary',
     config: AppConfig.defaults(),
   );
 }

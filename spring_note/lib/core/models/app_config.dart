@@ -151,6 +151,7 @@ class AppConfig {
         'intelligentGenerationModel': null,
         'editCompletionModel': null,
         'memoryBookModel': null,
+        'diaryReflectionModel': null,
       },
       hotkeys: {'toggleWindow': defaultToggleWindowHotkey},
       submitShortcut: defaultSubmitShortcut,

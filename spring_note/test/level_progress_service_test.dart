@@ -42,6 +42,7 @@ LocalDataState _state(String root) {
     dailyNotesDirectory: '$root/notes/daily',
     weeklyNotesDirectory: '$root/notes/weekly',
     monthlyNotesDirectory: '$root/notes/monthly',
+    diaryNotesDirectory: '$root/notes/diary',
     config: AppConfig.defaults(),
   );
 }
@@ -71,6 +72,7 @@ class _FakeStatsService extends StatsService {
         dailyNotes: 0,
         weeklyNotes: 0,
         monthlyNotes: 0,
+        diaryNotes: 0,
         inputTokens: 0,
         outputTokens: 0,
         cachedTokens: 0,

@@ -91,6 +91,7 @@ final _state = LocalDataState(
   dailyNotesDirectory: r'D:\Temp\SpringNote\notes\daily',
   weeklyNotesDirectory: r'D:\Temp\SpringNote\notes\weekly',
   monthlyNotesDirectory: r'D:\Temp\SpringNote\notes\monthly',
+  diaryNotesDirectory: r'D:\Temp\SpringNote\notes\diary',
   config: AppConfig.defaults().copyWith(
     cloudSync: CloudSyncConfig.defaults().copyWith(
       enabled: true,

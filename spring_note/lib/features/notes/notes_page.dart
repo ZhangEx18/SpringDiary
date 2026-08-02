@@ -1279,6 +1279,7 @@ class _NotesPageState extends State<NotesPage> {
       NoteKind.daily => widget.localDataState.dailyNotesDirectory,
       NoteKind.weekly => widget.localDataState.weeklyNotesDirectory,
       NoteKind.monthly => widget.localDataState.monthlyNotesDirectory,
+      NoteKind.diary => widget.localDataState.diaryNotesDirectory,
     };
   }
 
@@ -2020,6 +2021,7 @@ class _NotesKindMenuItem extends StatelessWidget {
       NoteKind.daily => Icons.calendar_today_outlined,
       NoteKind.weekly => Icons.view_week_outlined,
       NoteKind.monthly => Icons.calendar_month_outlined,
+      NoteKind.diary => Icons.menu_book_outlined,
     };
   }
 
@@ -2028,6 +2030,7 @@ class _NotesKindMenuItem extends StatelessWidget {
       NoteKind.daily => '每日记录',
       NoteKind.weekly => '阶段整理',
       NoteKind.monthly => '月度沉淀',
+      NoteKind.diary => '心情随笔',
     };
   }
 }
