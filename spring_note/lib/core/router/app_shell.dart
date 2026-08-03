@@ -5,27 +5,21 @@ import 'package:flutter/material.dart';
 import '../../features/home/home_page.dart';
 import '../../features/diary/diary_page.dart';
 import '../../features/memory/memory_page.dart';
-import '../../features/notes/notes_page.dart';
 import '../../features/settings/settings_page.dart';
 import '../models/app_config.dart';
 import '../models/local_data_state.dart';
-import '../models/note_external_update.dart';
-import '../models/note_file.dart';
 import '../models/wallpaper_settings.dart';
 import '../services/auto_start_service.dart';
 import '../services/cloud_sync_service.dart';
 import '../services/global_hotkey_service.dart';
 import '../services/local_data_service.dart';
-import '../services/note_service.dart';
-import '../services/note_upload_queue.dart';
-import '../services/startup_report_generation_service.dart';
 import '../services/tray_service.dart';
 import '../services/update_check_service.dart';
 import '../services/wallpaper_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/wallpaper_layer.dart';
 
-enum AppSection { home, notes, diary, memory, settings }
+enum AppSection { home, diary, memory, settings }
 
 enum _StartupCloudSyncFailureKind { offline, temporary, permanent }
 
@@ -33,21 +27,16 @@ class AppShell extends StatefulWidget {
   const AppShell({
     super.key,
     required this.localDataState,
-    this.startupReportGenerationService =
-        const StartupReportGenerationService(),
     this.updateCheckService = const UpdateCheckService(),
     this.cloudSyncService = const CloudSyncService(),
     this.localDataService = const LocalDataService(),
-    this.noteService = const NoteService(),
     this.onConfigChanged,
   });
 
   final LocalDataState localDataState;
-  final StartupReportGenerationService startupReportGenerationService;
   final UpdateCheckService updateCheckService;
   final CloudSyncService cloudSyncService;
   final LocalDataService localDataService;
-  final NoteService noteService;
   final ValueChanged<AppConfig>? onConfigChanged;
 
   @override
@@ -74,13 +63,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   final AutoStartService _autoStartService = const AutoStartService();
   final GlobalHotkeyService _globalHotkeyService = const GlobalHotkeyService();
   final TrayService _trayService = const TrayService();
-  late final ValueNotifier<NoteExternalUpdate?> _noteExternalUpdate =
-      ValueNotifier(null);
-  late final NoteUploadQueue _noteUploadQueue = NoteUploadQueue(
-    cloudSyncService: widget.cloudSyncService,
-  )..attach(_localDataState);
   UpdateCheckResult _updateCheckResult = UpdateCheckResult.idle;
-  int _noteExternalUpdateRevision = 0;
   Timer? _startupCloudSyncRetryTimer;
   Timer? _updateCheckRetryTimer;
   bool _syncingOnStartup = false;
@@ -99,7 +82,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       _syncTray(_localDataState.config);
       _syncGlobalHotkey(_localDataState.config);
       unawaited(_runStartupCloudSync(_localDataState));
-      unawaited(_runStartupReportGeneration(_localDataState));
       unawaited(_runUpdateCheck(_localDataState.config, resetRetry: true));
       unawaited(_validateWallpaperOnStartup());
     });
@@ -110,11 +92,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     super.didUpdateWidget(oldWidget);
     if (widget.localDataState != oldWidget.localDataState) {
       _localDataState = widget.localDataState;
-      _noteUploadQueue.attach(_localDataState);
       _syncAutoStart(_localDataState.config);
       _syncTray(_localDataState.config);
       _syncGlobalHotkey(_localDataState.config);
-      unawaited(_runStartupReportGeneration(_localDataState));
       unawaited(_runUpdateCheck(_localDataState.config, resetRetry: true));
     }
   }
@@ -126,7 +106,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     _cancelUpdateCheckRetry();
     unawaited(_globalHotkeyService.unregisterToggleWindowHotkey());
     unawaited(_trayService.dispose());
-    _noteExternalUpdate.dispose();
     super.dispose();
   }
 
@@ -151,7 +130,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         state.dataDirectory != _localDataState.dataDirectory;
     setState(() {
       _localDataState = state;
-      _noteUploadQueue.attach(_localDataState);
     });
     widget.onConfigChanged?.call(state.config);
     _syncAutoStart(state.config);
@@ -160,27 +138,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     if (directoryChanged) {
       unawaited(_runStartupCloudSync(state, resetRetry: true));
     }
-    unawaited(_runStartupReportGeneration(state));
     unawaited(_runUpdateCheck(state.config, resetRetry: true));
-  }
-
-  void _notifyNoteSaved(NoteKind kind, String path) {
-    _noteExternalUpdate.value = NoteExternalUpdate(
-      kind: kind,
-      path: path,
-      revision: ++_noteExternalUpdateRevision,
-    );
-  }
-
-  void _notifyAllNotesChanged() {
-    final path = _localDataState.dailyNotesDirectory;
-    for (final kind in NoteKind.values) {
-      _noteExternalUpdate.value = NoteExternalUpdate(
-        kind: kind,
-        path: path,
-        revision: ++_noteExternalUpdateRevision,
-      );
-    }
   }
 
   Future<void> _validateWallpaperOnStartup() async {
@@ -259,7 +217,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         if (mounted && _startupCloudSyncMessage != null) {
           setState(() => _startupCloudSyncMessage = null);
         }
-        _notifyAllNotesChanged();
       }
     } catch (_) {
       if (mounted &&
@@ -333,7 +290,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     if (_startupCloudSyncMessage != null) {
       setState(() => _startupCloudSyncMessage = null);
     }
-    _notifyAllNotesChanged();
   }
 
   Future<void> _markCloudSyncCompleted(CloudSyncResult result) async {
@@ -353,23 +309,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     await widget.localDataService.saveConfig(nextConfig);
   }
 
-  Future<void> _runStartupReportGeneration(
-    LocalDataState localDataState,
-  ) async {
-    try {
-      final reports = await widget.startupReportGenerationService
-          .generateMissingReports(localDataState: localDataState);
-      if (!mounted ||
-          localDataState.dataDirectory != _localDataState.dataDirectory) {
-        return;
-      }
-      for (final report in reports) {
-        _notifyNoteSaved(report.kind, report.path);
-      }
-    } catch (_) {
-      // Startup report generation is opportunistic and must not block the app.
-    }
-  }
 
   void _runUpdateCheckAfterResume() {
     if (!_localDataState.config.showUpdates || _checkingForUpdates) {
@@ -501,23 +440,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                             startupCloudSyncMessage: _startupCloudSyncMessage,
                             onDiarySaved: () {},
                           ),
-                          NotesPage(
-                            localDataState: _localDataState,
-                            noteService: widget.noteService,
-                            externalNoteUpdate: _noteExternalUpdate,
-                            noteUploadQueue: _noteUploadQueue,
-                            localDataService: widget.localDataService,
-                            onConfigChanged: (config) {
-                              final state = _localDataState.copyWith(
-                                config: config,
-                              );
-                              _handleLocalDataStateChanged(state);
-                            },
-                          ),
-                          DiaryPage(
-                            localDataState: _localDataState,
-                            noteService: widget.noteService,
-                          ),
+                          DiaryPage(localDataState: _localDataState),
                           MemoryPage(localDataState: _localDataState),
                           SettingsPage(
                             localDataState: _localDataState,
@@ -619,13 +542,6 @@ class GlobalSidebar extends StatelessWidget {
             semanticLabel: '首页',
             selected: selectedSection == AppSection.home,
             onPressed: () => onSectionSelected(AppSection.home),
-          ),
-          const SizedBox(height: 8),
-          _SidebarButton(
-            icon: _SidebarIconType.stickyNote,
-            semanticLabel: '便签',
-            selected: selectedSection == AppSection.notes,
-            onPressed: () => onSectionSelected(AppSection.notes),
           ),
           const SizedBox(height: 8),
           _SidebarButton(
@@ -748,7 +664,6 @@ class _SidebarButtonState extends State<_SidebarButton> {
 IconData _legacyMaterialIcon(_SidebarIconType icon) {
   return switch (icon) {
     _SidebarIconType.layoutDashboard => Icons.dashboard_outlined,
-    _SidebarIconType.stickyNote => Icons.sticky_note_2_outlined,
     _SidebarIconType.notebookPen => Icons.edit_note,
     _SidebarIconType.bookOpen => Icons.menu_book_outlined,
     _SidebarIconType.settings => Icons.settings_outlined,
@@ -757,7 +672,6 @@ IconData _legacyMaterialIcon(_SidebarIconType icon) {
 
 enum _SidebarIconType {
   layoutDashboard,
-  stickyNote,
   notebookPen,
   bookOpen,
   settings,
@@ -817,26 +731,6 @@ class _SidebarLucidePainter extends CustomPainter {
         canvas.drawRRect(roundedRect(14, 3, 7, 5, 1), paint);
         canvas.drawRRect(roundedRect(14, 12, 7, 9, 1), paint);
         canvas.drawRRect(roundedRect(3, 16, 7, 5, 1), paint);
-        break;
-      case _SidebarIconType.stickyNote:
-        final notePath = Path()
-          ..moveTo(16 * sx, 3 * sy)
-          ..lineTo(5 * sx, 3 * sy)
-          ..cubicTo(3.9 * sx, 3 * sy, 3 * sx, 3.9 * sy, 3 * sx, 5 * sy)
-          ..lineTo(3 * sx, 19 * sy)
-          ..cubicTo(3 * sx, 20.1 * sy, 3.9 * sx, 21 * sy, 5 * sx, 21 * sy)
-          ..lineTo(19 * sx, 21 * sy)
-          ..cubicTo(20.1 * sx, 21 * sy, 21 * sx, 20.1 * sy, 21 * sx, 19 * sy)
-          ..lineTo(21 * sx, 8 * sy)
-          ..lineTo(16 * sx, 3 * sy)
-          ..close();
-        canvas.drawPath(notePath, paint);
-        final foldPath = Path()
-          ..moveTo(15 * sx, 3 * sy)
-          ..lineTo(15 * sx, 8 * sy)
-          ..cubicTo(15 * sx, 8.55 * sy, 15.45 * sx, 9 * sy, 16 * sx, 9 * sy)
-          ..lineTo(21 * sx, 9 * sy);
-        canvas.drawPath(foldPath, paint);
         break;
       case _SidebarIconType.notebookPen:
         final notebookPath = Path()
