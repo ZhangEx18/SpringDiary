@@ -4,6 +4,7 @@ import '../../core/models/app_config.dart';
 import '../../core/models/diary_entry.dart';
 import '../../core/models/local_data_state.dart';
 import '../../core/services/ai_client_service.dart';
+import '../../core/services/daily_prompt_service.dart';
 import '../../core/services/diary_note_service.dart';
 import '../../core/services/mock_ai_service.dart';
 import '../../core/services/stats_service.dart';
@@ -20,6 +21,7 @@ class HomePage extends StatefulWidget {
     required this.localDataState,
     this.mockAiService = const MockAiService(),
     this.diaryNoteService = const DiaryNoteService(),
+    this.dailyPromptService = const DailyPromptService(),
     this.aiClientService = const AiClientService(),
     this.statsService = const StatsService(),
     this.updateCheckResult = UpdateCheckResult.idle,
@@ -31,6 +33,7 @@ class HomePage extends StatefulWidget {
   final LocalDataState localDataState;
   final MockAiService mockAiService;
   final DiaryNoteService diaryNoteService;
+  final DailyPromptService dailyPromptService;
   final AiClientService aiClientService;
   final StatsService statsService;
   final UpdateCheckResult updateCheckResult;
@@ -99,6 +102,7 @@ class _HomePageState extends State<HomePage> {
               _DiaryHeroCard(activityStats: _activityStats),
               const SizedBox(height: 32),
               _DiaryQuickCaptureCard(
+                dailyPromptService: widget.dailyPromptService,
                 diaryNotesDirectory:
                     widget.localDataState.diaryNotesDirectory,
                 diaryNoteService: widget.diaryNoteService,
@@ -581,6 +585,7 @@ class _DiaryQuickCaptureCard extends StatefulWidget {
     required this.mockAiService,
     required this.appDataDir,
     required this.config,
+    this.dailyPromptService = const DailyPromptService(),
     this.onSaved,
   });
 
@@ -590,6 +595,7 @@ class _DiaryQuickCaptureCard extends StatefulWidget {
   final MockAiService mockAiService;
   final String appDataDir;
   final AppConfig config;
+  final DailyPromptService dailyPromptService;
   final VoidCallback? onSaved;
 
   @override
@@ -740,10 +746,10 @@ class _DiaryQuickCaptureCardState extends State<_DiaryQuickCaptureCard> {
             TextField(
               controller: _controller,
               maxLines: 2,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 isDense: true,
-                border: OutlineInputBorder(),
-                hintText: '今天有什么想记下的？高光、情绪或一句随想…',
+                border: const OutlineInputBorder(),
+                hintText: widget.dailyPromptService.promptFor(DateTime.now()),
               ),
             ),
             const SizedBox(height: 8),
