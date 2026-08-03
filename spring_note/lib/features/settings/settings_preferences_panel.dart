@@ -141,30 +141,6 @@ class _PreferencesPanel extends StatelessWidget {
       maxWidth: 1080,
       children: [
         _SettingsCard(
-          title: '个人信息',
-          children: [
-            _NumberSettingRow(
-              label: '每日工作时长',
-              value: config.dailyWorkHours,
-              suffix: '小时',
-              onChanged: (value) =>
-                  onChanged(config.copyWith(dailyWorkHours: value)),
-            ),
-            _NumberSettingRow(
-              label: '日薪',
-              value: config.dailySalary,
-              suffix: '¥',
-              onChanged: (value) =>
-                  onChanged(config.copyWith(dailySalary: value)),
-            ),
-            _TextSettingRow(
-              label: '所在行业',
-              value: config.industry,
-              onChanged: (value) => onChanged(config.copyWith(industry: value)),
-            ),
-          ],
-        ),
-        _SettingsCard(
           title: '字体与显示',
           children: [
             _FontSettingRow(
