@@ -115,6 +115,39 @@ class DiaryNoteService {
     return results;
   }
 
+  /// Concatenates all diary entries of a month into one Markdown document.
+  /// Internal JSON metadata blocks are stripped; each day becomes an
+  /// `## YYYY-MM-DD` section.
+  Future<String> exportMonthMarkdown({
+    required String diaryNotesDirectory,
+    required int year,
+    required int month,
+  }) async {
+    final dates = await listDiaryDates(
+      diaryNotesDirectory: diaryNotesDirectory,
+      year: year,
+      month: month,
+    );
+    final buffer = StringBuffer()
+      ..writeln('# $year-${month.toString().padLeft(2, '0')} 日记')
+      ..writeln();
+    for (final date in dates) {
+      final markdown = await readDiaryMarkdown(
+        diaryNotesDirectory: diaryNotesDirectory,
+        date: date,
+      );
+      final body = markdown
+          .replaceAll(RegExp(r'```json\s*{.*?}\s*```', dotAll: true), '')
+          .trim();
+      buffer
+        ..writeln('## ${_formatDate(date)}')
+        ..writeln()
+        ..writeln(body)
+        ..writeln();
+    }
+    return '${buffer.toString().trimRight()}\n';
+  }
+
   String diaryNotePath(String diaryNotesDirectory, DateTime date) {
     final separator = Platform.pathSeparator;
     final directory = diaryNotesDirectory.endsWith(separator)

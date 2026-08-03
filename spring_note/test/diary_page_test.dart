@@ -191,4 +191,18 @@ void main() {
     expect(find.textContaining('2024 年'), findsOneWidget);
     expect(find.textContaining('2023 年'), findsOneWidget);
   });
+
+  testWidgets('diary page shows export button', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DiaryPage(
+          localDataState: state(),
+          diaryNoteService: _FakeDiaryNoteService(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('导出本月'), findsOneWidget);
+  });
 }

@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/models/diary_entry.dart';
@@ -77,6 +80,33 @@ class _DiaryPageState extends State<DiaryPage> {
     _loadMonth();
   }
 
+  Future<void> _exportMonth() async {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final suggestedName = 'diary-${_visibleMonth.year}-'
+        '${_visibleMonth.month.toString().padLeft(2, '0')}.md';
+    final location = await getSaveLocation(
+      suggestedName: suggestedName,
+      acceptedTypeGroups: const [
+        XTypeGroup(label: 'Markdown', extensions: ['md']),
+      ],
+    );
+    if (location == null) {
+      return;
+    }
+    final markdown = await widget.diaryNoteService.exportMonthMarkdown(
+      diaryNotesDirectory: widget.localDataState.diaryNotesDirectory,
+      year: _visibleMonth.year,
+      month: _visibleMonth.month,
+    );
+    try {
+      final file = File(location.path);
+      await file.writeAsString(markdown);
+      messenger?.showSnackBar(SnackBar(content: Text('已导出到 ${file.path}')));
+    } catch (_) {
+      messenger?.showSnackBar(const SnackBar(content: Text('导出失败，请重试')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return SpringNotePageScaffold(
@@ -94,6 +124,7 @@ class _DiaryPageState extends State<DiaryPage> {
                     onSelect: (date) => setState(() => _selectedDate = date),
                     onPreviousMonth: () => _changeMonth(-1),
                     onNextMonth: () => _changeMonth(1),
+                    onExport: _exportMonth,
                   ),
                 ),
                 Expanded(
@@ -121,6 +152,7 @@ class _MonthCalendar extends StatelessWidget {
     required this.onSelect,
     required this.onPreviousMonth,
     required this.onNextMonth,
+    required this.onExport,
   });
 
   final DateTime visibleMonth;
@@ -129,6 +161,7 @@ class _MonthCalendar extends StatelessWidget {
   final ValueChanged<DateTime> onSelect;
   final VoidCallback onPreviousMonth;
   final VoidCallback onNextMonth;
+  final VoidCallback onExport;
 
   static const _weekdayLabels = ['一', '二', '三', '四', '五', '六', '日'];
 
@@ -161,6 +194,11 @@ class _MonthCalendar extends StatelessWidget {
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
+              ),
+              IconButton(
+                tooltip: '导出本月',
+                onPressed: onExport,
+                icon: const Icon(Icons.file_download_outlined),
               ),
               IconButton(
                 tooltip: '下个月',
