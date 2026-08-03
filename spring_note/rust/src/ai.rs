@@ -148,6 +148,31 @@ pub struct ReportRequest {
 }
 
 #[derive(Clone, Debug)]
+pub struct DiaryEntryRequest {
+    pub app_data_dir: String,
+    pub provider: AiProvider,
+    pub model: AiModel,
+    pub raw_input: String,
+    pub existing_markdown: String,
+    pub api_log_enabled: bool,
+}
+
+#[derive(Clone, Debug)]
+pub struct DiaryEntryResult {
+    pub ok: bool,
+    pub mood: String,
+    pub highlights: Vec<String>,
+    pub reflection: String,
+    pub growth_prompt: String,
+    pub raw_content: String,
+    pub error_code: String,
+    pub error_message: String,
+    pub input_tokens: i32,
+    pub output_tokens: i32,
+    pub cached_tokens: i32,
+}
+
+#[derive(Clone, Debug)]
 pub struct MemoryToolChatRequest {
     pub app_data_dir: String,
     pub provider: AiProvider,
@@ -436,6 +461,100 @@ pub async fn generate_monthly_report(request: ReportRequest) -> AiTextResult {
         api_log_enabled: request.api_log_enabled,
     })
     .await
+}
+
+pub async fn generate_diary_entry(request: DiaryEntryRequest) -> DiaryEntryResult {
+    let system_prompt = diary_entry_system_prompt(&request.existing_markdown);
+    let result = chat(AiChatRequest {
+        app_data_dir: request.app_data_dir,
+        provider: request.provider,
+        model: request.model,
+        system_prompt,
+        user_prompt: request.raw_input,
+        images: vec![],
+        purpose: "diary_reflection".to_string(),
+        api_log_enabled: request.api_log_enabled,
+    })
+    .await;
+    if !result.ok {
+        return DiaryEntryResult {
+            ok: false,
+            mood: String::new(),
+            highlights: vec![],
+            reflection: String::new(),
+            growth_prompt: String::new(),
+            raw_content: result.content,
+            error_code: result.error_code,
+            error_message: result.error_message,
+            input_tokens: result.input_tokens,
+            output_tokens: result.output_tokens,
+            cached_tokens: result.cached_tokens,
+        };
+    }
+    parse_diary_entry(&result)
+}
+
+fn parse_diary_entry(result: &AiTextResult) -> DiaryEntryResult {
+    let parsed = serde_json::from_str::<Value>(&strip_markdown_fence(&result.content));
+    let Ok(value) = parsed else {
+        return invalid_diary_entry_result(result, "AI 返回内容不是可解析的结构化 JSON。");
+    };
+    let mood = value
+        .get("mood")
+        .and_then(Value::as_str)
+        .unwrap_or("neutral")
+        .to_string();
+    let highlights = value
+        .get("highlights")
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::to_owned)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    let reflection = value
+        .get("reflection")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    let growth_prompt = value
+        .get("growthPrompt")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+
+    DiaryEntryResult {
+        ok: true,
+        mood,
+        highlights,
+        reflection,
+        growth_prompt,
+        raw_content: result.content.clone(),
+        error_code: String::new(),
+        error_message: String::new(),
+        input_tokens: result.input_tokens,
+        output_tokens: result.output_tokens,
+        cached_tokens: result.cached_tokens,
+    }
+}
+
+fn invalid_diary_entry_result(result: &AiTextResult, error_message: &str) -> DiaryEntryResult {
+    DiaryEntryResult {
+        ok: false,
+        mood: String::new(),
+        highlights: vec![],
+        reflection: String::new(),
+        growth_prompt: String::new(),
+        raw_content: result.content.clone(),
+        error_code: "invalid_diary_output".to_string(),
+        error_message: error_message.to_string(),
+        input_tokens: result.input_tokens,
+        output_tokens: result.output_tokens,
+        cached_tokens: result.cached_tokens,
+    }
 }
 
 pub async fn memory_tool_chat(request: MemoryToolChatRequest) -> MemoryToolChatResult {
@@ -1068,6 +1187,34 @@ const MEMORY_TOOL_SYSTEM_PROMPT: &str = r#"你是 SpringNote 的回忆书问答�
 回答必须只依据工具返回和对话上下文；材料不足时明确说明缺少依据，不要编造事实。
 最终回答使用自然中文和清晰 Markdown，不要输出工具调用 JSON。"#;
 
+const DIARY_ENTRY_SYSTEM_PROMPT: &str = r#"你是 SpringNote 的日记反思助手。请把用户零散的一天记录整理成一篇有温度、有结构的日记条目。
+已知信息：
+- 已有日记：{existing_markdown}
+
+整理要求：
+1. 只输出一个 JSON 对象，不要输出任何其它内容，不要包裹 Markdown 代码块。
+2. JSON 结构固定为：
+{
+  "mood": "joyful",
+  "highlights": ["高光1", "高光2"],
+  "reflection": "对今天的一句话反思",
+  "growthPrompt": "明天的期许或行动建议"
+}
+3. mood 只能取以下五个值之一：joyful / neutral / down / sad / angry。
+4. highlights 是 1-3 条今天最值得记住的事，来自用户输入，不编造。
+5. reflection 用一句自然、克制的话概括今天的状态或启发。
+6. growthPrompt 给出明天的一个小期许或行动建议，语气温和不教条。
+7. 严格基于用户输入，不虚构任何事件、人物、结果或情绪；输入过少时如实整理，不要为了填充而编造。"#;
+
+fn diary_entry_system_prompt(existing_markdown: &str) -> String {
+    let existing = existing_markdown.trim();
+    if existing.is_empty() {
+        DIARY_ENTRY_SYSTEM_PROMPT.to_string()
+    } else {
+        DIARY_ENTRY_SYSTEM_PROMPT.replace("{existing_markdown}", existing)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1355,5 +1502,59 @@ mod tests {
             error.is_timeout(),
             "streaming request body read should have timed out, got: {error}"
         );
+    }
+
+    #[test]
+    fn parses_diary_entry_json() {
+        let result = AiTextResult::success(
+            &request(),
+            r#"{
+  "mood": "joyful",
+  "highlights": ["完成日记功能", "跑了一圈"],
+  "reflection": "今天状态不错",
+  "growthPrompt": "明天早点开始"
+}"#,
+            3,
+            4,
+            0,
+        );
+        let parsed = parse_diary_entry(&result);
+        assert!(parsed.ok, "{}", parsed.error_message);
+        assert_eq!(parsed.mood, "joyful");
+        assert_eq!(parsed.highlights, ["完成日记功能", "跑了一圈"]);
+        assert_eq!(parsed.reflection, "今天状态不错");
+        assert_eq!(parsed.growth_prompt, "明天早点开始");
+    }
+
+    #[test]
+    fn parses_diary_entry_with_fence_and_defaults() {
+        let result = AiTextResult::success(
+            &request(),
+            "```json\n{\"mood\":\"down\",\"highlights\":[],\"reflection\":\"\",\"growthPrompt\":\"\"}\n```",
+            0,
+            1,
+            0,
+        );
+        let parsed = parse_diary_entry(&result);
+        assert!(parsed.ok);
+        assert_eq!(parsed.mood, "down");
+        assert!(parsed.highlights.is_empty());
+        assert_eq!(parsed.reflection, "");
+    }
+
+    #[test]
+    fn rejects_invalid_diary_entry_json() {
+        let result = AiTextResult::success(&request(), "not json", 1, 1, 0);
+        let parsed = parse_diary_entry(&result);
+        assert!(!parsed.ok);
+        assert_eq!(parsed.error_code, "invalid_diary_output");
+    }
+
+    #[test]
+    fn diary_entry_prompt_substitutes_existing_markdown() {
+        let prompt = diary_entry_system_prompt("已有内容");
+        assert!(prompt.contains("已有内容"));
+        let empty_prompt = diary_entry_system_prompt("  ");
+        assert_eq!(empty_prompt, DIARY_ENTRY_SYSTEM_PROMPT);
     }
 }

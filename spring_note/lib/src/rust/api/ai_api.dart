@@ -21,6 +21,10 @@ Future<AiTextResult> generateWeeklyReport({required ReportRequest request}) =>
 Future<AiTextResult> generateMonthlyReport({required ReportRequest request}) =>
     RustLib.instance.api.crateApiAiApiGenerateMonthlyReport(request: request);
 
+Future<DiaryEntryResult> generateDiaryEntry({
+  required DiaryEntryRequest request,
+}) => RustLib.instance.api.crateApiAiApiGenerateDiaryEntry(request: request);
+
 Future<MemoryToolChatResult> memoryToolChat({
   required MemoryToolChatRequest request,
 }) => RustLib.instance.api.crateApiAiApiMemoryToolChat(request: request);

@@ -340,6 +340,29 @@ class AiClientService {
     );
   }
 
+  Future<rust_ai.DiaryEntryResult?> generateDiaryEntry({
+    required String appDataDir,
+    required AppConfig config,
+    required String rawInput,
+    required String existingMarkdown,
+  }) async {
+    final selection = _selectModel(config, 'diaryReflectionModel');
+    if (selection == null) {
+      return null;
+    }
+
+    return rust_api.generateDiaryEntry(
+      request: rust_ai.DiaryEntryRequest(
+        appDataDir: appDataDir,
+        provider: _toRustProvider(selection.provider),
+        model: _toRustModel(selection.model),
+        rawInput: rawInput,
+        existingMarkdown: existingMarkdown,
+        apiLogEnabled: config.apiLogEnabled,
+      ),
+    );
+  }
+
   Future<ReportRegenerationResult> regenerateReport({
     required String appDataDir,
     required AppConfig config,

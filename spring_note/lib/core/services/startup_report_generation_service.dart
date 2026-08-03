@@ -67,7 +67,11 @@ class StartupReportGenerationService {
     }
 
     final source = await _dailySourceForWeek(localDataState, weekStart);
-    if (source.trim().isEmpty) {
+    final diarySource = localDataState.config.includeDiaryInWeeklyReport
+        ? await _diarySourceForWeek(localDataState, weekStart)
+        : '';
+    final combined = '${source.trimRight()}\n$diarySource'.trim();
+    if (combined.isEmpty) {
       return null;
     }
 
@@ -199,6 +203,30 @@ class StartupReportGenerationService {
       }
       buffer
         ..writeln('## ${_formatDate(date)} 日报')
+        ..writeln()
+        ..writeln(content)
+        ..writeln();
+    }
+    return buffer.toString().trimRight();
+  }
+
+  Future<String> _diarySourceForWeek(
+    LocalDataState localDataState,
+    DateTime weekStart,
+  ) async {
+    final buffer = StringBuffer();
+    for (var index = 0; index < 7; index++) {
+      final date = weekStart.add(Duration(days: index));
+      final path = _join(
+        localDataState.diaryNotesDirectory,
+        '${_formatDate(date)}.md',
+      );
+      final content = await _readMeaningfulMarkdown(path);
+      if (content == null) {
+        continue;
+      }
+      buffer
+        ..writeln('## ${_formatDate(date)} 日记')
         ..writeln()
         ..writeln(content)
         ..writeln();

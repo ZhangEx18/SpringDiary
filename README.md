@@ -11,7 +11,7 @@ Instead of static records, we model a living system:
 
 <h1 align="center">
   <img src="./snapshots/logo.png" width="48" alt="SpringNote Logo" style="vertical-align: -6px;">
-  SpringNote
+  SpringNote (Diary Fork)
 </h1>
 
 <div align="center">
@@ -23,30 +23,35 @@ Instead of static records, we model a living system:
 </div>
 </div>
 
-## 为什么选择SpringNote
+> **Fork 说明**：本项目是 [Radiant303/SpringNote](https://github.com/Radiant303/SpringNote)
+> (AGPL-3.0) 的独立 fork，在原有 AI 便签与日报能力之上，扩展为**日记本**定位：
+> 新增日记领域模型、月历视图、心情追踪与 AI 反思。许可证与版权声明保持不变。
 
-市面上的便签软件大多只能帮你保存内容，却很难帮你利用这些内容。SpringNote 因此而生。它不仅能够记录，更能够帮助你整理、沉淀和回顾。通过 AI 自动生成日报、周报和月报，并结合回忆书功能，让过去的记录变成随时可检索、可对话的个人知识资产。
+## 为什么选择这个项目
 
+市面上的便签软件大多只能帮你保存内容，却很难帮你利用这些内容。这个项目因此而生。它不仅能够记录，更能够帮助你整理、沉淀和回顾。通过 AI 自动生成日报、周报和月报，结合回忆书功能，让过去的记录变成随时可检索、可对话的个人知识资产；新增的**日记模式**让你可以记录心情、高光与反思，把生活也变成可回看的资产。
 
 ## 核心功能
 
-- **首页工作台**：牛马等级、收益、活跃热力图、快速输入框和今日摘要卡片。
+- **日记本**：月历视图按日回看，心情标签（😊😐😔😢😠）追踪情绪变化，AI 反思模型把随想整理为高光 / 反思 / 明日期许。
+
+  ![SpringNote 日记](./snapshots/note.png)
+
+- **首页工作台**：今日日记快速入口、牛马等级、收益、活跃热力图、快速输入框和今日摘要卡片。
 
   ![SpringNote 首页](./snapshots/index.png)
 
 - **AI 智能生成**：在首页快速输入想法，由 AI 自动整理为结构化内容。
 
-- **便签编辑**：支持日报、周报、月报等记录类型，提供 Markdown 编辑、预览、代码块高亮和 AI 补全预测。
+- **便签编辑**：支持日报、周报、月报、日记等记录类型，提供 Markdown 编辑、预览、代码块高亮和 AI 补全预测。
 
-  ![SpringNote 便签](./snapshots/note.png)
-
-- **回忆书对话**：以对话方式检索和整理记忆内容，支持思考过程、工具调用展示与 Markdown 渲染。
+- **回忆书对话**：以对话方式检索和整理记忆内容（含日记），支持思考过程、工具调用展示与 Markdown 渲染。
 
   ![SpringNote 回忆书](./snapshots/memories.png)
 
-- **自动报告生成**：启动时可按日期补齐缺失的周报/月报，基于已有日报或周报生成总结。
+- **自动报告生成**：启动时可按日期补齐缺失的周报/月报，基于已有日报或周报生成总结（可选纳入日记）。
 
-- **统计面板**：查看记录、活跃度、模型调用和时间范围内的数据概览。
+- **统计面板**：查看记录、活跃度、模型调用、时间范围内的数据概览，以及日记心情分布。
 
   ![SpringNote 统计面板](./snapshots/setting.png)
 
