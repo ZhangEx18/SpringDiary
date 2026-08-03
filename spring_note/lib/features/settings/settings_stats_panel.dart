@@ -4,6 +4,8 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/models/local_data_state.dart';
+import '../../core/services/ai_client_service.dart';
+import '../../core/services/diary_note_service.dart';
 import '../../core/services/stats_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../src/rust/stats.dart' as rust_stats;
@@ -134,6 +136,52 @@ class _SettingsStatsPanelState extends State<SettingsStatsPanel> {
       _future = _loadStats();
     });
   }
+  Future<void> _generateInsightReport(int days) async {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final today = DateTime.now();
+    final start = today.subtract(Duration(days: days - 1));
+    messenger?.showSnackBar(
+      SnackBar(content: Text('正在生成 $days 天情绪洞察报告…')),
+    );
+    final diaryMarkdown = await const DiaryNoteService().exportRangeMarkdown(
+      diaryNotesDirectory: widget.localDataState.diaryNotesDirectory,
+      start: start,
+      end: today,
+    );
+    final report = await const AiClientService().generateDiaryReview(
+      appDataDir: widget.localDataState.dataDirectory,
+      config: widget.localDataState.config,
+      periodLabel: '最近 $days 天',
+      diaryMarkdown: diaryMarkdown,
+    );
+    messenger?.hideCurrentSnackBar();
+    if (!mounted) {
+      return;
+    }
+    if (report == null || report.trim().isEmpty) {
+      messenger?.showSnackBar(
+        const SnackBar(content: Text('报告生成失败，请检查模型配置或是否有足够日记')),
+      );
+      return;
+    }
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('$days 天情绪洞察'),
+        content: SizedBox(
+          width: 480,
+          child: SingleChildScrollView(child: SelectableText(report)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('关闭'),
+          ),
+        ],
+      ),
+    );
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -164,7 +212,10 @@ class _SettingsStatsPanelState extends State<SettingsStatsPanel> {
             _StatsSectionCard(
               title: '日记面板',
               subtitle: range.label,
-              child: _DiaryMoodPanel(moods: data?.moods ?? const []),
+              child: _DiaryMoodPanel(
+                moods: data?.moods ?? const [],
+                onGenerateReport: _generateInsightReport,
+              ),
             ),
             _StatsSectionCard(
               title: '用量趋势',
@@ -437,9 +488,10 @@ class _StatsSectionCard extends StatelessWidget {
 }
 
 class _DiaryMoodPanel extends StatelessWidget {
-  const _DiaryMoodPanel({required this.moods});
+  const _DiaryMoodPanel({required this.moods, required this.onGenerateReport});
 
   final List<rust_stats.MoodEntry> moods;
+  final ValueChanged<int> onGenerateReport;
 
   static const _moodOrder = ['joyful', 'neutral', 'down', 'sad', 'angry'];
   static const _moodEmoji = {
@@ -518,6 +570,17 @@ class _DiaryMoodPanel extends StatelessWidget {
             color: colors.textSubtle,
             fontSize: 11,
           ),
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          children: [
+            for (final days in const [7, 30, 90])
+              OutlinedButton(
+                onPressed: () => onGenerateReport(days),
+                child: Text('生成 $days 天报告'),
+              ),
+          ],
         ),
       ],
     );
