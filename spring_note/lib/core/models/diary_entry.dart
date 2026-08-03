@@ -25,6 +25,8 @@ enum DiaryMood {
 /// ```json
 /// {
 ///   "mood": "joyful",
+///   "moodScore": 8,
+///   "tags": ["工作", "放松"],
 ///   "highlights": ["..."],
 ///   "reflection": "...",
 ///   "growthPrompt": "..."
@@ -33,12 +35,16 @@ enum DiaryMood {
 class DiaryEntry {
   const DiaryEntry({
     required this.mood,
+    this.moodScore = 5,
+    this.tags = const [],
     this.highlights = const [],
     this.reflection = '',
     this.growthPrompt = '',
   });
 
   final DiaryMood mood;
+  final int moodScore;
+  final List<String> tags;
   final List<String> highlights;
   final String reflection;
   final String growthPrompt;
@@ -48,6 +54,8 @@ class DiaryEntry {
 
   Map<String, Object?> toJson() => {
         'mood': mood.name,
+        'moodScore': moodScore,
+        'tags': tags,
         'highlights': highlights,
         'reflection': reflection,
         'growthPrompt': growthPrompt,
@@ -56,6 +64,11 @@ class DiaryEntry {
   factory DiaryEntry.fromJson(Map<String, Object?> json) {
     return DiaryEntry(
       mood: DiaryMood.fromCode(json['mood'] as String?),
+      moodScore: (json['moodScore'] as num?)?.round().clamp(1, 10) ?? 5,
+      tags: [
+        for (final item in (json['tags'] as List<Object?>? ?? const []))
+          if (item is String) item,
+      ],
       highlights: [
         for (final item in (json['highlights'] as List<Object?>? ?? const []))
           if (item is String) item,

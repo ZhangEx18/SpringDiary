@@ -136,7 +136,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(TextField), '今天记了点什么');
+    await tester.enterText(find.byType(TextField).last, '今天记了点什么');
+    await tester.ensureVisible(find.text('保存'));
     await tester.tap(find.text('保存'));
     await tester.pumpAndSettle();
 
@@ -160,6 +161,7 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('😊 开心'));
+    await tester.ensureVisible(find.text('保存'));
     await tester.tap(find.text('保存'));
     await tester.pumpAndSettle();
 

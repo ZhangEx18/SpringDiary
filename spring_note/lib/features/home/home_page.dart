@@ -668,6 +668,8 @@ class _DiaryQuickCaptureCardState extends State<_DiaryQuickCaptureCard> {
     return rust_ai.DiaryEntryResult(
       ok: true,
       mood: mock.mood.name,
+      moodScore: mock.moodScore,
+      tags: mock.tags,
       highlights: mock.highlights,
       reflection: mock.reflection,
       growthPrompt: mock.growthPrompt,
