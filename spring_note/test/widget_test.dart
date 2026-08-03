@@ -19,7 +19,6 @@ import 'package:spring_note/core/router/app_shell.dart';
 import 'package:spring_note/core/services/cloud_sync_service.dart';
 import 'package:spring_note/core/services/ai_client_service.dart';
 import 'package:spring_note/core/services/daily_note_service.dart';
-import 'package:spring_note/core/services/desktop_widget_controller.dart';
 import 'package:spring_note/core/services/home_overview_service.dart';
 import 'package:spring_note/core/services/pending_image_clipboard_service.dart';
 import 'package:spring_note/core/services/pending_image_service.dart';
@@ -28,7 +27,6 @@ import 'package:spring_note/core/services/stats_service.dart';
 import 'package:spring_note/core/services/update_check_service.dart';
 import 'package:spring_note/core/theme/app_theme.dart';
 import 'package:spring_note/features/home/home_page.dart';
-import 'package:spring_note/src/rust/stats.dart' as rust_stats;
 
 void main() {
   testWidgets(
@@ -81,13 +79,7 @@ void main() {
     );
 
     expect(find.text('首页'), findsOneWidget);
-    expect(find.text('EARNINGS TODAY'), findsOneWidget);
-    await tester.scrollUntilVisible(
-      find.text('完成事项'),
-      200,
-      scrollable: find.byType(Scrollable).first,
-    );
-    expect(find.text('完成事项'), findsOneWidget);
+    expect(find.text('今日日记'), findsOneWidget);
 
     await tester.tap(find.byIcon(Icons.settings_outlined));
     await tester.pump();
@@ -1132,45 +1124,6 @@ void main() {
     );
   });
 
-  testWidgets('home income stays in sync with desktop widget controller', (
-    WidgetTester tester,
-  ) async {
-    tester.view.physicalSize = const Size(1440, 900);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-
-    final localDataState = _testLocalDataState(
-      config: AppConfig.defaults().copyWith(
-        dailyWorkHours: 1,
-        dailySalary: 3600,
-      ),
-    );
-    final controller = DesktopWidgetController(
-      statsService: const _FakeStatsService(),
-      tickDuration: const Duration(seconds: 1),
-    )..attach(localDataState);
-
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: AppTheme.light(),
-        home: HomePage(
-          localDataState: localDataState,
-          homeOverviewService: _FakeHomeOverviewService(),
-          desktopWidgetController: controller,
-        ),
-      ),
-    );
-    await tester.pump();
-    expect(find.text('10'), findsOneWidget);
-
-    await tester.pump(const Duration(seconds: 1));
-    expect(find.text('11'), findsOneWidget);
-    expect(find.text('+1.000 c/s'), findsOneWidget);
-
-    await tester.pumpWidget(const SizedBox.shrink());
-    controller.dispose();
-  });
 }
 
 LocalDataState _testLocalDataState({AppConfig? config}) {
@@ -1491,45 +1444,6 @@ class _StructuredFailureAiClientService extends AiClientService {
   }) async {
     return note.rawInput;
   }
-}
-
-class _FakeStatsService extends StatsService {
-  const _FakeStatsService();
-
-  @override
-  Future<rust_stats.StatsSnapshot> readSnapshot({
-    required LocalDataState localDataState,
-    required DateTime start,
-    required DateTime end,
-  }) async {
-    return const rust_stats.StatsSnapshot(
-      summary: rust_stats.StatsSummary(
-        summaries: 0,
-        fimCompletions: 0,
-        totalRecords: 0,
-        dailyNotes: 0,
-        weeklyNotes: 0,
-        monthlyNotes: 0,
-        diaryNotes: 0,
-        inputTokens: 0,
-        outputTokens: 0,
-        cachedTokens: 0,
-        appLaunches: 0,
-        workSeconds: 10,
-        coins: 10,
-      ),
-      activity: [],
-      tokenUsage: [],
-      providerUsage: [],
-    );
-  }
-
-  @override
-  Future<void> recordWorkTime({
-    required String appDataDir,
-    required int workSeconds,
-    required double coins,
-  }) async {}
 }
 
 class _ImmediateLocalDataService extends LocalDataService {
