@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/models/diary_entry.dart';
 import '../../core/models/local_data_state.dart';
+import '../../core/services/ai_client_service.dart';
 import '../../core/services/diary_note_service.dart';
 import '../../core/services/note_service.dart';
 import '../../core/widgets/page_scaffold.dart';
@@ -15,11 +16,13 @@ class DiaryPage extends StatefulWidget {
     required this.localDataState,
     this.noteService = const NoteService(),
     this.diaryNoteService = const DiaryNoteService(),
+    this.aiClientService = const AiClientService(),
   });
 
   final LocalDataState localDataState;
   final NoteService noteService;
   final DiaryNoteService diaryNoteService;
+  final AiClientService aiClientService;
 
   @override
   State<DiaryPage> createState() => _DiaryPageState();
@@ -107,6 +110,59 @@ class _DiaryPageState extends State<DiaryPage> {
     }
   }
 
+  Future<void> _reviewDiary({required bool weekly}) async {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final today = DateTime.now();
+    final start = weekly
+        ? today.subtract(Duration(days: today.weekday - 1))
+        : DateTime(today.year, today.month);
+    final end = today;
+    final periodLabel = weekly ? '本周' : '本月';
+
+    messenger?.showSnackBar(
+      SnackBar(content: Text('正在生成$periodLabel回顾…')),
+    );
+    final diaryMarkdown = await widget.diaryNoteService.exportRangeMarkdown(
+      diaryNotesDirectory: widget.localDataState.diaryNotesDirectory,
+      start: start,
+      end: end,
+    );
+    final review = await widget.aiClientService.generateDiaryReview(
+      appDataDir: widget.localDataState.dataDirectory,
+      config: widget.localDataState.config,
+      periodLabel: periodLabel,
+      diaryMarkdown: diaryMarkdown,
+    );
+    messenger?.hideCurrentSnackBar();
+    if (!mounted) {
+      return;
+    }
+    if (review == null || review.trim().isEmpty) {
+      messenger?.showSnackBar(
+        const SnackBar(content: Text('回顾生成失败，请检查模型配置')),
+      );
+      return;
+    }
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('$periodLabel回顾'),
+        content: SizedBox(
+          width: 480,
+          child: SingleChildScrollView(
+            child: SelectableText(review),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('关闭'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return SpringNotePageScaffold(
@@ -125,6 +181,8 @@ class _DiaryPageState extends State<DiaryPage> {
                     onPreviousMonth: () => _changeMonth(-1),
                     onNextMonth: () => _changeMonth(1),
                     onExport: _exportMonth,
+                    onReviewWeekly: () => _reviewDiary(weekly: true),
+                    onReviewMonthly: () => _reviewDiary(weekly: false),
                   ),
                 ),
                 Expanded(
@@ -153,6 +211,8 @@ class _MonthCalendar extends StatelessWidget {
     required this.onPreviousMonth,
     required this.onNextMonth,
     required this.onExport,
+    required this.onReviewWeekly,
+    required this.onReviewMonthly,
   });
 
   final DateTime visibleMonth;
@@ -162,6 +222,8 @@ class _MonthCalendar extends StatelessWidget {
   final VoidCallback onPreviousMonth;
   final VoidCallback onNextMonth;
   final VoidCallback onExport;
+  final VoidCallback onReviewWeekly;
+  final VoidCallback onReviewMonthly;
 
   static const _weekdayLabels = ['一', '二', '三', '四', '五', '六', '日'];
 
@@ -194,6 +256,16 @@ class _MonthCalendar extends StatelessWidget {
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
+              ),
+              IconButton(
+                tooltip: '周回顾',
+                onPressed: onReviewWeekly,
+                icon: const Icon(Icons.view_week_outlined),
+              ),
+              IconButton(
+                tooltip: '月回顾',
+                onPressed: onReviewMonthly,
+                icon: const Icon(Icons.calendar_month_outlined),
               ),
               IconButton(
                 tooltip: '导出本月',

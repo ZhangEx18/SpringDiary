@@ -83,6 +83,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   DiaryEntryRequest dco_decode_box_autoadd_diary_entry_request(dynamic raw);
 
   @protected
+  DiaryReviewRequest dco_decode_box_autoadd_diary_review_request(dynamic raw);
+
+  @protected
   FimCompleteRequest dco_decode_box_autoadd_fim_complete_request(dynamic raw);
 
   @protected
@@ -134,6 +137,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   DiaryEntryResult dco_decode_diary_entry_result(dynamic raw);
+
+  @protected
+  DiaryReviewRequest dco_decode_diary_review_request(dynamic raw);
+
+  @protected
+  DiaryReviewResult dco_decode_diary_review_result(dynamic raw);
 
   @protected
   FimCompleteRequest dco_decode_fim_complete_request(dynamic raw);
@@ -350,6 +359,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  DiaryReviewRequest sse_decode_box_autoadd_diary_review_request(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   FimCompleteRequest sse_decode_box_autoadd_fim_complete_request(
     SseDeserializer deserializer,
   );
@@ -411,6 +425,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   DiaryEntryResult sse_decode_diary_entry_result(SseDeserializer deserializer);
+
+  @protected
+  DiaryReviewRequest sse_decode_diary_review_request(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  DiaryReviewResult sse_decode_diary_review_result(
+    SseDeserializer deserializer,
+  );
 
   @protected
   FimCompleteRequest sse_decode_fim_complete_request(
@@ -680,6 +704,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_diary_review_request(
+    DiaryReviewRequest self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_fim_complete_request(
     FimCompleteRequest self,
     SseSerializer serializer,
@@ -763,6 +793,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_diary_entry_result(
     DiaryEntryResult self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_diary_review_request(
+    DiaryReviewRequest self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_diary_review_result(
+    DiaryReviewResult self,
     SseSerializer serializer,
   );
 

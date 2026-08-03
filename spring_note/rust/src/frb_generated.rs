@@ -38,7 +38,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.12.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -460063453;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 685860939;
 
 // Section: executor
 
@@ -197,6 +197,44 @@ fn wire__crate__api__ai_api__generate_diary_entry_impl(
                     (move || async move {
                         let output_ok = Result::<_, ()>::Ok(
                             crate::api::ai_api::generate_diary_entry(api_request).await,
+                        )?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__ai_api__generate_diary_review_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "generate_diary_review",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_request = <crate::ai::DiaryReviewRequest>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, ()>(
+                    (move || async move {
+                        let output_ok = Result::<_, ()>::Ok(
+                            crate::api::ai_api::generate_diary_review(api_request).await,
                         )?;
                         Ok(output_ok)
                     })()
@@ -1520,6 +1558,48 @@ impl SseDecode for crate::ai::DiaryEntryResult {
     }
 }
 
+impl SseDecode for crate::ai::DiaryReviewRequest {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_appDataDir = <String>::sse_decode(deserializer);
+        let mut var_provider = <crate::ai::AiProvider>::sse_decode(deserializer);
+        let mut var_model = <crate::ai::AiModel>::sse_decode(deserializer);
+        let mut var_periodLabel = <String>::sse_decode(deserializer);
+        let mut var_diaryMarkdown = <String>::sse_decode(deserializer);
+        let mut var_apiLogEnabled = <bool>::sse_decode(deserializer);
+        return crate::ai::DiaryReviewRequest {
+            app_data_dir: var_appDataDir,
+            provider: var_provider,
+            model: var_model,
+            period_label: var_periodLabel,
+            diary_markdown: var_diaryMarkdown,
+            api_log_enabled: var_apiLogEnabled,
+        };
+    }
+}
+
+impl SseDecode for crate::ai::DiaryReviewResult {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_ok = <bool>::sse_decode(deserializer);
+        let mut var_content = <String>::sse_decode(deserializer);
+        let mut var_errorCode = <String>::sse_decode(deserializer);
+        let mut var_errorMessage = <String>::sse_decode(deserializer);
+        let mut var_inputTokens = <i32>::sse_decode(deserializer);
+        let mut var_outputTokens = <i32>::sse_decode(deserializer);
+        let mut var_cachedTokens = <i32>::sse_decode(deserializer);
+        return crate::ai::DiaryReviewResult {
+            ok: var_ok,
+            content: var_content,
+            error_code: var_errorCode,
+            error_message: var_errorMessage,
+            input_tokens: var_inputTokens,
+            output_tokens: var_outputTokens,
+            cached_tokens: var_cachedTokens,
+        };
+    }
+}
+
 impl SseDecode for crate::ai::FimCompleteRequest {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -2223,115 +2303,118 @@ fn pde_ffi_dispatcher_primary_impl(
         }
         3 => wire__crate__api__ai_api__fim_complete_impl(port, ptr, rust_vec_len, data_len),
         4 => wire__crate__api__ai_api__generate_diary_entry_impl(port, ptr, rust_vec_len, data_len),
-        5 => wire__crate__api__ai_api__generate_monthly_report_impl(
+        5 => {
+            wire__crate__api__ai_api__generate_diary_review_impl(port, ptr, rust_vec_len, data_len)
+        }
+        6 => wire__crate__api__ai_api__generate_monthly_report_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        6 => wire__crate__api__ai_api__generate_structured_note_impl(
+        7 => wire__crate__api__ai_api__generate_structured_note_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        7 => {
+        8 => {
             wire__crate__api__ai_api__generate_weekly_report_impl(port, ptr, rust_vec_len, data_len)
         }
-        8 => wire__crate__api__stats_api__get_mood_distribution_impl(
+        9 => wire__crate__api__stats_api__get_mood_distribution_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        9 => {
+        10 => {
             wire__crate__api__stats_api__get_stats_snapshot_impl(port, ptr, rust_vec_len, data_len)
         }
-        10 => wire__crate__api__note_index_api__index_note_file_impl(
+        11 => wire__crate__api__note_index_api__index_note_file_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        11 => wire__crate__api__ai_api__init_app_impl(port, ptr, rust_vec_len, data_len),
-        12 => wire__crate__api__note_index_api__list_indexed_notes_impl(
+        12 => wire__crate__api__ai_api__init_app_impl(port, ptr, rust_vec_len, data_len),
+        13 => wire__crate__api__note_index_api__list_indexed_notes_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        13 => wire__crate__api__note_index_api__load_note_content_impl(
+        14 => wire__crate__api__note_index_api__load_note_content_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        14 => wire__crate__api__ai_api__memory_tool_chat_impl(port, ptr, rust_vec_len, data_len),
-        15 => wire__crate__api__ai_api__memory_tool_chat_stream_impl(
+        15 => wire__crate__api__ai_api__memory_tool_chat_impl(port, ptr, rust_vec_len, data_len),
+        16 => wire__crate__api__ai_api__memory_tool_chat_stream_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        16 => wire__crate__api__ai_api__merge_daily_note_impl(port, ptr, rust_vec_len, data_len),
-        17 => {
+        17 => wire__crate__api__ai_api__merge_daily_note_impl(port, ptr, rust_vec_len, data_len),
+        18 => {
             wire__crate__api__stats_api__record_app_startup_impl(port, ptr, rust_vec_len, data_len)
         }
-        18 => {
+        19 => {
             wire__crate__api__stats_api__record_diary_entry_impl(port, ptr, rust_vec_len, data_len)
         }
-        19 => wire__crate__api__note_index_api__refresh_note_index_impl(
+        20 => wire__crate__api__note_index_api__refresh_note_index_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        20 => {
+        21 => {
             wire__crate__api__report_api__regenerate_report_impl(port, ptr, rust_vec_len, data_len)
         }
-        21 => wire__crate__api__note_image_cleanup_api__scan_note_images_impl(
+        22 => wire__crate__api__note_image_cleanup_api__scan_note_images_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        22 => wire__crate__api__note_index_api__search_all_indexed_notes_impl(
+        23 => wire__crate__api__note_index_api__search_all_indexed_notes_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        23 => wire__crate__api__note_index_api__search_indexed_notes_impl(
+        24 => wire__crate__api__note_index_api__search_indexed_notes_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        24 => wire__crate__api__note_index_api__search_indexed_notes_by_kind_impl(
+        25 => wire__crate__api__note_index_api__search_indexed_notes_by_kind_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        25 => wire__crate__api__cloud_sync_api__sync_web_dav_notes_impl(
+        26 => wire__crate__api__cloud_sync_api__sync_web_dav_notes_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        26 => wire__crate__api__ai_api__test_provider_connection_impl(
+        27 => wire__crate__api__ai_api__test_provider_connection_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        27 => wire__crate__api__cloud_sync_api__test_web_dav_connection_impl(
+        28 => wire__crate__api__cloud_sync_api__test_web_dav_connection_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        28 => wire__crate__api__cloud_sync_api__upload_web_dav_note_impl(
+        29 => wire__crate__api__cloud_sync_api__upload_web_dav_note_impl(
             port,
             ptr,
             rust_vec_len,
@@ -2717,6 +2800,51 @@ impl flutter_rust_bridge::IntoIntoDart<crate::ai::DiaryEntryResult>
     for crate::ai::DiaryEntryResult
 {
     fn into_into_dart(self) -> crate::ai::DiaryEntryResult {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::ai::DiaryReviewRequest {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.app_data_dir.into_into_dart().into_dart(),
+            self.provider.into_into_dart().into_dart(),
+            self.model.into_into_dart().into_dart(),
+            self.period_label.into_into_dart().into_dart(),
+            self.diary_markdown.into_into_dart().into_dart(),
+            self.api_log_enabled.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::ai::DiaryReviewRequest {}
+impl flutter_rust_bridge::IntoIntoDart<crate::ai::DiaryReviewRequest>
+    for crate::ai::DiaryReviewRequest
+{
+    fn into_into_dart(self) -> crate::ai::DiaryReviewRequest {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::ai::DiaryReviewResult {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.ok.into_into_dart().into_dart(),
+            self.content.into_into_dart().into_dart(),
+            self.error_code.into_into_dart().into_dart(),
+            self.error_message.into_into_dart().into_dart(),
+            self.input_tokens.into_into_dart().into_dart(),
+            self.output_tokens.into_into_dart().into_dart(),
+            self.cached_tokens.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::ai::DiaryReviewResult {}
+impl flutter_rust_bridge::IntoIntoDart<crate::ai::DiaryReviewResult>
+    for crate::ai::DiaryReviewResult
+{
+    fn into_into_dart(self) -> crate::ai::DiaryReviewResult {
         self
     }
 }
@@ -3522,6 +3650,31 @@ impl SseEncode for crate::ai::DiaryEntryResult {
         <String>::sse_encode(self.reflection, serializer);
         <String>::sse_encode(self.growth_prompt, serializer);
         <String>::sse_encode(self.raw_content, serializer);
+        <String>::sse_encode(self.error_code, serializer);
+        <String>::sse_encode(self.error_message, serializer);
+        <i32>::sse_encode(self.input_tokens, serializer);
+        <i32>::sse_encode(self.output_tokens, serializer);
+        <i32>::sse_encode(self.cached_tokens, serializer);
+    }
+}
+
+impl SseEncode for crate::ai::DiaryReviewRequest {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.app_data_dir, serializer);
+        <crate::ai::AiProvider>::sse_encode(self.provider, serializer);
+        <crate::ai::AiModel>::sse_encode(self.model, serializer);
+        <String>::sse_encode(self.period_label, serializer);
+        <String>::sse_encode(self.diary_markdown, serializer);
+        <bool>::sse_encode(self.api_log_enabled, serializer);
+    }
+}
+
+impl SseEncode for crate::ai::DiaryReviewResult {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.ok, serializer);
+        <String>::sse_encode(self.content, serializer);
         <String>::sse_encode(self.error_code, serializer);
         <String>::sse_encode(self.error_message, serializer);
         <i32>::sse_encode(self.input_tokens, serializer);

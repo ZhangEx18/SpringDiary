@@ -25,6 +25,10 @@ Future<DiaryEntryResult> generateDiaryEntry({
   required DiaryEntryRequest request,
 }) => RustLib.instance.api.crateApiAiApiGenerateDiaryEntry(request: request);
 
+Future<DiaryReviewResult> generateDiaryReview({
+  required DiaryReviewRequest request,
+}) => RustLib.instance.api.crateApiAiApiGenerateDiaryReview(request: request);
+
 Future<MemoryToolChatResult> memoryToolChat({
   required MemoryToolChatRequest request,
 }) => RustLib.instance.api.crateApiAiApiMemoryToolChat(request: request);

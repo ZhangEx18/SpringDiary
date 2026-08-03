@@ -237,6 +237,33 @@ class AiClientService {
     );
   }
 
+  Future<String?> generateDiaryReview({
+    required String appDataDir,
+    required AppConfig config,
+    required String periodLabel,
+    required String diaryMarkdown,
+  }) async {
+    final selection = _selectModel(config, 'diaryReflectionModel');
+    if (selection == null) {
+      return null;
+    }
+
+    final response = await rust_api.generateDiaryReview(
+      request: rust_ai.DiaryReviewRequest(
+        appDataDir: appDataDir,
+        provider: _toRustProvider(selection.provider),
+        model: _toRustModel(selection.model),
+        periodLabel: periodLabel,
+        diaryMarkdown: diaryMarkdown,
+        apiLogEnabled: config.apiLogEnabled,
+      ),
+    );
+    if (!response.ok || response.content.trim().isEmpty) {
+      return null;
+    }
+    return response.content.trim();
+  }
+
   Future<rust_ai.ProviderTestResult> testProviderConnection({
     required String appDataDir,
     required bool apiLogEnabled,

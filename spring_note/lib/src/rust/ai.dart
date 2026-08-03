@@ -354,6 +354,88 @@ class DiaryEntryResult {
           cachedTokens == other.cachedTokens;
 }
 
+class DiaryReviewRequest {
+  final String appDataDir;
+  final AiProvider provider;
+  final AiModel model;
+  final String periodLabel;
+  final String diaryMarkdown;
+  final bool apiLogEnabled;
+
+  const DiaryReviewRequest({
+    required this.appDataDir,
+    required this.provider,
+    required this.model,
+    required this.periodLabel,
+    required this.diaryMarkdown,
+    required this.apiLogEnabled,
+  });
+
+  @override
+  int get hashCode =>
+      appDataDir.hashCode ^
+      provider.hashCode ^
+      model.hashCode ^
+      periodLabel.hashCode ^
+      diaryMarkdown.hashCode ^
+      apiLogEnabled.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DiaryReviewRequest &&
+          runtimeType == other.runtimeType &&
+          appDataDir == other.appDataDir &&
+          provider == other.provider &&
+          model == other.model &&
+          periodLabel == other.periodLabel &&
+          diaryMarkdown == other.diaryMarkdown &&
+          apiLogEnabled == other.apiLogEnabled;
+}
+
+class DiaryReviewResult {
+  final bool ok;
+  final String content;
+  final String errorCode;
+  final String errorMessage;
+  final int inputTokens;
+  final int outputTokens;
+  final int cachedTokens;
+
+  const DiaryReviewResult({
+    required this.ok,
+    required this.content,
+    required this.errorCode,
+    required this.errorMessage,
+    required this.inputTokens,
+    required this.outputTokens,
+    required this.cachedTokens,
+  });
+
+  @override
+  int get hashCode =>
+      ok.hashCode ^
+      content.hashCode ^
+      errorCode.hashCode ^
+      errorMessage.hashCode ^
+      inputTokens.hashCode ^
+      outputTokens.hashCode ^
+      cachedTokens.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DiaryReviewResult &&
+          runtimeType == other.runtimeType &&
+          ok == other.ok &&
+          content == other.content &&
+          errorCode == other.errorCode &&
+          errorMessage == other.errorMessage &&
+          inputTokens == other.inputTokens &&
+          outputTokens == other.outputTokens &&
+          cachedTokens == other.cachedTokens;
+}
+
 class FimCompleteRequest {
   final String appDataDir;
   final AiProvider provider;

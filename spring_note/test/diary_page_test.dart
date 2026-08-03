@@ -206,5 +206,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byTooltip('导出本月'), findsOneWidget);
+    expect(find.byTooltip('周回顾'), findsOneWidget);
+    expect(find.byTooltip('月回顾'), findsOneWidget);
   });
 }
