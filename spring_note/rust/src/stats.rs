@@ -10,19 +10,11 @@ const DB_BUSY_TIMEOUT: StdDuration = StdDuration::from_secs(5);
 
 #[derive(Clone, Debug)]
 pub struct StatsSummary {
-    pub summaries: i32,
-    pub fim_completions: i32,
     pub total_records: i32,
-    pub daily_notes: i32,
-    pub weekly_notes: i32,
-    pub monthly_notes: i32,
     pub diary_notes: i32,
     pub input_tokens: i32,
     pub output_tokens: i32,
     pub cached_tokens: i32,
-    pub app_launches: i32,
-    pub work_seconds: i32,
-    pub coins: f64,
 }
 
 #[derive(Clone, Debug)]
@@ -123,26 +115,6 @@ pub fn record_model_call(
         ],
     )?;
 
-    if result.ok && request.purpose == "fim_edit_completion" {
-        tx.execute(
-            "INSERT INTO daily_stats (
-                date,
-                home_generations,
-                fim_completions,
-                work_seconds,
-                coins,
-                active_count
-            ) VALUES (date('now', 'localtime'), 0, 1, 0, 0.0, 1)
-            ON CONFLICT(date) DO UPDATE SET
-                home_generations = home_generations + excluded.home_generations,
-                fim_completions = fim_completions + excluded.fim_completions,
-                work_seconds = work_seconds + excluded.work_seconds,
-                coins = coins + excluded.coins,
-                active_count = active_count + excluded.active_count",
-            [],
-        )?;
-    }
-
     tx.commit()?;
 
     Ok(())
@@ -219,13 +191,7 @@ pub fn get_mood_distribution(
     Ok(rows)
 }
 
-pub fn record_home_generation(app_data_dir: &str) -> Result<()> {
-    increment_daily_stats(app_data_dir, 1, 0, 0, 0.0, 1)
-}
 
-pub fn record_work_time(app_data_dir: &str, work_seconds: i32, coins: f64) -> Result<()> {
-    increment_daily_stats(app_data_dir, 0, 0, work_seconds.max(0), coins.max(0.0), 0)
-}
 
 pub fn get_stats_snapshot(
     app_data_dir: &str,
@@ -239,36 +205,8 @@ pub fn get_stats_snapshot(
     let connection = open_connection(app_data_dir)?;
     initialize(&connection)?;
 
-    let (daily_notes, weekly_notes, monthly_notes, diary_notes) = (
-        count_daily_markdown_files(daily_notes_dir, start_date, end_date),
-        count_weekly_markdown_files(weekly_notes_dir, start_date, end_date),
-        count_monthly_markdown_files(monthly_notes_dir, start_date, end_date),
-        count_daily_markdown_files(diary_notes_dir, start_date, end_date),
-    );
-
-    let summaries: i32 = connection.query_row(
-        "SELECT COALESCE(SUM(CASE
-            WHEN home_generations > 10 THEN 10
-            ELSE home_generations
-        END), 0) FROM daily_stats WHERE date BETWEEN ?1 AND ?2",
-        params![start_date, end_date],
-        |row| row.get(0),
-    )?;
-    let fim_completions: i32 = connection.query_row(
-        "SELECT COALESCE(SUM(fim_completions), 0) FROM daily_stats WHERE date BETWEEN ?1 AND ?2",
-        params![start_date, end_date],
-        |row| row.get(0),
-    )?;
-    let work_seconds: i32 = connection.query_row(
-        "SELECT COALESCE(SUM(work_seconds), 0) FROM daily_stats WHERE date BETWEEN ?1 AND ?2",
-        params![start_date, end_date],
-        |row| row.get(0),
-    )?;
-    let coins: f64 = connection.query_row(
-        "SELECT COALESCE(SUM(coins), 0) FROM daily_stats WHERE date BETWEEN ?1 AND ?2",
-        params![start_date, end_date],
-        |row| row.get(0),
-    )?;
+    let diary_notes =
+        count_daily_markdown_files(diary_notes_dir, start_date, end_date);
     let (input_tokens, output_tokens, cached_tokens): (i32, i32, i32) = connection.query_row(
         "SELECT
             COALESCE(SUM(input_tokens), 0),
@@ -279,19 +217,8 @@ pub fn get_stats_snapshot(
         params![start_date, end_date],
         |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
     )?;
-    let app_launches_from_daily: i32 = connection.query_row(
-        "SELECT COALESCE(SUM(app_launches), 0) FROM daily_stats WHERE date BETWEEN ?1 AND ?2",
-        params![start_date, end_date],
-        |row| row.get(0),
-    )?;
-    let app_launches = if is_all_time_range(start_date) {
-        app_launches_from_daily + read_legacy_app_launches(&connection)?
-    } else {
-        app_launches_from_daily
-    };
-
     let mut activity_statement = connection.prepare(
-        "SELECT date, active_count FROM daily_stats WHERE date BETWEEN ?1 AND ?2 ORDER BY date",
+        "SELECT date, diary_entries FROM daily_stats WHERE date BETWEEN ?1 AND ?2 ORDER BY date",
     )?;
     let activity = activity_statement
         .query_map(params![start_date, end_date], |row| {
@@ -347,60 +274,16 @@ pub fn get_stats_snapshot(
 
     Ok(StatsSnapshot {
         summary: StatsSummary {
-            summaries,
-            fim_completions,
-            total_records: daily_notes + weekly_notes + monthly_notes + diary_notes,
-            daily_notes,
-            weekly_notes,
-            monthly_notes,
+            total_records: diary_notes,
             diary_notes,
             input_tokens,
             output_tokens,
             cached_tokens,
-            app_launches,
-            work_seconds,
-            coins,
         },
         activity,
         token_usage,
         provider_usage,
     })
-}
-
-fn increment_daily_stats(
-    app_data_dir: &str,
-    home_generations: i32,
-    fim_completions: i32,
-    work_seconds: i32,
-    coins: f64,
-    active_count: i32,
-) -> Result<()> {
-    let connection = open_connection(app_data_dir)?;
-    initialize(&connection)?;
-    connection.execute(
-        "INSERT INTO daily_stats (
-            date,
-            home_generations,
-            fim_completions,
-            work_seconds,
-            coins,
-            active_count
-        ) VALUES (date('now', 'localtime'), ?1, ?2, ?3, ?4, ?5)
-        ON CONFLICT(date) DO UPDATE SET
-            home_generations = home_generations + excluded.home_generations,
-            fim_completions = fim_completions + excluded.fim_completions,
-            work_seconds = work_seconds + excluded.work_seconds,
-            coins = coins + excluded.coins,
-            active_count = active_count + excluded.active_count",
-        params![
-            home_generations,
-            fim_completions,
-            work_seconds,
-            coins,
-            active_count,
-        ],
-    )?;
-    Ok(())
 }
 
 fn open_connection(app_data_dir: &str) -> Result<Connection> {
@@ -703,7 +586,7 @@ mod tests {
         .unwrap();
 
         record_app_startup(&app_data_dir).unwrap();
-        record_home_generation(&app_data_dir).unwrap();
+        fs::write(diary.join(format!("{today}.md")), "# 日记").unwrap();
         let fim_request = request(&app_data_dir, "fim_edit_completion");
         let fim_result = AiTextResult::success(&fim_request, "ok", 10, 6, 2);
         record_model_call(&app_data_dir, &fim_request, &fim_result).unwrap();
@@ -719,49 +602,14 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(snapshot.summary.app_launches, 1);
-        assert_eq!(snapshot.summary.summaries, 1);
-        assert_eq!(snapshot.summary.fim_completions, 1);
-        assert_eq!(snapshot.summary.total_records, 2);
+        assert_eq!(snapshot.summary.total_records, 1);
+        assert_eq!(snapshot.summary.diary_notes, 1);
         assert_eq!(snapshot.summary.input_tokens, 10);
         assert_eq!(snapshot.summary.output_tokens, 6);
         assert_eq!(snapshot.summary.cached_tokens, 2);
-        assert_eq!(snapshot.activity.first().unwrap().count, 2);
+        assert_eq!(snapshot.activity.first().unwrap().count, 0);
         assert_eq!(snapshot.token_usage.first().unwrap().total_tokens, 18);
         assert_eq!(snapshot.provider_usage.first().unwrap().tokens, 18);
-        fs::remove_dir_all(dir).ok();
-    }
-
-    #[test]
-    fn caps_home_generations_at_ten_per_day_for_valid_submissions() {
-        let dir = temp_dir("spring_note_stats_generation_cap");
-        let app_data_dir = dir.to_string_lossy().to_string();
-        let daily = dir.join("notes").join("daily");
-        let weekly = dir.join("notes").join("weekly");
-        let monthly = dir.join("notes").join("monthly");
-        let diary = dir.join("notes").join("diary");
-        fs::create_dir_all(&daily).unwrap();
-        fs::create_dir_all(&weekly).unwrap();
-        fs::create_dir_all(&monthly).unwrap();
-        fs::create_dir_all(&diary).unwrap();
-
-        for _ in 0..12 {
-            record_home_generation(&app_data_dir).unwrap();
-        }
-
-        let today = Local::now().format("%Y-%m-%d").to_string();
-        let snapshot = get_stats_snapshot(
-            &app_data_dir,
-            &daily.to_string_lossy(),
-            &weekly.to_string_lossy(),
-            &monthly.to_string_lossy(),
-            &diary.to_string_lossy(),
-            &today,
-            &today,
-        )
-        .unwrap();
-
-        assert_eq!(snapshot.summary.summaries, 10);
         fs::remove_dir_all(dir).ok();
     }
 
@@ -777,13 +625,8 @@ mod tests {
         fs::create_dir_all(&weekly).unwrap();
         fs::create_dir_all(&monthly).unwrap();
         fs::create_dir_all(&diary).unwrap();
-        fs::write(daily.join("2026-06-18.md"), "# 日报").unwrap();
-        fs::write(daily.join("2026-05-01.md"), "# 日报").unwrap();
-        fs::write(weekly.join("2026-W25.md"), "# 周报").unwrap();
-        fs::write(weekly.join("2026-W20.md"), "# 周报").unwrap();
-        fs::write(monthly.join("2026-06.md"), "# 月报").unwrap();
-        fs::write(monthly.join("2026-04.md"), "# 月报").unwrap();
         fs::write(diary.join("2026-06-18.md"), "# 日记").unwrap();
+        fs::write(diary.join("2026-05-01.md"), "# 日记").unwrap();
 
         let snapshot = get_stats_snapshot(
             &app_data_dir,
@@ -796,11 +639,8 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(snapshot.summary.daily_notes, 1);
-        assert_eq!(snapshot.summary.weekly_notes, 1);
-        assert_eq!(snapshot.summary.monthly_notes, 1);
         assert_eq!(snapshot.summary.diary_notes, 1);
-        assert_eq!(snapshot.summary.total_records, 4);
+        assert_eq!(snapshot.summary.total_records, 1);
         fs::remove_dir_all(dir).ok();
     }
 
@@ -860,7 +700,7 @@ mod tests {
             .unwrap();
         assert_eq!(model_count, 1, "model_call_records should have 1 row");
         assert_eq!(token_count, 1, "token_usage_daily should have 1 row");
-        assert_eq!(daily_count, 1, "daily_stats should have 1 row for fim");
+        assert_eq!(daily_count, 0, "daily_stats should be empty without work stats");
 
         let tokens: (i32, i32, i32, i32) = connection
             .query_row(
@@ -871,12 +711,7 @@ mod tests {
             .unwrap();
         assert_eq!(tokens, (10, 5, 2, 1));
 
-        let fim: i32 = connection
-            .query_row("SELECT fim_completions FROM daily_stats", [], |row| {
-                row.get(0)
-            })
-            .unwrap();
-        assert_eq!(fim, 1);
+
     }
 
     #[test]

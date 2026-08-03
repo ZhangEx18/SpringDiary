@@ -14,21 +14,6 @@ Future<bool> recordAppStartup({required String appDataDir}) => RustLib
     .api
     .crateApiStatsApiRecordAppStartup(appDataDir: appDataDir);
 
-Future<bool> recordHomeGeneration({required String appDataDir}) => RustLib
-    .instance
-    .api
-    .crateApiStatsApiRecordHomeGeneration(appDataDir: appDataDir);
-
-Future<bool> recordWorkTime({
-  required String appDataDir,
-  required int workSeconds,
-  required double coins,
-}) => RustLib.instance.api.crateApiStatsApiRecordWorkTime(
-  appDataDir: appDataDir,
-  workSeconds: workSeconds,
-  coins: coins,
-);
-
 Future<bool> recordDiaryEntry({
   required String appDataDir,
   required String date,

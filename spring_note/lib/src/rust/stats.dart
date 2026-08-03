@@ -140,68 +140,36 @@ class StatsSnapshot {
 }
 
 class StatsSummary {
-  final int summaries;
-  final int fimCompletions;
   final int totalRecords;
-  final int dailyNotes;
-  final int weeklyNotes;
-  final int monthlyNotes;
   final int diaryNotes;
   final int inputTokens;
   final int outputTokens;
   final int cachedTokens;
-  final int appLaunches;
-  final int workSeconds;
-  final double coins;
 
   const StatsSummary({
-    required this.summaries,
-    required this.fimCompletions,
     required this.totalRecords,
-    required this.dailyNotes,
-    required this.weeklyNotes,
-    required this.monthlyNotes,
     required this.diaryNotes,
     required this.inputTokens,
     required this.outputTokens,
     required this.cachedTokens,
-    required this.appLaunches,
-    required this.workSeconds,
-    required this.coins,
   });
 
   @override
   int get hashCode =>
-      summaries.hashCode ^
-      fimCompletions.hashCode ^
       totalRecords.hashCode ^
-      dailyNotes.hashCode ^
-      weeklyNotes.hashCode ^
-      monthlyNotes.hashCode ^
       diaryNotes.hashCode ^
       inputTokens.hashCode ^
       outputTokens.hashCode ^
-      cachedTokens.hashCode ^
-      appLaunches.hashCode ^
-      workSeconds.hashCode ^
-      coins.hashCode;
+      cachedTokens.hashCode;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is StatsSummary &&
           runtimeType == other.runtimeType &&
-          summaries == other.summaries &&
-          fimCompletions == other.fimCompletions &&
           totalRecords == other.totalRecords &&
-          dailyNotes == other.dailyNotes &&
-          weeklyNotes == other.weeklyNotes &&
-          monthlyNotes == other.monthlyNotes &&
           diaryNotes == other.diaryNotes &&
           inputTokens == other.inputTokens &&
           outputTokens == other.outputTokens &&
-          cachedTokens == other.cachedTokens &&
-          appLaunches == other.appLaunches &&
-          workSeconds == other.workSeconds &&
-          coins == other.coins;
+          cachedTokens == other.cachedTokens;
 }
