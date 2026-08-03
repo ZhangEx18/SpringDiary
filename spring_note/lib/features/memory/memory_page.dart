@@ -794,19 +794,28 @@ class _MemoryPageState extends State<MemoryPage> {
                 runSpacing: 10,
                 children: [
                   _QuickPromptChip(
-                    icon: Icons.history_rounded,
-                    label: '查看今天日报',
-                    onTap: () => _send('查看今天的日报', tagSource: _entryController),
+                    icon: Icons.sentiment_satisfied_rounded,
+                    label: '我最近心情怎么样？',
+                    onTap: () => _send(
+                      '根据我的日记，总结最近的心情变化和情绪趋势',
+                      tagSource: _entryController,
+                    ),
                   ),
                   _QuickPromptChip(
                     icon: Icons.auto_awesome_rounded,
-                    label: '查看本周日报',
-                    onTap: () => _send('查看本周的日报', tagSource: _entryController),
+                    label: '这段时间我在意什么？',
+                    onTap: () => _send(
+                      '根据我的日记，找出我最近反复出现的主题和在意的事情',
+                      tagSource: _entryController,
+                    ),
                   ),
                   _QuickPromptChip(
-                    icon: Icons.calendar_month_rounded,
-                    label: '查看本月月报',
-                    onTap: () => _send('查看本月月报', tagSource: _entryController),
+                    icon: Icons.tips_and_updates_rounded,
+                    label: '给我一点建议',
+                    onTap: () => _send(
+                      '根据我的日记，给我几条温和、可执行的建议',
+                      tagSource: _entryController,
+                    ),
                   ),
                 ],
               ),
