@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/models/diary_entry.dart';
 import '../../core/models/local_data_state.dart';
 import '../../core/services/ai_client_service.dart';
 import '../../core/services/diary_note_service.dart';
@@ -638,9 +639,13 @@ class _DiaryMoodPanel extends StatelessWidget {
         ),
         if (entries.isNotEmpty) ...[
           const SizedBox(height: 16),
+          _EmotionRadar(entries: entries),
+          const SizedBox(height: 12),
           _MoodTrendChart(entries: entries),
           const SizedBox(height: 12),
           _TagCloud(entries: entries),
+          const SizedBox(height: 12),
+          _FactorAnalysis(entries: entries),
         ],
         const SizedBox(height: 12),
         Wrap(
@@ -750,6 +755,210 @@ class _MoodTrendPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _MoodTrendPainter oldDelegate) =>
       oldDelegate.points != points;
+}
+
+class _EmotionRadar extends StatelessWidget {
+  const _EmotionRadar({required this.entries});
+
+  final List<DiaryEntryWithDate> entries;
+
+  static const _axes = ['开心', '平静', '低落', '难过', '生气'];
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = AppTheme.colors(context);
+    if (entries.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final scores = <String, double>{};
+    final counts = <String, int>{};
+    for (final item in entries) {
+      final key = switch (item.entry.mood) {
+        DiaryMood.joyful => '开心',
+        DiaryMood.neutral => '平静',
+        DiaryMood.down => '低落',
+        DiaryMood.sad => '难过',
+        DiaryMood.angry => '生气',
+      };
+      scores[key] = (scores[key] ?? 0) + 1;
+      counts[key] = (counts[key] ?? 0) + 1;
+    }
+    final total = counts.values.fold<int>(0, (sum, v) => sum + v);
+    if (total == 0) {
+      return const SizedBox.shrink();
+    }
+    final normalized = [
+      for (final axis in _axes) (scores[axis] ?? 0) / total,
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '情绪分布',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: colors.textMuted,
+            fontSize: 11,
+          ),
+        ),
+        const SizedBox(height: 6),
+        SizedBox(
+          width: 200,
+          height: 160,
+          child: CustomPaint(
+            painter: _EmotionRadarPainter(values: normalized, colors: colors),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _EmotionRadarPainter extends CustomPainter {
+  const _EmotionRadarPainter({required this.values, required this.colors});
+
+  final List<double> values;
+  final SpringThemeColors colors;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.height / 2 - 20;
+    final axisCount = _EmotionRadar._axes.length;
+    final axisPaint = Paint()
+      ..color = colors.border
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+    final fillPaint = Paint()
+      ..color = colors.onAccent.withValues(alpha: 0.25)
+      ..style = PaintingStyle.fill;
+    final linePaint = Paint()
+      ..color = colors.onAccent
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round;
+
+    Offset pointAt(int index, double value) {
+      final angle = -3.141592653589793 / 2 + 2 * 3.141592653589793 * index / axisCount;
+      return Offset(
+        center.dx + radius * value * 0.92 * math.cos(angle),
+        center.dy + radius * value * 0.92 * math.sin(angle),
+      );
+    }
+
+    final bgPath = Path();
+    for (var i = 0; i < axisCount; i++) {
+      final p = pointAt(i, 1.0);
+      if (i == 0) {
+        bgPath.moveTo(p.dx, p.dy);
+      } else {
+        bgPath.lineTo(p.dx, p.dy);
+      }
+    }
+    bgPath.close();
+    canvas.drawPath(bgPath, axisPaint);
+
+    final dataPath = Path();
+    for (var i = 0; i < axisCount; i++) {
+      final p = pointAt(i, values[i]);
+      if (i == 0) {
+        dataPath.moveTo(p.dx, p.dy);
+      } else {
+        dataPath.lineTo(p.dx, p.dy);
+      }
+    }
+    dataPath.close();
+    canvas.drawPath(dataPath, fillPaint);
+    canvas.drawPath(dataPath, linePaint);
+
+    for (var i = 0; i < axisCount; i++) {
+      final angle = -3.141592653589793 / 2 + 2 * 3.141592653589793 * i / axisCount;
+      final labelPos = Offset(
+        center.dx + (radius + 18) * math.cos(angle),
+        center.dy + (radius + 18) * math.sin(angle),
+      );
+      _drawLabel(canvas, _EmotionRadar._axes[i], labelPos, colors);
+    }
+  }
+
+  void _drawLabel(Canvas canvas, String label, Offset pos, SpringThemeColors colors) {
+    final tp = TextPainter(
+      text: TextSpan(
+        text: label,
+        style: TextStyle(color: colors.textMuted, fontSize: 10),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(canvas, pos - Offset(tp.width / 2, tp.height / 2));
+  }
+
+  @override
+  bool shouldRepaint(covariant _EmotionRadarPainter oldDelegate) =>
+      oldDelegate.values != values;
+}
+
+class _FactorAnalysis extends StatelessWidget {
+  const _FactorAnalysis({required this.entries});
+
+  final List<DiaryEntryWithDate> entries;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = AppTheme.colors(context);
+    final tagScores = <String, List<int>>{};
+    for (final item in entries) {
+      for (final tag in item.entry.tags) {
+        tagScores.putIfAbsent(tag, () => []).add(item.entry.moodScore);
+      }
+    }
+    if (tagScores.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final factors = tagScores.entries
+        .map((e) => (
+              e.key,
+              e.value.reduce((a, b) => a + b) / e.value.length,
+              e.value.length,
+            ))
+        .toList();
+    final positive = factors.where((f) => f.$2 >= 6).toList()
+      ..sort((a, b) => b.$2.compareTo(a.$2));
+    final draining = factors.where((f) => f.$2 <= 4).toList()
+      ..sort((a, b) => a.$2.compareTo(b.$2));
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '快乐 / 消耗因素',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: colors.textMuted,
+            fontSize: 11,
+          ),
+        ),
+        const SizedBox(height: 6),
+        if (positive.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Text(
+              '☀️ ${positive.take(3).map((f) => '${f.$1} ${f.$2.toStringAsFixed(1)}').join(' · ')}',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: colors.textMuted,
+                fontSize: 11,
+              ),
+            ),
+          ),
+        if (draining.isNotEmpty)
+          Text(
+            '🌧️ ${draining.take(3).map((f) => '${f.$1} ${f.$2.toStringAsFixed(1)}').join(' · ')}',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: colors.textSubtle,
+              fontSize: 11,
+            ),
+          ),
+      ],
+    );
+  }
 }
 
 class _TagCloud extends StatelessWidget {
