@@ -190,6 +190,53 @@ class _SettingsStatsPanelState extends State<SettingsStatsPanel> {
   }
 
 
+  Future<void> _generateYearlyNarrative() async {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final today = DateTime.now();
+    final start = DateTime(today.year, 1, 1);
+    messenger?.showSnackBar(
+      const SnackBar(content: Text('正在生成年度叙事…（这可能需要一点时间）')),
+    );
+    final diaryMarkdown = await const DiaryNoteService().exportRangeMarkdown(
+      diaryNotesDirectory: widget.localDataState.diaryNotesDirectory,
+      start: start,
+      end: today,
+    );
+    final narrative = await const AiClientService().generateDiaryReview(
+      appDataDir: widget.localDataState.dataDirectory,
+      config: widget.localDataState.config,
+      periodLabel: '这一年（${today.year} 年）',
+      diaryMarkdown: diaryMarkdown,
+    );
+    messenger?.hideCurrentSnackBar();
+    if (!mounted) {
+      return;
+    }
+    if (narrative == null || narrative.trim().isEmpty) {
+      messenger?.showSnackBar(
+        const SnackBar(content: Text('叙事生成失败，请检查模型配置或是否有足够日记')),
+      );
+      return;
+    }
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('${today.year} 年度叙事'),
+        content: SizedBox(
+          width: 560,
+          child: SingleChildScrollView(child: SelectableText(narrative)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('关闭'),
+          ),
+        ],
+      ),
+    );
+  }
+
+
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<_StatsPanelData>(
@@ -223,6 +270,7 @@ class _SettingsStatsPanelState extends State<SettingsStatsPanel> {
                 moods: data?.moods ?? const [],
                 entries: data?.entries ?? const [],
                 onGenerateReport: _generateInsightReport,
+                onGenerateYearly: _generateYearlyNarrative,
               ),
             ),
             _StatsSectionCard(
@@ -502,11 +550,13 @@ class _DiaryMoodPanel extends StatelessWidget {
     required this.moods,
     required this.entries,
     required this.onGenerateReport,
+    required this.onGenerateYearly,
   });
 
   final List<rust_stats.MoodEntry> moods;
   final List<DiaryEntryWithDate> entries;
   final ValueChanged<int> onGenerateReport;
+  final VoidCallback onGenerateYearly;
 
   static const _moodOrder = ['joyful', 'neutral', 'down', 'sad', 'angry'];
   static const _moodEmoji = {
@@ -601,6 +651,10 @@ class _DiaryMoodPanel extends StatelessWidget {
                 onPressed: () => onGenerateReport(days),
                 child: Text('生成 $days 天报告'),
               ),
+            OutlinedButton(
+              onPressed: onGenerateYearly,
+              child: Text('年度叙事'),
+            ),
           ],
         ),
       ],
