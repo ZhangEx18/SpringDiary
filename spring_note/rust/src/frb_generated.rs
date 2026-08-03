@@ -38,7 +38,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.12.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -933398238;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -460063453;
 
 // Section: executor
 
@@ -746,80 +746,6 @@ fn wire__crate__api__stats_api__record_diary_entry_impl(
                             api_date,
                             api_mood,
                         ))?;
-                    Ok(output_ok)
-                })())
-            }
-        },
-    )
-}
-fn wire__crate__api__stats_api__record_home_generation_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
-    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
-    rust_vec_len_: i32,
-    data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "record_home_generation",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let message = unsafe {
-                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
-                    ptr_,
-                    rust_vec_len_,
-                    data_len_,
-                )
-            };
-            let mut deserializer =
-                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_app_data_dir = <String>::sse_decode(&mut deserializer);
-            deserializer.end();
-            move |context| {
-                transform_result_sse::<_, ()>((move || {
-                    let output_ok = Result::<_, ()>::Ok(
-                        crate::api::stats_api::record_home_generation(api_app_data_dir),
-                    )?;
-                    Ok(output_ok)
-                })())
-            }
-        },
-    )
-}
-fn wire__crate__api__stats_api__record_work_time_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
-    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
-    rust_vec_len_: i32,
-    data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "record_work_time",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let message = unsafe {
-                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
-                    ptr_,
-                    rust_vec_len_,
-                    data_len_,
-                )
-            };
-            let mut deserializer =
-                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_app_data_dir = <String>::sse_decode(&mut deserializer);
-            let api_work_seconds = <i32>::sse_decode(&mut deserializer);
-            let api_coins = <f64>::sse_decode(&mut deserializer);
-            deserializer.end();
-            move |context| {
-                transform_result_sse::<_, ()>((move || {
-                    let output_ok = Result::<_, ()>::Ok(crate::api::stats_api::record_work_time(
-                        api_app_data_dir,
-                        api_work_seconds,
-                        api_coins,
-                    ))?;
                     Ok(output_ok)
                 })())
             }
@@ -1590,13 +1516,6 @@ impl SseDecode for crate::ai::DiaryEntryResult {
     }
 }
 
-impl SseDecode for f64 {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        deserializer.cursor.read_f64::<NativeEndian>().unwrap()
-    }
-}
-
 impl SseDecode for crate::ai::FimCompleteRequest {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -2178,33 +2097,17 @@ impl SseDecode for crate::stats::StatsSnapshot {
 impl SseDecode for crate::stats::StatsSummary {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut var_summaries = <i32>::sse_decode(deserializer);
-        let mut var_fimCompletions = <i32>::sse_decode(deserializer);
         let mut var_totalRecords = <i32>::sse_decode(deserializer);
-        let mut var_dailyNotes = <i32>::sse_decode(deserializer);
-        let mut var_weeklyNotes = <i32>::sse_decode(deserializer);
-        let mut var_monthlyNotes = <i32>::sse_decode(deserializer);
         let mut var_diaryNotes = <i32>::sse_decode(deserializer);
         let mut var_inputTokens = <i32>::sse_decode(deserializer);
         let mut var_outputTokens = <i32>::sse_decode(deserializer);
         let mut var_cachedTokens = <i32>::sse_decode(deserializer);
-        let mut var_appLaunches = <i32>::sse_decode(deserializer);
-        let mut var_workSeconds = <i32>::sse_decode(deserializer);
-        let mut var_coins = <f64>::sse_decode(deserializer);
         return crate::stats::StatsSummary {
-            summaries: var_summaries,
-            fim_completions: var_fimCompletions,
             total_records: var_totalRecords,
-            daily_notes: var_dailyNotes,
-            weekly_notes: var_weeklyNotes,
-            monthly_notes: var_monthlyNotes,
             diary_notes: var_diaryNotes,
             input_tokens: var_inputTokens,
             output_tokens: var_outputTokens,
             cached_tokens: var_cachedTokens,
-            app_launches: var_appLaunches,
-            work_seconds: var_workSeconds,
-            coins: var_coins,
         };
     }
 }
@@ -2373,65 +2276,58 @@ fn pde_ffi_dispatcher_primary_impl(
         18 => {
             wire__crate__api__stats_api__record_diary_entry_impl(port, ptr, rust_vec_len, data_len)
         }
-        19 => wire__crate__api__stats_api__record_home_generation_impl(
+        19 => wire__crate__api__note_index_api__refresh_note_index_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        20 => wire__crate__api__stats_api__record_work_time_impl(port, ptr, rust_vec_len, data_len),
-        21 => wire__crate__api__note_index_api__refresh_note_index_impl(
-            port,
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        22 => {
+        20 => {
             wire__crate__api__report_api__regenerate_report_impl(port, ptr, rust_vec_len, data_len)
         }
-        23 => wire__crate__api__note_image_cleanup_api__scan_note_images_impl(
+        21 => wire__crate__api__note_image_cleanup_api__scan_note_images_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        24 => wire__crate__api__note_index_api__search_all_indexed_notes_impl(
+        22 => wire__crate__api__note_index_api__search_all_indexed_notes_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        25 => wire__crate__api__note_index_api__search_indexed_notes_impl(
+        23 => wire__crate__api__note_index_api__search_indexed_notes_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        26 => wire__crate__api__note_index_api__search_indexed_notes_by_kind_impl(
+        24 => wire__crate__api__note_index_api__search_indexed_notes_by_kind_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        27 => wire__crate__api__cloud_sync_api__sync_web_dav_notes_impl(
+        25 => wire__crate__api__cloud_sync_api__sync_web_dav_notes_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        28 => wire__crate__api__ai_api__test_provider_connection_impl(
+        26 => wire__crate__api__ai_api__test_provider_connection_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        29 => wire__crate__api__cloud_sync_api__test_web_dav_connection_impl(
+        27 => wire__crate__api__cloud_sync_api__test_web_dav_connection_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        30 => wire__crate__api__cloud_sync_api__upload_web_dav_note_impl(
+        28 => wire__crate__api__cloud_sync_api__upload_web_dav_note_impl(
             port,
             ptr,
             rust_vec_len,
@@ -3285,19 +3181,11 @@ impl flutter_rust_bridge::IntoIntoDart<crate::stats::StatsSnapshot>
 impl flutter_rust_bridge::IntoDart for crate::stats::StatsSummary {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
-            self.summaries.into_into_dart().into_dart(),
-            self.fim_completions.into_into_dart().into_dart(),
             self.total_records.into_into_dart().into_dart(),
-            self.daily_notes.into_into_dart().into_dart(),
-            self.weekly_notes.into_into_dart().into_dart(),
-            self.monthly_notes.into_into_dart().into_dart(),
             self.diary_notes.into_into_dart().into_dart(),
             self.input_tokens.into_into_dart().into_dart(),
             self.output_tokens.into_into_dart().into_dart(),
             self.cached_tokens.into_into_dart().into_dart(),
-            self.app_launches.into_into_dart().into_dart(),
-            self.work_seconds.into_into_dart().into_dart(),
-            self.coins.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -3631,13 +3519,6 @@ impl SseEncode for crate::ai::DiaryEntryResult {
         <i32>::sse_encode(self.input_tokens, serializer);
         <i32>::sse_encode(self.output_tokens, serializer);
         <i32>::sse_encode(self.cached_tokens, serializer);
-    }
-}
-
-impl SseEncode for f64 {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        serializer.cursor.write_f64::<NativeEndian>(self).unwrap();
     }
 }
 
@@ -4044,19 +3925,11 @@ impl SseEncode for crate::stats::StatsSnapshot {
 impl SseEncode for crate::stats::StatsSummary {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <i32>::sse_encode(self.summaries, serializer);
-        <i32>::sse_encode(self.fim_completions, serializer);
         <i32>::sse_encode(self.total_records, serializer);
-        <i32>::sse_encode(self.daily_notes, serializer);
-        <i32>::sse_encode(self.weekly_notes, serializer);
-        <i32>::sse_encode(self.monthly_notes, serializer);
         <i32>::sse_encode(self.diary_notes, serializer);
         <i32>::sse_encode(self.input_tokens, serializer);
         <i32>::sse_encode(self.output_tokens, serializer);
         <i32>::sse_encode(self.cached_tokens, serializer);
-        <i32>::sse_encode(self.app_launches, serializer);
-        <i32>::sse_encode(self.work_seconds, serializer);
-        <f64>::sse_encode(self.coins, serializer);
     }
 }
 

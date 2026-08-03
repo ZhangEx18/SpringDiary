@@ -77,7 +77,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => -933398238;
+  int get rustContentHash => -460063453;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -173,16 +173,6 @@ abstract class RustLibApi extends BaseApi {
     required String appDataDir,
     required String date,
     required String mood,
-  });
-
-  Future<bool> crateApiStatsApiRecordHomeGeneration({
-    required String appDataDir,
-  });
-
-  Future<bool> crateApiStatsApiRecordWorkTime({
-    required String appDataDir,
-    required int workSeconds,
-    required double coins,
   });
 
   Future<NoteIndexRefreshResult> crateApiNoteIndexApiRefreshNoteIndex({
@@ -889,76 +879,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<bool> crateApiStatsApiRecordHomeGeneration({
-    required String appDataDir,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_String(appDataDir, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 19,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_bool,
-          decodeErrorData: null,
-        ),
-        constMeta: kCrateApiStatsApiRecordHomeGenerationConstMeta,
-        argValues: [appDataDir],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiStatsApiRecordHomeGenerationConstMeta =>
-      const TaskConstMeta(
-        debugName: "record_home_generation",
-        argNames: ["appDataDir"],
-      );
-
-  @override
-  Future<bool> crateApiStatsApiRecordWorkTime({
-    required String appDataDir,
-    required int workSeconds,
-    required double coins,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_String(appDataDir, serializer);
-          sse_encode_i_32(workSeconds, serializer);
-          sse_encode_f_64(coins, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 20,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_bool,
-          decodeErrorData: null,
-        ),
-        constMeta: kCrateApiStatsApiRecordWorkTimeConstMeta,
-        argValues: [appDataDir, workSeconds, coins],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiStatsApiRecordWorkTimeConstMeta =>
-      const TaskConstMeta(
-        debugName: "record_work_time",
-        argNames: ["appDataDir", "workSeconds", "coins"],
-      );
-
-  @override
   Future<NoteIndexRefreshResult> crateApiNoteIndexApiRefreshNoteIndex({
     required String directoryPath,
     required String kind,
@@ -972,7 +892,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 21,
+            funcId: 19,
             port: port_,
           );
         },
@@ -1005,7 +925,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 22,
+            funcId: 20,
             port: port_,
           );
         },
@@ -1038,7 +958,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 23,
+            funcId: 21,
             port: port_,
           );
         },
@@ -1081,7 +1001,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 24,
+            funcId: 22,
             port: port_,
           );
         },
@@ -1132,7 +1052,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 25,
+            funcId: 23,
             port: port_,
           );
         },
@@ -1171,7 +1091,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 26,
+            funcId: 24,
             port: port_,
           );
         },
@@ -1204,7 +1124,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 27,
+            funcId: 25,
             port: port_,
           );
         },
@@ -1243,7 +1163,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 28,
+            funcId: 26,
             port: port_,
           );
         },
@@ -1276,7 +1196,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 29,
+            funcId: 27,
             port: port_,
           );
         },
@@ -1312,7 +1232,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 30,
+            funcId: 28,
             port: port_,
           );
         },
@@ -1695,12 +1615,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       outputTokens: dco_decode_i_32(arr[9]),
       cachedTokens: dco_decode_i_32(arr[10]),
     );
-  }
-
-  @protected
-  double dco_decode_f_64(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return raw as double;
   }
 
   @protected
@@ -2137,22 +2051,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   StatsSummary dco_decode_stats_summary(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 13)
-      throw Exception('unexpected arr length: expect 13 but see ${arr.length}');
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
     return StatsSummary(
-      summaries: dco_decode_i_32(arr[0]),
-      fimCompletions: dco_decode_i_32(arr[1]),
-      totalRecords: dco_decode_i_32(arr[2]),
-      dailyNotes: dco_decode_i_32(arr[3]),
-      weeklyNotes: dco_decode_i_32(arr[4]),
-      monthlyNotes: dco_decode_i_32(arr[5]),
-      diaryNotes: dco_decode_i_32(arr[6]),
-      inputTokens: dco_decode_i_32(arr[7]),
-      outputTokens: dco_decode_i_32(arr[8]),
-      cachedTokens: dco_decode_i_32(arr[9]),
-      appLaunches: dco_decode_i_32(arr[10]),
-      workSeconds: dco_decode_i_32(arr[11]),
-      coins: dco_decode_f_64(arr[12]),
+      totalRecords: dco_decode_i_32(arr[0]),
+      diaryNotes: dco_decode_i_32(arr[1]),
+      inputTokens: dco_decode_i_32(arr[2]),
+      outputTokens: dco_decode_i_32(arr[3]),
+      cachedTokens: dco_decode_i_32(arr[4]),
     );
   }
 
@@ -2656,12 +2562,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       outputTokens: var_outputTokens,
       cachedTokens: var_cachedTokens,
     );
-  }
-
-  @protected
-  double sse_decode_f_64(SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return deserializer.buffer.getFloat64();
   }
 
   @protected
@@ -3260,33 +3160,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @protected
   StatsSummary sse_decode_stats_summary(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_summaries = sse_decode_i_32(deserializer);
-    var var_fimCompletions = sse_decode_i_32(deserializer);
     var var_totalRecords = sse_decode_i_32(deserializer);
-    var var_dailyNotes = sse_decode_i_32(deserializer);
-    var var_weeklyNotes = sse_decode_i_32(deserializer);
-    var var_monthlyNotes = sse_decode_i_32(deserializer);
     var var_diaryNotes = sse_decode_i_32(deserializer);
     var var_inputTokens = sse_decode_i_32(deserializer);
     var var_outputTokens = sse_decode_i_32(deserializer);
     var var_cachedTokens = sse_decode_i_32(deserializer);
-    var var_appLaunches = sse_decode_i_32(deserializer);
-    var var_workSeconds = sse_decode_i_32(deserializer);
-    var var_coins = sse_decode_f_64(deserializer);
     return StatsSummary(
-      summaries: var_summaries,
-      fimCompletions: var_fimCompletions,
       totalRecords: var_totalRecords,
-      dailyNotes: var_dailyNotes,
-      weeklyNotes: var_weeklyNotes,
-      monthlyNotes: var_monthlyNotes,
       diaryNotes: var_diaryNotes,
       inputTokens: var_inputTokens,
       outputTokens: var_outputTokens,
       cachedTokens: var_cachedTokens,
-      appLaunches: var_appLaunches,
-      workSeconds: var_workSeconds,
-      coins: var_coins,
     );
   }
 
@@ -3734,12 +3618,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_f_64(double self, SseSerializer serializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    serializer.buffer.putFloat64(self);
-  }
-
-  @protected
   void sse_encode_fim_complete_request(
     FimCompleteRequest self,
     SseSerializer serializer,
@@ -4184,19 +4062,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @protected
   void sse_encode_stats_summary(StatsSummary self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_i_32(self.summaries, serializer);
-    sse_encode_i_32(self.fimCompletions, serializer);
     sse_encode_i_32(self.totalRecords, serializer);
-    sse_encode_i_32(self.dailyNotes, serializer);
-    sse_encode_i_32(self.weeklyNotes, serializer);
-    sse_encode_i_32(self.monthlyNotes, serializer);
     sse_encode_i_32(self.diaryNotes, serializer);
     sse_encode_i_32(self.inputTokens, serializer);
     sse_encode_i_32(self.outputTokens, serializer);
     sse_encode_i_32(self.cachedTokens, serializer);
-    sse_encode_i_32(self.appLaunches, serializer);
-    sse_encode_i_32(self.workSeconds, serializer);
-    sse_encode_f_64(self.coins, serializer);
   }
 
   @protected

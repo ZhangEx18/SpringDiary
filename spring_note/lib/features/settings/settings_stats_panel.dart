@@ -533,16 +533,10 @@ class _StatsMetricsGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     final summary = snapshot.summary;
     final metrics = [
-      ('总结数', summary.summaries),
-      ('编辑补全次数', summary.fimCompletions),
-      ('总记录数', summary.totalRecords),
-      ('日报数', summary.dailyNotes),
-      ('周报数', summary.weeklyNotes),
-      ('月报数', summary.monthlyNotes),
+      ('日记总数', summary.totalRecords),
       ('输入 Tokens', summary.inputTokens),
       ('输出 Tokens', summary.outputTokens),
       ('缓存 Tokens', summary.cachedTokens),
-      ('应用启动次数', summary.appLaunches),
     ];
 
     return LayoutBuilder(
