@@ -12,6 +12,7 @@ import 'api/cloud_sync_api.dart';
 import 'api/note_image_cleanup_api.dart';
 import 'api/note_index_api.dart';
 import 'api/report_api.dart';
+import 'api/semantic_search_api.dart';
 import 'api/stats_api.dart';
 import 'cloud_sync.dart';
 import 'dart:async';
@@ -21,6 +22,7 @@ import 'note_image_cleanup.dart';
 import 'note_index.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated_web.dart';
 import 'report_regeneration.dart';
+import 'semantic_search.dart';
 import 'stats.dart';
 
 abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
@@ -147,6 +149,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   DiaryReviewResult dco_decode_diary_review_result(dynamic raw);
 
   @protected
+  double dco_decode_f_32(dynamic raw);
+
+  @protected
   FimCompleteRequest dco_decode_fim_complete_request(dynamic raw);
 
   @protected
@@ -197,6 +202,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<ProviderTokenUsage> dco_decode_list_provider_token_usage(dynamic raw);
+
+  @protected
+  List<SemanticHit> dco_decode_list_semantic_hit(dynamic raw);
 
   @protected
   List<StructuredNoteSection> dco_decode_list_structured_note_section(
@@ -268,6 +276,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ReportRequest dco_decode_report_request(dynamic raw);
 
   @protected
+  SemanticHit dco_decode_semantic_hit(dynamic raw);
+
+  @protected
   StatsSnapshot dco_decode_stats_snapshot(dynamic raw);
 
   @protected
@@ -292,6 +303,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void dco_decode_unit(dynamic raw);
+
+  @protected
+  BigInt dco_decode_usize(dynamic raw);
 
   @protected
   AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer);
@@ -439,6 +453,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  double sse_decode_f_32(SseDeserializer deserializer);
+
+  @protected
   FimCompleteRequest sse_decode_fim_complete_request(
     SseDeserializer deserializer,
   );
@@ -503,6 +520,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<ProviderTokenUsage> sse_decode_list_provider_token_usage(
     SseDeserializer deserializer,
   );
+
+  @protected
+  List<SemanticHit> sse_decode_list_semantic_hit(SseDeserializer deserializer);
 
   @protected
   List<StructuredNoteSection> sse_decode_list_structured_note_section(
@@ -596,6 +616,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ReportRequest sse_decode_report_request(SseDeserializer deserializer);
 
   @protected
+  SemanticHit sse_decode_semantic_hit(SseDeserializer deserializer);
+
+  @protected
   StatsSnapshot sse_decode_stats_snapshot(SseDeserializer deserializer);
 
   @protected
@@ -626,6 +649,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_decode_unit(SseDeserializer deserializer);
+
+  @protected
+  BigInt sse_decode_usize(SseDeserializer deserializer);
 
   @protected
   void sse_encode_AnyhowException(
@@ -811,6 +837,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_f_32(double self, SseSerializer serializer);
+
+  @protected
   void sse_encode_fim_complete_request(
     FimCompleteRequest self,
     SseSerializer serializer,
@@ -891,6 +920,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_provider_token_usage(
     List<ProviderTokenUsage> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_semantic_hit(
+    List<SemanticHit> self,
     SseSerializer serializer,
   );
 
@@ -1009,6 +1044,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_report_request(ReportRequest self, SseSerializer serializer);
 
   @protected
+  void sse_encode_semantic_hit(SemanticHit self, SseSerializer serializer);
+
+  @protected
   void sse_encode_stats_snapshot(StatsSnapshot self, SseSerializer serializer);
 
   @protected
@@ -1043,6 +1081,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_unit(void self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_usize(BigInt self, SseSerializer serializer);
 }
 
 // Section: wire_class

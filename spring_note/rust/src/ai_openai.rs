@@ -2308,3 +2308,62 @@ mod tests {
         );
     }
 }
+
+
+pub async fn embed_texts(
+    base_url: &str,
+    api_path: &str,
+    api_key: &str,
+    model_id: &str,
+    texts: &[String],
+) -> Result<Vec<Vec<f32>>, String> {
+    if texts.is_empty() {
+        return Ok(Vec::new());
+    }
+    let endpoint = if api_path.contains("/embeddings") {
+        join_url(base_url, api_path)
+    } else {
+        join_url(base_url, "/embeddings")
+    };
+    let body = json!({
+        "model": model_id,
+        "input": texts,
+    });
+    let response = http_client()?
+        .post(&endpoint)
+        .bearer_auth(api_key)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|error| format!("embedding request failed: {error}"))?;
+    let status = response.status();
+    if !status.is_success() {
+        let text = response.text().await.unwrap_or_default();
+        return Err(format!("embedding endpoint returned {status}: {text}"));
+    }
+    let value: Value = response
+        .json()
+        .await
+        .map_err(|error| format!("embedding response parse failed: {error}"))?;
+    let data = value
+        .get("data")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "embedding response missing data".to_string())?;
+    let mut embeddings = Vec::with_capacity(data.len());
+    for item in data {
+        let vector = item
+            .get("embedding")
+            .and_then(Value::as_array)
+            .ok_or_else(|| "embedding item missing vector".to_string())?;
+        let floats = vector
+            .iter()
+            .filter_map(|v| v.as_f64().map(|f| f as f32))
+            .collect::<Vec<f32>>();
+        if floats.is_empty() {
+            return Err("embedding vector is empty".to_string());
+        }
+        embeddings.push(floats);
+    }
+    Ok(embeddings)
+}
+

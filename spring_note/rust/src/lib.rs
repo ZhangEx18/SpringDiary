@@ -9,6 +9,7 @@ pub mod cloud_sync;
 pub mod note_image_cleanup;
 pub mod note_index;
 pub mod report_regeneration;
+pub mod semantic_search;
 pub mod stats;
 
 mod frb_generated;
