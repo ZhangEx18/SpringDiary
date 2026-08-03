@@ -3,7 +3,12 @@ import 'dart:io';
 
 import '../../src/rust/api/note_index_api.dart' as rust_note_index;
 import '../../src/rust/note_index.dart';
+import '../../src/rust/api/semantic_search_api.dart' as rust_semantic;
+import '../../src/rust/ai.dart' as rust_ai_sem;
+import '../models/app_config.dart';
 import '../models/local_data_state.dart';
+import '../models/model_config.dart';
+import '../models/provider_config.dart';
 import '../models/memory_message.dart';
 
 typedef MemoryIndexedNoteSearch =
@@ -43,6 +48,11 @@ class MemorySearchService {
     try {
       sources = switch (toolName) {
         'get_current_date' => <MemorySource>[],
+        'semantic_search' => await _semanticSearch(
+          localDataState: localDataState,
+          query: arguments['query']?.toString() ?? '',
+          limit: _keywordSearchResultLimit(localDataState),
+        ),
         'keyword_search' => await search(
           localDataState: localDataState,
           keywords: _readStringList(arguments['keywords']),
@@ -174,6 +184,73 @@ class MemorySearchService {
       sources: _dedupe(sources).take(maxSteps).toList(),
       steps: steps.take(maxSteps).toList(),
     );
+  }
+
+  Future<List<MemorySource>> _semanticSearch({
+    required LocalDataState localDataState,
+    required String query,
+    required int limit,
+  }) async {
+    final queryText = query.trim();
+    if (queryText.isEmpty) {
+      return const [];
+    }
+    final selection = _selectSemanticModel(localDataState.config);
+    if (selection == null) {
+      return const [];
+    }
+    try {
+      final hits = await rust_semantic.semanticSearchDiary(
+        appDataDir: localDataState.dataDirectory,
+        query: queryText,
+        provider: rust_ai_sem.AiProvider(
+          id: selection.$1.id,
+          name: selection.$1.name,
+          protocol: selection.$1.protocol,
+          apiKey: selection.$1.apiKey,
+          baseUrl: selection.$1.baseUrl,
+          apiPath: selection.$1.apiPath,
+        ),
+        model: rust_ai_sem.AiModel(
+          modelId: selection.$2.modelId,
+          displayName: selection.$2.displayName,
+        ),
+        topK: limit,
+      );
+      return [
+        for (final hit in hits)
+          MemorySource(
+            path: hit.path,
+            title: _sourceTitle(hit.path),
+            snippet: '',
+            score: (hit.score * 100).round(),
+          ),
+      ];
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  (ProviderConfig, ModelConfig)? _selectSemanticModel(AppConfig config) {
+    for (final provider in config.providers) {
+      if (!provider.enabled ||
+          provider.apiKey.trim().isEmpty ||
+          provider.protocol != 'openaiCompatible') {
+        continue;
+      }
+      for (final model in provider.models) {
+        if (model.modelId.trim().isNotEmpty) {
+          return (provider, model);
+        }
+      }
+    }
+    return null;
+  }
+
+  String _sourceTitle(String path) {
+    final segments = path.split(RegExp(r'[/\\]'));
+    final name = segments.isNotEmpty ? segments.last : path;
+    return name.replaceAll(RegExp(r'\.md$'), '');
   }
 
   Future<List<MemorySource>> search({

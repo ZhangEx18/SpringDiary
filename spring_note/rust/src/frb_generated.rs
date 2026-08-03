@@ -38,7 +38,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.12.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 685860939;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1906022443;
 
 // Section: executor
 
@@ -442,6 +442,53 @@ fn wire__crate__api__stats_api__get_stats_snapshot_impl(
                         ))?;
                     Ok(output_ok)
                 })())
+            }
+        },
+    )
+}
+fn wire__crate__api__semantic_search_api__index_diary_embeddings_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "index_diary_embeddings",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_app_data_dir = <String>::sse_decode(&mut deserializer);
+            let api_diary_directory = <String>::sse_decode(&mut deserializer);
+            let api_provider = <crate::ai::AiProvider>::sse_decode(&mut deserializer);
+            let api_model = <crate::ai::AiModel>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, ()>(
+                    (move || async move {
+                        let output_ok = Result::<_, ()>::Ok(
+                            crate::api::semantic_search_api::index_diary_embeddings(
+                                api_app_data_dir,
+                                api_diary_directory,
+                                api_provider,
+                                api_model,
+                            )
+                            .await,
+                        )?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
             }
         },
     )
@@ -1032,6 +1079,55 @@ fn wire__crate__api__note_index_api__search_indexed_notes_by_kind_impl(
         },
     )
 }
+fn wire__crate__api__semantic_search_api__semantic_search_diary_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "semantic_search_diary",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_app_data_dir = <String>::sse_decode(&mut deserializer);
+            let api_query = <String>::sse_decode(&mut deserializer);
+            let api_provider = <crate::ai::AiProvider>::sse_decode(&mut deserializer);
+            let api_model = <crate::ai::AiModel>::sse_decode(&mut deserializer);
+            let api_top_k = <i32>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, ()>(
+                    (move || async move {
+                        let output_ok = Result::<_, ()>::Ok(
+                            crate::api::semantic_search_api::semantic_search_diary(
+                                api_app_data_dir,
+                                api_query,
+                                api_provider,
+                                api_model,
+                                api_top_k,
+                            )
+                            .await,
+                        )?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__cloud_sync_api__sync_web_dav_notes_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -1600,6 +1696,13 @@ impl SseDecode for crate::ai::DiaryReviewResult {
     }
 }
 
+impl SseDecode for f32 {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        deserializer.cursor.read_f32::<NativeEndian>().unwrap()
+    }
+}
+
 impl SseDecode for crate::ai::FimCompleteRequest {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -1791,6 +1894,20 @@ impl SseDecode for Vec<crate::stats::ProviderTokenUsage> {
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
             ans_.push(<crate::stats::ProviderTokenUsage>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::semantic_search::SemanticHit> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::semantic_search::SemanticHit>::sse_decode(
+                deserializer,
+            ));
         }
         return ans_;
     }
@@ -2161,6 +2278,18 @@ impl SseDecode for crate::ai::ReportRequest {
     }
 }
 
+impl SseDecode for crate::semantic_search::SemanticHit {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_path = <String>::sse_decode(deserializer);
+        let mut var_score = <f32>::sse_decode(deserializer);
+        return crate::semantic_search::SemanticHit {
+            path: var_path,
+            score: var_score,
+        };
+    }
+}
+
 impl SseDecode for crate::stats::StatsSnapshot {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -2283,6 +2412,13 @@ impl SseDecode for () {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {}
 }
 
+impl SseDecode for usize {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        deserializer.cursor.read_u64::<NativeEndian>().unwrap() as _
+    }
+}
+
 fn pde_ffi_dispatcher_primary_impl(
     func_id: i32,
     port: flutter_rust_bridge::for_generated::MessagePort,
@@ -2330,91 +2466,103 @@ fn pde_ffi_dispatcher_primary_impl(
         10 => {
             wire__crate__api__stats_api__get_stats_snapshot_impl(port, ptr, rust_vec_len, data_len)
         }
-        11 => wire__crate__api__note_index_api__index_note_file_impl(
+        11 => wire__crate__api__semantic_search_api__index_diary_embeddings_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        12 => wire__crate__api__ai_api__init_app_impl(port, ptr, rust_vec_len, data_len),
-        13 => wire__crate__api__note_index_api__list_indexed_notes_impl(
+        12 => wire__crate__api__note_index_api__index_note_file_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        14 => wire__crate__api__note_index_api__load_note_content_impl(
+        13 => wire__crate__api__ai_api__init_app_impl(port, ptr, rust_vec_len, data_len),
+        14 => wire__crate__api__note_index_api__list_indexed_notes_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        15 => wire__crate__api__ai_api__memory_tool_chat_impl(port, ptr, rust_vec_len, data_len),
-        16 => wire__crate__api__ai_api__memory_tool_chat_stream_impl(
+        15 => wire__crate__api__note_index_api__load_note_content_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        17 => wire__crate__api__ai_api__merge_daily_note_impl(port, ptr, rust_vec_len, data_len),
-        18 => {
+        16 => wire__crate__api__ai_api__memory_tool_chat_impl(port, ptr, rust_vec_len, data_len),
+        17 => wire__crate__api__ai_api__memory_tool_chat_stream_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        18 => wire__crate__api__ai_api__merge_daily_note_impl(port, ptr, rust_vec_len, data_len),
+        19 => {
             wire__crate__api__stats_api__record_app_startup_impl(port, ptr, rust_vec_len, data_len)
         }
-        19 => {
+        20 => {
             wire__crate__api__stats_api__record_diary_entry_impl(port, ptr, rust_vec_len, data_len)
         }
-        20 => wire__crate__api__note_index_api__refresh_note_index_impl(
+        21 => wire__crate__api__note_index_api__refresh_note_index_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        21 => {
+        22 => {
             wire__crate__api__report_api__regenerate_report_impl(port, ptr, rust_vec_len, data_len)
         }
-        22 => wire__crate__api__note_image_cleanup_api__scan_note_images_impl(
+        23 => wire__crate__api__note_image_cleanup_api__scan_note_images_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        23 => wire__crate__api__note_index_api__search_all_indexed_notes_impl(
+        24 => wire__crate__api__note_index_api__search_all_indexed_notes_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        24 => wire__crate__api__note_index_api__search_indexed_notes_impl(
+        25 => wire__crate__api__note_index_api__search_indexed_notes_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        25 => wire__crate__api__note_index_api__search_indexed_notes_by_kind_impl(
+        26 => wire__crate__api__note_index_api__search_indexed_notes_by_kind_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        26 => wire__crate__api__cloud_sync_api__sync_web_dav_notes_impl(
+        27 => wire__crate__api__semantic_search_api__semantic_search_diary_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        27 => wire__crate__api__ai_api__test_provider_connection_impl(
+        28 => wire__crate__api__cloud_sync_api__sync_web_dav_notes_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        28 => wire__crate__api__cloud_sync_api__test_web_dav_connection_impl(
+        29 => wire__crate__api__ai_api__test_provider_connection_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        29 => wire__crate__api__cloud_sync_api__upload_web_dav_note_impl(
+        30 => wire__crate__api__cloud_sync_api__test_web_dav_connection_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        31 => wire__crate__api__cloud_sync_api__upload_web_dav_note_impl(
             port,
             ptr,
             rust_vec_len,
@@ -3292,6 +3440,27 @@ impl flutter_rust_bridge::IntoIntoDart<crate::ai::ReportRequest> for crate::ai::
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::semantic_search::SemanticHit {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.path.into_into_dart().into_dart(),
+            self.score.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::semantic_search::SemanticHit
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::semantic_search::SemanticHit>
+    for crate::semantic_search::SemanticHit
+{
+    fn into_into_dart(self) -> crate::semantic_search::SemanticHit {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::stats::StatsSnapshot {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -3683,6 +3852,13 @@ impl SseEncode for crate::ai::DiaryReviewResult {
     }
 }
 
+impl SseEncode for f32 {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        serializer.cursor.write_f32::<NativeEndian>(self).unwrap();
+    }
+}
+
 impl SseEncode for crate::ai::FimCompleteRequest {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -3836,6 +4012,16 @@ impl SseEncode for Vec<crate::stats::ProviderTokenUsage> {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <crate::stats::ProviderTokenUsage>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::semantic_search::SemanticHit> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::semantic_search::SemanticHit>::sse_encode(item, serializer);
         }
     }
 }
@@ -4073,6 +4259,14 @@ impl SseEncode for crate::ai::ReportRequest {
     }
 }
 
+impl SseEncode for crate::semantic_search::SemanticHit {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.path, serializer);
+        <f32>::sse_encode(self.score, serializer);
+    }
+}
+
 impl SseEncode for crate::stats::StatsSnapshot {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -4149,6 +4343,16 @@ impl SseEncode for u8 {
 impl SseEncode for () {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {}
+}
+
+impl SseEncode for usize {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        serializer
+            .cursor
+            .write_u64::<NativeEndian>(self as _)
+            .unwrap();
+    }
 }
 
 #[cfg(not(target_family = "wasm"))]
