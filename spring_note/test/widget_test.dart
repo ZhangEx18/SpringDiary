@@ -82,6 +82,11 @@ void main() {
 
     expect(find.text('首页'), findsOneWidget);
     expect(find.text('EARNINGS TODAY'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('完成事项'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('完成事项'), findsOneWidget);
 
     await tester.tap(find.byIcon(Icons.settings_outlined));
@@ -359,7 +364,7 @@ void main() {
     );
 
     await tester.enterText(
-      find.byType(TextField),
+      find.byKey(const ValueKey('home-quick-capture-field')),
       '完成首页输入流程\n问题：按钮状态需要校验\n明天补充更多测试',
     );
     await tester.pump();
@@ -406,7 +411,7 @@ void main() {
       ),
     );
 
-    final inputFinder = find.byType(TextField);
+    final inputFinder = find.byKey(const ValueKey('home-quick-capture-field'));
     await tester.enterText(inputFinder, '第一条整理内容');
     await tester.pump();
     await tester.tap(find.byKey(const ValueKey('home-smart-generate-button')));
@@ -568,7 +573,7 @@ void main() {
       ),
     );
 
-    await tester.enterText(find.byType(TextField), '完成结构化降级测试');
+    await tester.enterText(find.byKey(const ValueKey('home-quick-capture-field')), '完成结构化降级测试');
     await tester.pump();
     await tester.tap(find.byKey(const ValueKey('home-smart-generate-button')));
     await _pumpUntil(
@@ -611,7 +616,7 @@ void main() {
         ),
       );
 
-      await tester.enterText(find.byType(TextField), '用快捷键整理首页内容');
+      await tester.enterText(find.byKey(const ValueKey('home-quick-capture-field')), '用快捷键整理首页内容');
       await tester.sendKeyDownEvent(shortcut.key);
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.sendKeyUpEvent(shortcut.key);
@@ -657,7 +662,7 @@ void main() {
       ),
     );
 
-    await tester.enterText(find.byType(TextField), '回车直接发送的内容');
+    await tester.enterText(find.byKey(const ValueKey('home-quick-capture-field')), '回车直接发送的内容');
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await _pumpUntil(
       tester,
@@ -691,7 +696,7 @@ void main() {
       ),
     );
 
-    await tester.enterText(find.byType(TextField), '第一行');
+    await tester.enterText(find.byKey(const ValueKey('home-quick-capture-field')), '第一行');
     await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
@@ -699,7 +704,7 @@ void main() {
 
     expect(fakeDailyNoteService.savedNote, isNull);
     expect(
-      tester.widget<TextField>(find.byType(TextField)).controller?.text,
+      tester.widget<TextField>(find.byKey(const ValueKey('home-quick-capture-field'))).controller?.text,
       '第一行\n',
     );
   });
@@ -753,7 +758,7 @@ void main() {
     expect(find.text('图片 · screenshot.png'), findsOneWidget);
     expect(find.text('文件 · spec.pdf'), findsOneWidget);
 
-    await tester.enterText(find.byType(TextField), '整理附件内容');
+    await tester.enterText(find.byKey(const ValueKey('home-quick-capture-field')), '整理附件内容');
     await tester.pump();
     await tester.tap(find.byKey(const ValueKey('home-smart-generate-button')));
     await _pumpUntil(
@@ -812,7 +817,7 @@ void main() {
 
     await tester.tap(find.byTooltip('上传图片'));
     await tester.pump();
-    await tester.enterText(find.byType(TextField), '根据截图整理今天进展');
+    await tester.enterText(find.byKey(const ValueKey('home-quick-capture-field')), '根据截图整理今天进展');
     await tester.pump();
     await tester.tap(find.byKey(const ValueKey('home-smart-generate-button')));
     await _pumpUntil(
@@ -938,7 +943,7 @@ void main() {
     expect(find.text('图片 · diagram.svg'), findsOneWidget);
     expect(find.textContaining('不会发送给 AI'), findsOneWidget);
 
-    await tester.enterText(find.byType(TextField), '整理 SVG 图');
+    await tester.enterText(find.byKey(const ValueKey('home-quick-capture-field')), '整理 SVG 图');
     await tester.pump();
     await tester.tap(find.byKey(const ValueKey('home-smart-generate-button')));
     await _pumpUntil(
@@ -995,7 +1000,7 @@ void main() {
       await tester.pump();
       expect(find.text('图片 · screen.png'), findsOneWidget);
 
-      await tester.enterText(find.byType(TextField), '整理文本模型截图');
+      await tester.enterText(find.byKey(const ValueKey('home-quick-capture-field')), '整理文本模型截图');
       await tester.pump();
       await tester.tap(
         find.byKey(const ValueKey('home-smart-generate-button')),
@@ -1045,7 +1050,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.byType(TextField));
+    await tester.tap(find.byKey(const ValueKey('home-quick-capture-field')));
     await tester.pump();
     await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
     await tester.sendKeyEvent(LogicalKeyboardKey.keyV);
@@ -1054,7 +1059,7 @@ void main() {
 
     expect(find.text('图片 · clipboard.png'), findsOneWidget);
 
-    await tester.enterText(find.byType(TextField), '整理带图日报');
+    await tester.enterText(find.byKey(const ValueKey('home-quick-capture-field')), '整理带图日报');
     await tester.pump();
     await tester.tap(find.byKey(const ValueKey('home-smart-generate-button')));
     await _pumpUntil(
@@ -1106,7 +1111,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.byType(TextField));
+    await tester.tap(find.byKey(const ValueKey('home-quick-capture-field')));
     await tester.pump();
     await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
     await tester.sendKeyEvent(LogicalKeyboardKey.keyV);
