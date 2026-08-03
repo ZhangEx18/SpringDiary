@@ -283,6 +283,7 @@ jobs:
         run: flutter pub get
 
       - name: Configure Sparkle public key
+        if: ${{ secrets.SPARKLE_PUBLIC_ED_KEY != '' }}
         shell: bash
         env:
           SPARKLE_PUBLIC_ED_KEY: ${{ secrets.SPARKLE_PUBLIC_ED_KEY }}
@@ -342,6 +343,7 @@ jobs:
           if-no-files-found: error
 
       - name: Sign macOS update
+        if: ${{ secrets.SPARKLE_ED_PRIVATE_KEY != '' }}
         shell: bash
         env:
           SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
@@ -362,6 +364,7 @@ jobs:
           ED_SIGNATURE="$ed_signature" UPDATE_LENGTH="$length" python3 -c 'import json, os, pathlib; pathlib.Path(os.environ["GITHUB_WORKSPACE"], "macos-update-signature.json").write_text(json.dumps({"edSignature": os.environ["ED_SIGNATURE"], "length": os.environ["UPDATE_LENGTH"]}), encoding="utf-8")'
 
       - name: Upload macOS update signature
+        if: ${{ secrets.SPARKLE_ED_PRIVATE_KEY != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: macos-update-signature
@@ -389,7 +392,13 @@ jobs:
           merge-multiple: true
 
       - name: Write update metadata
+        shell: bash
         run: |
+          set -euo pipefail
+          SIGNATURE_ARGS=()
+          if [ -f "release-assets/macos-update-signature.json" ]; then
+            SIGNATURE_ARGS=(--macos-signature-file release-assets/macos-update-signature.json)
+          fi
           python3 .github/scripts/write_update_metadata.py \
             --version "${{ needs.prepare-release.outputs.version }}" \
             --repo "${{ github.repository }}" \
@@ -397,7 +406,7 @@ jobs:
             --windows-asset "${{ needs.prepare-release.outputs.windows_asset }}" \
             --notes release-assets/release-notes.md \
             --output-dir release-assets/update \
-            --macos-signature-file release-assets/macos-update-signature.json
+            "${SIGNATURE_ARGS[@]}"
 
       - name: Generate SHA256 checksums
         working-directory: release-assets
