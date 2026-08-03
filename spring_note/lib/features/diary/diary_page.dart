@@ -335,14 +335,19 @@ class _SelectedDayDetail extends StatefulWidget {
 
 class _SelectedDayDetailState extends State<_SelectedDayDetail> {
   late final TextEditingController _contentController;
+  late final TextEditingController _tagsController;
   late DiaryMood _selectedMood;
+  int _moodScore = 5;
   List<SameDayDiaryEntry> _pastEntries = const [];
 
   @override
   void initState() {
     super.initState();
     _contentController = TextEditingController();
+    _tagsController = TextEditingController();
     _selectedMood = widget.entry?.mood ?? DiaryMood.neutral;
+    _moodScore = widget.entry?.moodScore ?? 5;
+    _tagsController.text = (widget.entry?.tags ?? const []).join(', ');
     _loadMarkdown();
     _loadPastEntries();
   }
@@ -352,6 +357,8 @@ class _SelectedDayDetailState extends State<_SelectedDayDetail> {
     super.didUpdateWidget(oldWidget);
     if (StatsDateKey.of(oldWidget.date) != StatsDateKey.of(widget.date)) {
       _selectedMood = widget.entry?.mood ?? DiaryMood.neutral;
+      _moodScore = widget.entry?.moodScore ?? 5;
+      _tagsController.text = (widget.entry?.tags ?? const []).join(', ');
       _loadMarkdown();
       _loadPastEntries();
     }
@@ -360,6 +367,7 @@ class _SelectedDayDetailState extends State<_SelectedDayDetail> {
   @override
   void dispose() {
     _contentController.dispose();
+    _tagsController.dispose();
     super.dispose();
   }
 
@@ -428,6 +436,33 @@ class _SelectedDayDetailState extends State<_SelectedDayDetail> {
                     onSelected: (_) => setState(() => _selectedMood = mood),
                   ),
               ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                const Icon(Icons.sentiment_satisfied_outlined, size: 16),
+                const SizedBox(width: 8),
+                Text('心情分 ${_moodScore} / 10'),
+                Expanded(
+                  child: Slider(
+                    value: _moodScore.toDouble(),
+                    min: 1,
+                    max: 10,
+                    divisions: 9,
+                    label: '$_moodScore',
+                    onChanged: (value) =>
+                        setState(() => _moodScore = value.round()),
+                  ),
+                ),
+              ],
+            ),
+            TextField(
+              controller: _tagsController,
+              decoration: const InputDecoration(
+                isDense: true,
+                border: OutlineInputBorder(),
+                hintText: '标签（逗号分隔，如 工作, 放松）',
+              ),
             ),
             if (_pastEntries.isNotEmpty) ...[
               const SizedBox(height: 16),
@@ -521,6 +556,15 @@ class _SelectedDayDetailState extends State<_SelectedDayDetail> {
     return withoutJson.replaceAll(RegExp(r'^#+\s*.*$', multiLine: true), '').trim();
   }
 
+  List<String> _parseTags(String text) {
+    return text
+        .split(RegExp(r'[,，]'))
+        .map((tag) => tag.trim())
+        .where((tag) => tag.isNotEmpty)
+        .take(5)
+        .toList();
+  }
+
   Future<void> _saveRaw() async {
     final previous = widget.entry ?? DiaryEntry.empty;
     await widget.diaryNoteService.saveEntry(
@@ -528,6 +572,8 @@ class _SelectedDayDetailState extends State<_SelectedDayDetail> {
       date: widget.date,
       entry: DiaryEntry(
         mood: _selectedMood,
+        moodScore: _moodScore,
+        tags: _parseTags(_tagsController.text),
         highlights: previous.highlights,
         reflection: previous.reflection,
         growthPrompt: previous.growthPrompt,

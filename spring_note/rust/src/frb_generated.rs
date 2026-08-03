@@ -1491,6 +1491,8 @@ impl SseDecode for crate::ai::DiaryEntryResult {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_ok = <bool>::sse_decode(deserializer);
         let mut var_mood = <String>::sse_decode(deserializer);
+        let mut var_moodScore = <i32>::sse_decode(deserializer);
+        let mut var_tags = <Vec<String>>::sse_decode(deserializer);
         let mut var_highlights = <Vec<String>>::sse_decode(deserializer);
         let mut var_reflection = <String>::sse_decode(deserializer);
         let mut var_growthPrompt = <String>::sse_decode(deserializer);
@@ -1503,6 +1505,8 @@ impl SseDecode for crate::ai::DiaryEntryResult {
         return crate::ai::DiaryEntryResult {
             ok: var_ok,
             mood: var_mood,
+            mood_score: var_moodScore,
+            tags: var_tags,
             highlights: var_highlights,
             reflection: var_reflection,
             growth_prompt: var_growthPrompt,
@@ -2693,6 +2697,8 @@ impl flutter_rust_bridge::IntoDart for crate::ai::DiaryEntryResult {
         [
             self.ok.into_into_dart().into_dart(),
             self.mood.into_into_dart().into_dart(),
+            self.mood_score.into_into_dart().into_dart(),
+            self.tags.into_into_dart().into_dart(),
             self.highlights.into_into_dart().into_dart(),
             self.reflection.into_into_dart().into_dart(),
             self.growth_prompt.into_into_dart().into_dart(),
@@ -3510,6 +3516,8 @@ impl SseEncode for crate::ai::DiaryEntryResult {
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.ok, serializer);
         <String>::sse_encode(self.mood, serializer);
+        <i32>::sse_encode(self.mood_score, serializer);
+        <Vec<String>>::sse_encode(self.tags, serializer);
         <Vec<String>>::sse_encode(self.highlights, serializer);
         <String>::sse_encode(self.reflection, serializer);
         <String>::sse_encode(self.growth_prompt, serializer);

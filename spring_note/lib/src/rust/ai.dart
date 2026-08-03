@@ -290,6 +290,8 @@ class DiaryEntryRequest {
 class DiaryEntryResult {
   final bool ok;
   final String mood;
+  final int moodScore;
+  final List<String> tags;
   final List<String> highlights;
   final String reflection;
   final String growthPrompt;
@@ -303,6 +305,8 @@ class DiaryEntryResult {
   const DiaryEntryResult({
     required this.ok,
     required this.mood,
+    required this.moodScore,
+    required this.tags,
     required this.highlights,
     required this.reflection,
     required this.growthPrompt,
@@ -318,6 +322,8 @@ class DiaryEntryResult {
   int get hashCode =>
       ok.hashCode ^
       mood.hashCode ^
+      moodScore.hashCode ^
+      tags.hashCode ^
       highlights.hashCode ^
       reflection.hashCode ^
       growthPrompt.hashCode ^
@@ -335,6 +341,8 @@ class DiaryEntryResult {
           runtimeType == other.runtimeType &&
           ok == other.ok &&
           mood == other.mood &&
+          moodScore == other.moodScore &&
+          tags == other.tags &&
           highlights == other.highlights &&
           reflection == other.reflection &&
           growthPrompt == other.growthPrompt &&

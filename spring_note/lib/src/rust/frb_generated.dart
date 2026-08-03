@@ -1600,20 +1600,22 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   DiaryEntryResult dco_decode_diary_entry_result(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 11)
-      throw Exception('unexpected arr length: expect 11 but see ${arr.length}');
+    if (arr.length != 13)
+      throw Exception('unexpected arr length: expect 13 but see ${arr.length}');
     return DiaryEntryResult(
       ok: dco_decode_bool(arr[0]),
       mood: dco_decode_String(arr[1]),
-      highlights: dco_decode_list_String(arr[2]),
-      reflection: dco_decode_String(arr[3]),
-      growthPrompt: dco_decode_String(arr[4]),
-      rawContent: dco_decode_String(arr[5]),
-      errorCode: dco_decode_String(arr[6]),
-      errorMessage: dco_decode_String(arr[7]),
-      inputTokens: dco_decode_i_32(arr[8]),
-      outputTokens: dco_decode_i_32(arr[9]),
-      cachedTokens: dco_decode_i_32(arr[10]),
+      moodScore: dco_decode_i_32(arr[2]),
+      tags: dco_decode_list_String(arr[3]),
+      highlights: dco_decode_list_String(arr[4]),
+      reflection: dco_decode_String(arr[5]),
+      growthPrompt: dco_decode_String(arr[6]),
+      rawContent: dco_decode_String(arr[7]),
+      errorCode: dco_decode_String(arr[8]),
+      errorMessage: dco_decode_String(arr[9]),
+      inputTokens: dco_decode_i_32(arr[10]),
+      outputTokens: dco_decode_i_32(arr[11]),
+      cachedTokens: dco_decode_i_32(arr[12]),
     );
   }
 
@@ -2540,6 +2542,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_ok = sse_decode_bool(deserializer);
     var var_mood = sse_decode_String(deserializer);
+    var var_moodScore = sse_decode_i_32(deserializer);
+    var var_tags = sse_decode_list_String(deserializer);
     var var_highlights = sse_decode_list_String(deserializer);
     var var_reflection = sse_decode_String(deserializer);
     var var_growthPrompt = sse_decode_String(deserializer);
@@ -2552,6 +2556,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     return DiaryEntryResult(
       ok: var_ok,
       mood: var_mood,
+      moodScore: var_moodScore,
+      tags: var_tags,
       highlights: var_highlights,
       reflection: var_reflection,
       growthPrompt: var_growthPrompt,
@@ -3606,6 +3612,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_bool(self.ok, serializer);
     sse_encode_String(self.mood, serializer);
+    sse_encode_i_32(self.moodScore, serializer);
+    sse_encode_list_String(self.tags, serializer);
     sse_encode_list_String(self.highlights, serializer);
     sse_encode_String(self.reflection, serializer);
     sse_encode_String(self.growthPrompt, serializer);

@@ -25,6 +25,8 @@ void main() {
     test('toJson/fromJson roundtrip preserves all fields', () {
       const entry = DiaryEntry(
         mood: DiaryMood.down,
+        moodScore: 7,
+        tags: ['工作', '健康'],
         highlights: ['项目上线', '跑步 5km'],
         reflection: '今天效率不错',
         growthPrompt: '明天早点开始',
@@ -33,6 +35,8 @@ void main() {
       final restored = DiaryEntry.fromJson(entry.toJson());
 
       expect(restored.mood, DiaryMood.down);
+      expect(restored.moodScore, 7);
+      expect(restored.tags, ['工作', '健康']);
       expect(restored.highlights, ['项目上线', '跑步 5km']);
       expect(restored.reflection, '今天效率不错');
       expect(restored.growthPrompt, '明天早点开始');

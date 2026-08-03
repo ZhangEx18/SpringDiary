@@ -161,6 +161,8 @@ pub struct DiaryEntryRequest {
 pub struct DiaryEntryResult {
     pub ok: bool,
     pub mood: String,
+    pub mood_score: i32,
+    pub tags: Vec<String>,
     pub highlights: Vec<String>,
     pub reflection: String,
     pub growth_prompt: String,
@@ -480,6 +482,8 @@ pub async fn generate_diary_entry(request: DiaryEntryRequest) -> DiaryEntryResul
         return DiaryEntryResult {
             ok: false,
             mood: String::new(),
+            mood_score: 0,
+            tags: vec![],
             highlights: vec![],
             reflection: String::new(),
             growth_prompt: String::new(),
@@ -504,6 +508,22 @@ fn parse_diary_entry(result: &AiTextResult) -> DiaryEntryResult {
         .and_then(Value::as_str)
         .unwrap_or("neutral")
         .to_string();
+    let mood_score = value
+        .get("moodScore")
+        .and_then(Value::as_i64)
+        .map(|score| score.clamp(1, 10) as i32)
+        .unwrap_or(5);
+    let tags = value
+        .get("tags")
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::to_owned)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
     let highlights = value
         .get("highlights")
         .and_then(Value::as_array)
@@ -529,6 +549,8 @@ fn parse_diary_entry(result: &AiTextResult) -> DiaryEntryResult {
     DiaryEntryResult {
         ok: true,
         mood,
+        mood_score,
+        tags,
         highlights,
         reflection,
         growth_prompt,
@@ -545,6 +567,8 @@ fn invalid_diary_entry_result(result: &AiTextResult, error_message: &str) -> Dia
     DiaryEntryResult {
         ok: false,
         mood: String::new(),
+        mood_score: 0,
+        tags: vec![],
         highlights: vec![],
         reflection: String::new(),
         growth_prompt: String::new(),
@@ -1196,15 +1220,19 @@ const DIARY_ENTRY_SYSTEM_PROMPT: &str = r#"你是 SpringNote 的日记反思助�
 2. JSON 结构固定为：
 {
   "mood": "joyful",
+  "moodScore": 8,
+  "tags": ["工作", "放松"],
   "highlights": ["高光1", "高光2"],
   "reflection": "对今天的一句话反思",
   "growthPrompt": "明天的期许或行动建议"
 }
 3. mood 只能取以下五个值之一：joyful / neutral / down / sad / angry。
-4. highlights 是 1-3 条今天最值得记住的事，来自用户输入，不编造。
-5. reflection 用一句自然、克制的话概括今天的状态或启发。
-6. growthPrompt 给出明天的一个小期许或行动建议，语气温和不教条。
-7. 严格基于用户输入，不虚构任何事件、人物、结果或情绪；输入过少时如实整理，不要为了填充而编造。"#;
+4. moodScore 是 1-10 的整数，表示今天整体心情好坏，10 最好。
+5. tags 是 1-3 个简短主题标签（如 工作/家庭/健康/放松/成长），来自用户输入。
+6. highlights 是 1-3 条今天最值得记住的事，来自用户输入，不编造。
+7. reflection 用一句自然、克制的话概括今天的状态或启发。
+8. growthPrompt 给出明天的一个小期许或行动建议，语气温和不教条。
+9. 严格基于用户输入，不虚构任何事件、人物、结果或情绪；输入过少时如实整理，不要为了填充而编造。"#;
 
 fn diary_entry_system_prompt(existing_markdown: &str) -> String {
     let existing = existing_markdown.trim();
