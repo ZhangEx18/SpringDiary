@@ -1,5 +1,3 @@
-import 'dart:math';
-
 /// Deterministic daily reflection prompts, rotated by day index.
 class DailyPromptService {
   const DailyPromptService();

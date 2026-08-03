@@ -688,8 +688,6 @@ class _MoodTrendChart extends StatelessWidget {
         .fold<int>(1, (max, item) => item.entry.moodScore > max ? item.entry.moodScore : max);
     final chartHeight = 120.0;
     final chartWidth = 280.0;
-    final stepX = chartWidth / (points.length - 1);
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
