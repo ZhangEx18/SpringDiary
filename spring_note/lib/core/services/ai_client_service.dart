@@ -5,15 +5,11 @@ import 'dart:typed_data';
 
 import '../../src/rust/ai.dart' as rust_ai;
 import '../../src/rust/api/ai_api.dart' as rust_api;
-import '../../src/rust/api/report_api.dart' as rust_report_api;
-import '../../src/rust/report_regeneration.dart' as rust_report;
 import '../models/app_config.dart';
 import '../models/memory_message.dart';
 import '../models/model_config.dart';
 import '../models/model_reference.dart';
-import '../models/note_file.dart';
 import '../models/provider_config.dart';
-import '../models/structured_work_note.dart';
 import 'image_file_types.dart';
 
 const int maxAiImageInputs = 4;
@@ -445,39 +441,7 @@ class AiClientService {
     );
   }
 
-  String _renderDailyMergePrompt(
-    String template, {
-    required String date,
-    required String existingMarkdown,
-    required StructuredWorkNote note,
-    required String industry,
-  }) {
-    final replacements = <String, String>{
-      '{date}': date,
-      '{existing_markdown}': existingMarkdown.trim().isEmpty
-          ? '（空）'
-          : existingMarkdown.trim(),
-      '{raw_input}': note.rawInput.trim(),
-      '{completed}': _formatPromptItems(
-        note.itemsFor(StructuredNoteSectionIds.a),
-      ),
-      '{issues}': _formatPromptItems(note.itemsFor(StructuredNoteSectionIds.b)),
-      '{plans}': _formatPromptItems(note.itemsFor(StructuredNoteSectionIds.c)),
-      '{industry}': industry.trim().isEmpty ? '未设置' : industry.trim(),
-    };
-    var rendered = template.trim().isEmpty ? defaultDailyMergePrompt : template;
-    for (final entry in replacements.entries) {
-      rendered = rendered.replaceAll(entry.key, entry.value);
-    }
-    return rendered;
-  }
 
-  String _formatPromptItems(List<String> items) {
-    if (items.isEmpty) {
-      return '（空）';
-    }
-    return items.map((item) => '- $item').join('\n');
-  }
 
   Future<({String? content, String? error})> fimCompleteMarkdown({
     required String appDataDir,
@@ -726,13 +690,6 @@ class AiClientService {
     );
   }
 
-  rust_ai.AiImageAttachment _toRustImageAttachment(AiImageInput image) {
-    return rust_ai.AiImageAttachment(
-      name: image.name,
-      mimeType: image.mimeType,
-      dataBase64: base64Encode(image.bytes),
-    );
-  }
 
   bool _imageCapableModel(ModelConfig model) {
     return model.inputModes.contains('image');
@@ -756,12 +713,6 @@ class AiClientService {
     );
   }
 
-  String _formatDate(DateTime date) {
-    final year = date.year.toString().padLeft(4, '0');
-    final month = date.month.toString().padLeft(2, '0');
-    final day = date.day.toString().padLeft(2, '0');
-    return '$year-$month-$day';
-  }
 
   String _joinUrl(String baseUrl, String apiPath) {
     final normalizedBase = baseUrl.trim().replaceAll(RegExp(r'/+$'), '');
