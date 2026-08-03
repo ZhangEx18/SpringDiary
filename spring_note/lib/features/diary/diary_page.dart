@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/models/app_config.dart';
 import '../../core/models/diary_entry.dart';
 import '../../core/models/local_data_state.dart';
 import '../../core/services/ai_client_service.dart';
@@ -192,7 +193,10 @@ class _DiaryPageState extends State<DiaryPage> {
                     entry: _entriesByDate[StatsDateKey.of(_selectedDate)],
                     diaryNotesDirectory:
                         widget.localDataState.diaryNotesDirectory,
+                    appDataDir: widget.localDataState.dataDirectory,
+                    config: widget.localDataState.config,
                     diaryNoteService: widget.diaryNoteService,
+                    aiClientService: widget.aiClientService,
                     onSaved: _loadMonth,
                   ),
                 ),
@@ -391,14 +395,20 @@ class _SelectedDayDetail extends StatefulWidget {
     required this.date,
     required this.entry,
     required this.diaryNotesDirectory,
+    required this.appDataDir,
+    required this.config,
     required this.diaryNoteService,
+    required this.aiClientService,
     required this.onSaved,
   });
 
   final DateTime date;
   final DiaryEntry? entry;
   final String diaryNotesDirectory;
+  final String appDataDir;
+  final AppConfig config;
   final DiaryNoteService diaryNoteService;
+  final AiClientService aiClientService;
   final VoidCallback onSaved;
 
   @override
@@ -411,6 +421,8 @@ class _SelectedDayDetailState extends State<_SelectedDayDetail> {
   late DiaryMood _selectedMood;
   int _moodScore = 5;
   List<SameDayDiaryEntry> _pastEntries = const [];
+  String? _followUp;
+  bool _askingFollowUp = false;
 
   @override
   void initState() {
@@ -607,14 +619,50 @@ class _SelectedDayDetailState extends State<_SelectedDayDetail> {
               ),
             ),
             const SizedBox(height: 12),
-            Align(
-              alignment: Alignment.centerRight,
-              child: FilledButton.icon(
-                onPressed: _saveRaw,
-                icon: const Icon(Icons.save_outlined),
-                label: const Text('保存'),
-              ),
+            Row(
+              children: [
+                OutlinedButton.icon(
+                  onPressed: _askingFollowUp ? null : _askFollowUp,
+                  icon: _askingFollowUp
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.psychology_outlined, size: 18),
+                  label: const Text('AI 追问'),
+                ),
+                const Spacer(),
+                FilledButton.icon(
+                  onPressed: _saveRaw,
+                  icon: const Icon(Icons.save_outlined),
+                  label: const Text('保存'),
+                ),
+              ],
             ),
+            if (_followUp != null && _followUp!.trim().isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: colors.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.psychology_outlined, size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _followUp!,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -635,6 +683,31 @@ class _SelectedDayDetailState extends State<_SelectedDayDetail> {
         .where((tag) => tag.isNotEmpty)
         .take(5)
         .toList();
+  }
+
+  Future<void> _askFollowUp() async {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final body = _contentController.text.trim();
+    if (body.isEmpty) {
+      messenger?.showSnackBar(
+        const SnackBar(content: Text('先写点什么，AI 才能追问')),
+      );
+      return;
+    }
+    setState(() => _askingFollowUp = true);
+    final followUp = await widget.aiClientService.generateDiaryReview(
+      appDataDir: widget.appDataDir,
+      config: widget.config,
+      periodLabel: '追问',
+      diaryMarkdown: body,
+    );
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _askingFollowUp = false;
+      _followUp = followUp;
+    });
   }
 
   Future<void> _saveRaw() async {
