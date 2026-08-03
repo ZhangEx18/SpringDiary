@@ -11,7 +11,19 @@ import 'package:spring_note/core/models/structured_note_section_config.dart';
 import 'package:spring_note/core/services/local_data_service.dart';
 import 'package:spring_note/core/services/security_scoped_directory_access.dart';
 
+class _FakeSecurityScopedDirectoryAccess extends SecurityScopedDirectoryAccess {
+  const _FakeSecurityScopedDirectoryAccess();
+
+  @override
+  Future<bool> startAccessing(String path) async => true;
+
+  @override
+  Future<bool> saveBookmark(String path) async => true;
+}
+
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   test('app config round trips desktop widget position', () {
     const position = DesktopWidgetPosition(
       screenId: 'display-1',
@@ -171,6 +183,7 @@ void main() {
 
     final executableDir = Directory('${temp.path}${Platform.pathSeparator}bin');
     final state = await LocalDataService(
+      securityScopedDirectoryAccess: const _FakeSecurityScopedDirectoryAccess(),
       appDataPath: temp.path,
       executableDirectoryPath: executableDir.path,
     ).initialize();
@@ -232,6 +245,7 @@ void main() {
       await pointer.setLastModified(preservedModifiedTime);
 
       final state = await LocalDataService(
+        securityScopedDirectoryAccess: const _FakeSecurityScopedDirectoryAccess(),
         appDataPath: temp.path,
         executableDirectoryPath: executableDir.path,
       ).initialize();
@@ -425,6 +439,7 @@ void main() {
         '${temp.path}${Platform.pathSeparator}not-a-directory';
     await File(executablePath).writeAsString('blocked');
     final service = LocalDataService(
+      securityScopedDirectoryAccess: const _FakeSecurityScopedDirectoryAccess(),
       appDataPath: temp.path,
       executableDirectoryPath: executablePath,
     );
@@ -456,6 +471,7 @@ void main() {
       });
 
       final service = LocalDataService(
+        securityScopedDirectoryAccess: const _FakeSecurityScopedDirectoryAccess(),
         appDataPath: temp.path,
         executableDirectoryPath: '${temp.path}${Platform.pathSeparator}bin',
       );
@@ -499,6 +515,7 @@ void main() {
     ).writeAsString('}\n');
 
     final state = await LocalDataService(
+      securityScopedDirectoryAccess: const _FakeSecurityScopedDirectoryAccess(),
       appDataPath: temp.path,
       executableDirectoryPath: executableDir.path,
     ).initialize();

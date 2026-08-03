@@ -9,6 +9,7 @@ import 'package:spring_note/features/diary/diary_page.dart';
 class _FakeDiaryNoteService extends DiaryNoteService {
   final Map<DateTime, DiaryEntry> entries = {};
   final Map<DateTime, String> rawMarkdown = {};
+  List<SameDayDiaryEntry> pastEntries = const [];
 
   static DateTime _day(DateTime date) => DateTime(date.year, date.month, date.day);
 
@@ -38,6 +39,15 @@ class _FakeDiaryNoteService extends DiaryNoteService {
     required DateTime date,
   }) async {
     return rawMarkdown[_day(date)] ?? '';
+  }
+
+  @override
+  Future<List<SameDayDiaryEntry>> listSameDayInPastYears({
+    required String diaryNotesDirectory,
+    required DateTime date,
+    int maxYears = 10,
+  }) async {
+    return pastEntries;
   }
 
   @override
@@ -156,5 +166,29 @@ void main() {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     expect(service.entries[today]?.mood, DiaryMood.joyful);
+  });
+
+  testWidgets('diary page shows same day entries from past years', (
+    tester,
+  ) async {
+    final service = _FakeDiaryNoteService();
+    service.pastEntries = const [
+      SameDayDiaryEntry(year: 2024, markdown: '去年的今天去爬山了'),
+      SameDayDiaryEntry(year: 2023, markdown: '前年的今天写下了第一篇日记'),
+    ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DiaryPage(
+          localDataState: state(),
+          diaryNoteService: service,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('往年今日'), findsOneWidget);
+    expect(find.textContaining('2024 年'), findsOneWidget);
+    expect(find.textContaining('2023 年'), findsOneWidget);
   });
 }

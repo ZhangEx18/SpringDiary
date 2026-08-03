@@ -78,6 +78,43 @@ class DiaryNoteService {
     return dates;
   }
 
+  Future<List<SameDayDiaryEntry>> listSameDayInPastYears({
+    required String diaryNotesDirectory,
+    required DateTime date,
+    int maxYears = 10,
+  }) async {
+    final directory = Directory(diaryNotesDirectory);
+    if (!await directory.exists()) {
+      return const [];
+    }
+    final monthDay = '${date.month.toString().padLeft(2, '0')}-'
+        '${date.day.toString().padLeft(2, '0')}';
+    final results = <SameDayDiaryEntry>[];
+    final thisYear = date.year;
+
+    await for (final entity in directory.list()) {
+      if (entity is! File) {
+        continue;
+      }
+      final name = entity.uri.pathSegments.last;
+      if (!name.endsWith('.md')) {
+        continue;
+      }
+      final stem = name.substring(0, name.length - 3);
+      if (!stem.endsWith('-$monthDay')) {
+        continue;
+      }
+      final year = int.tryParse(stem.substring(0, 4));
+      if (year == null || year >= thisYear || thisYear - year > maxYears) {
+        continue;
+      }
+      final content = await File(entity.path).readAsString();
+      results.add(SameDayDiaryEntry(year: year, markdown: content));
+    }
+    results.sort((a, b) => b.year.compareTo(a.year));
+    return results;
+  }
+
   String diaryNotePath(String diaryNotesDirectory, DateTime date) {
     final separator = Platform.pathSeparator;
     final directory = diaryNotesDirectory.endsWith(separator)
@@ -174,4 +211,11 @@ class DiaryNoteService {
     final day = date.day.toString().padLeft(2, '0');
     return '$year-$month-$day';
   }
+}
+
+class SameDayDiaryEntry {
+  const SameDayDiaryEntry({required this.year, required this.markdown});
+
+  final int year;
+  final String markdown;
 }
