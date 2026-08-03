@@ -260,6 +260,40 @@ void main() {
     expect(exported, isNot(contains('不应包含2')));
   });
 
+  test('readEntriesInRange returns parsed entries with score and tags', () async {
+    const service = DiaryNoteService();
+    await service.saveEntry(
+      diaryNotesDirectory: temp.path,
+      date: DateTime(2026, 6, 15),
+      entry: const DiaryEntry(
+        mood: DiaryMood.joyful,
+        moodScore: 8,
+        tags: ['工作'],
+        reflection: '范围中',
+      ),
+    );
+    await service.saveEntry(
+      diaryNotesDirectory: temp.path,
+      date: DateTime(2026, 6, 20),
+      entry: const DiaryEntry(
+        mood: DiaryMood.down,
+        moodScore: 3,
+        tags: ['健康'],
+        reflection: '范围外',
+      ),
+    );
+
+    final entries = await service.readEntriesInRange(
+      diaryNotesDirectory: temp.path,
+      start: DateTime(2026, 6, 12),
+      end: DateTime(2026, 6, 18),
+    );
+
+    expect(entries.length, 1);
+    expect(entries.first.entry.moodScore, 8);
+    expect(entries.first.entry.tags, ['工作']);
+  });
+
   test('exportMonthMarkdown handles empty month', () async {
     const service = DiaryNoteService();
     final exported = await service.exportMonthMarkdown(

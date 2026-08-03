@@ -55,13 +55,20 @@ class _SettingsStatsPanelState extends State<SettingsStatsPanel> {
       start: range.start,
       end: range.end,
     );
+    final entriesFuture = const DiaryNoteService().readEntriesInRange(
+      diaryNotesDirectory: widget.localDataState.diaryNotesDirectory,
+      start: range.start,
+      end: range.end,
+    );
     final selected = await selectedFuture;
     final yearly = await yearlyFuture;
     final moods = await moodsFuture;
+    final entries = await entriesFuture;
     return _StatsPanelData(
       selected: selected,
       yearly: yearly,
       moods: moods,
+      entries: entries,
       range: range,
     );
   }
@@ -214,6 +221,7 @@ class _SettingsStatsPanelState extends State<SettingsStatsPanel> {
               subtitle: range.label,
               child: _DiaryMoodPanel(
                 moods: data?.moods ?? const [],
+                entries: data?.entries ?? const [],
                 onGenerateReport: _generateInsightReport,
               ),
             ),
@@ -250,12 +258,14 @@ class _StatsPanelData {
     required this.selected,
     required this.yearly,
     required this.moods,
+    required this.entries,
     required this.range,
   });
 
   final rust_stats.StatsSnapshot selected;
   final rust_stats.StatsSnapshot yearly;
   final List<rust_stats.MoodEntry> moods;
+  final List<DiaryEntryWithDate> entries;
   final _StatsDateRange range;
 }
 
@@ -488,9 +498,14 @@ class _StatsSectionCard extends StatelessWidget {
 }
 
 class _DiaryMoodPanel extends StatelessWidget {
-  const _DiaryMoodPanel({required this.moods, required this.onGenerateReport});
+  const _DiaryMoodPanel({
+    required this.moods,
+    required this.entries,
+    required this.onGenerateReport,
+  });
 
   final List<rust_stats.MoodEntry> moods;
+  final List<DiaryEntryWithDate> entries;
   final ValueChanged<int> onGenerateReport;
 
   static const _moodOrder = ['joyful', 'neutral', 'down', 'sad', 'angry'];
@@ -571,6 +586,12 @@ class _DiaryMoodPanel extends StatelessWidget {
             fontSize: 11,
           ),
         ),
+        if (entries.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          _MoodTrendChart(entries: entries),
+          const SizedBox(height: 12),
+          _TagCloud(entries: entries),
+        ],
         const SizedBox(height: 12),
         Wrap(
           spacing: 8,
@@ -579,6 +600,152 @@ class _DiaryMoodPanel extends StatelessWidget {
               OutlinedButton(
                 onPressed: () => onGenerateReport(days),
                 child: Text('生成 $days 天报告'),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _MoodTrendChart extends StatelessWidget {
+  const _MoodTrendChart({required this.entries});
+
+  final List<DiaryEntryWithDate> entries;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = AppTheme.colors(context);
+    if (entries.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final points = entries
+        .where((item) => item.entry.moodScore >= 1 && item.entry.moodScore <= 10)
+        .toList();
+    if (points.length < 2) {
+      return const SizedBox.shrink();
+    }
+    final maxScore = points
+        .fold<int>(1, (max, item) => item.entry.moodScore > max ? item.entry.moodScore : max);
+    final chartHeight = 120.0;
+    final chartWidth = 280.0;
+    final stepX = chartWidth / (points.length - 1);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '心情分趋势',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: colors.textMuted,
+            fontSize: 11,
+          ),
+        ),
+        const SizedBox(height: 6),
+        SizedBox(
+          width: chartWidth,
+          height: chartHeight,
+          child: CustomPaint(
+            painter: _MoodTrendPainter(
+              points: points,
+              maxScore: maxScore,
+              colors: colors,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MoodTrendPainter extends CustomPainter {
+  const _MoodTrendPainter({
+    required this.points,
+    required this.maxScore,
+    required this.colors,
+  });
+
+  final List<DiaryEntryWithDate> points;
+  final int maxScore;
+  final SpringThemeColors colors;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final chartWidth = size.width;
+    final chartHeight = size.height;
+    final stepX = chartWidth / (points.length - 1);
+    final linePaint = Paint()
+      ..color = colors.onAccent
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round;
+    final dotPaint = Paint()..color = colors.textMuted;
+
+    for (var i = 0; i < points.length; i++) {
+      final x = i * stepX;
+      final y = chartHeight - (points[i].entry.moodScore / 10) * chartHeight;
+      if (i > 0) {
+        final prevX = (i - 1) * stepX;
+        final prevY = chartHeight - (points[i - 1].entry.moodScore / 10) * chartHeight;
+        canvas.drawLine(Offset(prevX, prevY), Offset(x, y), linePaint);
+      }
+      canvas.drawCircle(Offset(x, y), 2.5, dotPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _MoodTrendPainter oldDelegate) =>
+      oldDelegate.points != points;
+}
+
+class _TagCloud extends StatelessWidget {
+  const _TagCloud({required this.entries});
+
+  final List<DiaryEntryWithDate> entries;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = AppTheme.colors(context);
+    final counts = <String, int>{};
+    for (final item in entries) {
+      for (final tag in item.entry.tags) {
+        counts[tag] = (counts[tag] ?? 0) + 1;
+      }
+    }
+    if (counts.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final sorted = counts.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '主题标签',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: colors.textMuted,
+            fontSize: 11,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final entry in sorted.take(12))
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: colors.surfaceHover,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  '${entry.key} ${entry.value}',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colors.textMuted,
+                    fontSize: 11,
+                  ),
+                ),
               ),
           ],
         ),

@@ -118,6 +118,31 @@ class DiaryNoteService {
   /// Concatenates all diary entries of a month into one Markdown document.
   /// Internal JSON metadata blocks are stripped; each day becomes an
   /// `## YYYY-MM-DD` section.
+  /// Returns parsed diary entries within [start, end] (inclusive), ordered by date.
+  Future<List<DiaryEntryWithDate>> readEntriesInRange({
+    required String diaryNotesDirectory,
+    required DateTime start,
+    required DateTime end,
+  }) async {
+    final results = <DiaryEntryWithDate>[];
+    for (var day = 0; day <= end.difference(start).inDays; day++) {
+      final date = start.add(Duration(days: day));
+      final markdown = await readDiaryMarkdown(
+        diaryNotesDirectory: diaryNotesDirectory,
+        date: date,
+      );
+      if (markdown.trim().isEmpty) {
+        continue;
+      }
+      final entry = extractEntry(markdown);
+      if (entry.isEmpty && entry.moodScore == 5 && entry.tags.isEmpty) {
+        continue;
+      }
+      results.add(DiaryEntryWithDate(date: date, entry: entry));
+    }
+    return results;
+  }
+
   Future<String> exportRangeMarkdown({
     required String diaryNotesDirectory,
     required DateTime start,
@@ -280,4 +305,11 @@ class SameDayDiaryEntry {
 
   final int year;
   final String markdown;
+}
+
+class DiaryEntryWithDate {
+  const DiaryEntryWithDate({required this.date, required this.entry});
+
+  final DateTime date;
+  final DiaryEntry entry;
 }
