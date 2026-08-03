@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../features/home/home_page.dart';
+import '../../features/diary/diary_page.dart';
 import '../../features/memory/memory_page.dart';
 import '../../features/notes/notes_page.dart';
 import '../../features/settings/settings_page.dart';
@@ -30,7 +31,7 @@ import '../services/wallpaper_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/wallpaper_layer.dart';
 
-enum AppSection { home, notes, memory, settings }
+enum AppSection { home, notes, diary, memory, settings }
 
 enum _StartupCloudSyncFailureKind { offline, temporary, permanent }
 
@@ -684,6 +685,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                               _handleLocalDataStateChanged(state);
                             },
                           ),
+                          DiaryPage(
+                            localDataState: _localDataState,
+                            noteService: widget.noteService,
+                          ),
                           MemoryPage(localDataState: _localDataState),
                           SettingsPage(
                             localDataState: _localDataState,
@@ -806,6 +811,13 @@ class GlobalSidebar extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           _SidebarButton(
+            icon: _SidebarIconType.notebookPen,
+            semanticLabel: '日记',
+            selected: selectedSection == AppSection.diary,
+            onPressed: () => onSectionSelected(AppSection.diary),
+          ),
+          const SizedBox(height: 8),
+          _SidebarButton(
             icon: _SidebarIconType.bookOpen,
             semanticLabel: '回忆书',
             selected: selectedSection == AppSection.memory,
@@ -919,12 +931,19 @@ IconData _legacyMaterialIcon(_SidebarIconType icon) {
   return switch (icon) {
     _SidebarIconType.layoutDashboard => Icons.dashboard_outlined,
     _SidebarIconType.stickyNote => Icons.sticky_note_2_outlined,
+    _SidebarIconType.notebookPen => Icons.edit_note,
     _SidebarIconType.bookOpen => Icons.menu_book_outlined,
     _SidebarIconType.settings => Icons.settings_outlined,
   };
 }
 
-enum _SidebarIconType { layoutDashboard, stickyNote, bookOpen, settings }
+enum _SidebarIconType {
+  layoutDashboard,
+  stickyNote,
+  notebookPen,
+  bookOpen,
+  settings,
+}
 
 class _SidebarLucideIcon extends StatelessWidget {
   const _SidebarLucideIcon({
@@ -1000,6 +1019,49 @@ class _SidebarLucidePainter extends CustomPainter {
           ..cubicTo(15 * sx, 8.55 * sy, 15.45 * sx, 9 * sy, 16 * sx, 9 * sy)
           ..lineTo(21 * sx, 9 * sy);
         canvas.drawPath(foldPath, paint);
+        break;
+      case _SidebarIconType.notebookPen:
+        final notebookPath = Path()
+          ..moveTo(13.4 * sx, 2 * sy)
+          ..lineTo(6 * sx, 2 * sy)
+          ..cubicTo(4.9 * sx, 2 * sy, 4 * sx, 2.9 * sy, 4 * sx, 4 * sy)
+          ..lineTo(4 * sx, 20 * sy)
+          ..cubicTo(4 * sx, 21.1 * sy, 4.9 * sy, 22 * sy, 6 * sx, 22 * sy)
+          ..lineTo(13.4 * sx, 22 * sy);
+        canvas.drawPath(notebookPath, paint);
+        canvas.drawLine(
+          Offset(9 * sx, 6 * sy),
+          Offset(11.5 * sx, 6 * sy),
+          paint,
+        );
+        canvas.drawLine(
+          Offset(9 * sx, 10 * sy),
+          Offset(11.5 * sx, 10 * sy),
+          paint,
+        );
+        canvas.drawLine(
+          Offset(9 * sx, 14 * sy),
+          Offset(10 * sx, 14 * sy),
+          paint,
+        );
+        final penPath = Path()
+          ..moveTo(13.5 * sx, 16.5 * sy)
+          ..lineTo(20.5 * sx, 9.5 * sy)
+          ..cubicTo(21.1 * sx, 8.9 * sy, 21.1 * sx, 7.9 * sy, 20.5 * sx, 7.3 * sy)
+          ..lineTo(16.7 * sx, 3.5 * sy)
+          ..cubicTo(16.1 * sx, 2.9 * sy, 15.1 * sx, 2.9 * sy, 14.5 * sx, 3.5 * sy)
+          ..lineTo(13.5 * sx, 4.5 * sy);
+        canvas.drawPath(penPath, paint);
+        canvas.drawLine(
+          Offset(13 * sx, 17 * sy),
+          Offset(13 * sx, 21 * sy),
+          paint,
+        );
+        canvas.drawLine(
+          Offset(11 * sx, 21 * sy),
+          Offset(15 * sx, 21 * sy),
+          paint,
+        );
         break;
       case _SidebarIconType.bookOpen:
         final bookPath = Path()

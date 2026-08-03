@@ -9,10 +9,12 @@ import '../../core/attachments/attachment_manager.dart';
 import '../../core/attachments/pending_image.dart';
 
 import '../../core/models/local_data_state.dart';
+import '../../core/models/diary_entry.dart';
 import '../../core/models/structured_note_section_config.dart';
 import '../../core/models/structured_work_note.dart';
 import '../../core/services/ai_client_service.dart';
 import '../../core/services/daily_note_service.dart';
+import '../../core/services/diary_note_service.dart';
 import '../../core/services/desktop_widget_controller.dart';
 import '../../core/services/home_overview_service.dart';
 import '../../core/services/image_file_types.dart';
@@ -65,6 +67,7 @@ class HomePage extends StatefulWidget {
     required this.localDataState,
     this.mockAiService = const MockAiService(),
     this.dailyNoteService = const DailyNoteService(),
+    this.diaryNoteService = const DiaryNoteService(),
     this.homeOverviewService = const HomeOverviewService(),
     this.aiClientService = const AiClientService(),
     this.pendingImageClipboardService = const PendingImageClipboardService(),
@@ -84,6 +87,7 @@ class HomePage extends StatefulWidget {
   final LocalDataState localDataState;
   final MockAiService mockAiService;
   final DailyNoteService dailyNoteService;
+  final DiaryNoteService diaryNoteService;
   final HomeOverviewService homeOverviewService;
   final AiClientService aiClientService;
   final PendingImageClipboardService pendingImageClipboardService;
@@ -776,6 +780,12 @@ class _HomePageState extends State<HomePage> {
                 activityStats: _activityStats,
                 desktopWidgetController: _desktopWidgetController,
                 levelProgressController: _levelProgressController,
+              ),
+              const SizedBox(height: 32),
+              _DiaryQuickCaptureCard(
+                diaryNotesDirectory:
+                    widget.localDataState.diaryNotesDirectory,
+                diaryNoteService: widget.diaryNoteService,
               ),
               const SizedBox(height: 32),
               _QuickCaptureCard(
@@ -1613,6 +1623,148 @@ class _HeatmapTooltip extends StatelessWidget {
   }
 }
 
+class _DiaryQuickCaptureCard extends StatefulWidget {
+  const _DiaryQuickCaptureCard({
+    required this.diaryNotesDirectory,
+    required this.diaryNoteService,
+  });
+
+  final String diaryNotesDirectory;
+  final DiaryNoteService diaryNoteService;
+
+  @override
+  State<_DiaryQuickCaptureCard> createState() => _DiaryQuickCaptureCardState();
+}
+
+class _DiaryQuickCaptureCardState extends State<_DiaryQuickCaptureCard> {
+  final TextEditingController _controller = TextEditingController();
+  DiaryMood _mood = DiaryMood.neutral;
+  bool _saving = false;
+  String? _savedMessage;
+  bool _expanded = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final text = _controller.text.trim();
+    if (text.isEmpty && _mood == DiaryMood.neutral) {
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _savedMessage = null;
+    });
+    try {
+      await widget.diaryNoteService.saveEntry(
+        diaryNotesDirectory: widget.diaryNotesDirectory,
+        date: DateTime.now(),
+        entry: DiaryEntry(mood: _mood),
+        rawMarkdown: text,
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _savedMessage = '已记录到今天的日记';
+        _controller.clear();
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _saving = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = AppTheme.colors(context);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          InkWell(
+            onTap: () => setState(() => _expanded = !_expanded),
+            borderRadius: BorderRadius.circular(8),
+            child: Row(
+              children: [
+                const Icon(Icons.edit_note, size: 18),
+                const SizedBox(width: 8),
+                Text('今日日记', style: Theme.of(context).textTheme.titleMedium),
+                const Spacer(),
+                if (_savedMessage != null)
+                  Text(
+                    _savedMessage!,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: colors.onAccent,
+                    ),
+                  ),
+                const SizedBox(width: 8),
+                Icon(
+                  _expanded
+                      ? Icons.keyboard_arrow_up
+                      : Icons.keyboard_arrow_down,
+                  size: 20,
+                ),
+              ],
+            ),
+          ),
+          if (_expanded) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: [
+                for (final mood in DiaryMood.values)
+                  ChoiceChip(
+                    visualDensity: VisualDensity.compact,
+                    label: Text('${mood.emoji} ${mood.label}'),
+                    selected: _mood == mood,
+                    onSelected: (_) => setState(() => _mood = mood),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _controller,
+              maxLines: 2,
+              decoration: const InputDecoration(
+                isDense: true,
+                border: OutlineInputBorder(),
+                hintText: '今天有什么想记下的？高光、情绪或一句随想…',
+              ),
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: FilledButton.icon(
+                onPressed: _saving ? null : _save,
+                icon: _saving
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.save_outlined),
+                label: const Text('写入日记'),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class _QuickCaptureCard extends StatelessWidget {
   const _QuickCaptureCard({
     required this.controller,
@@ -1783,6 +1935,7 @@ class _QuickCaptureCard extends StatelessWidget {
                   child: SizedBox(
                     height: 96,
                     child: TextField(
+                      key: const ValueKey('home-quick-capture-field'),
                       controller: controller,
                       focusNode: focusNode,
                       enabled: true,

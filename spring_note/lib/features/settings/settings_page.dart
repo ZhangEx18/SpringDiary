@@ -10,6 +10,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import '../../core/models/app_config.dart';
 import '../../core/models/cloud_sync_config.dart';
 import '../../core/models/desktop_widget_wallpaper_settings.dart';
+import '../../core/models/diary_entry.dart';
 import '../../core/models/local_data_state.dart';
 import '../../core/models/model_config.dart';
 import '../../core/models/model_reference.dart';
@@ -36,6 +37,7 @@ part 'settings_default_models_panel.dart';
 part 'settings_hotkeys_panel.dart';
 part 'settings_cloud_sync_panel.dart';
 part 'settings_storage_panel.dart';
+part 'settings_diary_panel.dart';
 part 'settings_about_panel.dart';
 part 'settings_shared_widgets.dart';
 
@@ -46,6 +48,7 @@ enum _SettingsSection {
   hotkeys('快捷键', _SettingsNavIconType.keyboard),
   cloudSync('云同步', _SettingsNavIconType.cloud),
   storage('存储管理', _SettingsNavIconType.storage),
+  diary('日记', _SettingsNavIconType.pen),
   stats('统计', _SettingsNavIconType.chart),
   about('关于', _SettingsNavIconType.info);
 
@@ -67,6 +70,7 @@ enum _SettingsNavIconType {
   image,
   layers,
   trash,
+  pen,
 }
 
 class SettingsPage extends StatefulWidget {
@@ -422,6 +426,7 @@ class _SettingsPageState extends State<SettingsPage> {
             : null,
         onScanChanged: _rememberStorageScan,
       ),
+      _SettingsSection.diary => const _DiaryPanel(),
       _SettingsSection.stats => SettingsStatsPanel(
         localDataState: widget.localDataState.copyWith(config: _config),
       ),
@@ -816,6 +821,20 @@ class _SettingsNavLucidePainter extends CustomPainter {
         );
         canvas.drawLine(point(10, 10.5), point(10.5, 16.5), paint);
         canvas.drawLine(point(14, 10.5), point(13.5, 16.5), paint);
+        break;
+      case _SettingsNavIconType.pen:
+        canvas.drawPath(
+          path([
+            point(13.5, 3.5),
+            point(20.5, 10.5),
+            point(8.5, 22.5),
+            point(3, 22),
+            point(2.5, 16.5),
+            point(13.5, 3.5),
+          ]),
+          paint,
+        );
+        canvas.drawLine(point(11, 6), point(18, 13), paint);
         break;
     }
   }
