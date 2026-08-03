@@ -191,4 +191,49 @@ void main() {
 
     expect(past, isEmpty);
   });
+
+  test('exportMonthMarkdown concatenates days and strips json blocks', () async {
+    const service = DiaryNoteService();
+    await service.saveEntry(
+      diaryNotesDirectory: temp.path,
+      date: DateTime(2026, 6, 1),
+      entry: const DiaryEntry(mood: DiaryMood.joyful, reflection: '六月第一天'),
+      rawMarkdown: '开始写日记',
+    );
+    await service.saveEntry(
+      diaryNotesDirectory: temp.path,
+      date: DateTime(2026, 6, 15),
+      entry: const DiaryEntry(mood: DiaryMood.down, reflection: '月中低落'),
+      rawMarkdown: '有点累',
+    );
+    await service.saveEntry(
+      diaryNotesDirectory: temp.path,
+      date: DateTime(2026, 7, 1),
+      entry: DiaryEntry.empty,
+    );
+
+    final exported = await service.exportMonthMarkdown(
+      diaryNotesDirectory: temp.path,
+      year: 2026,
+      month: 6,
+    );
+
+    expect(exported, contains('# 2026-06 日记'));
+    expect(exported, contains('## 2026-06-01'));
+    expect(exported, contains('开始写日记'));
+    expect(exported, contains('## 2026-06-15'));
+    expect(exported, contains('有点累'));
+    expect(exported, isNot(contains('```json')));
+    expect(exported, isNot(contains('2026-07-01')));
+  });
+
+  test('exportMonthMarkdown handles empty month', () async {
+    const service = DiaryNoteService();
+    final exported = await service.exportMonthMarkdown(
+      diaryNotesDirectory: temp.path,
+      year: 2020,
+      month: 1,
+    );
+    expect(exported, contains('# 2020-01 日记'));
+  });
 }
