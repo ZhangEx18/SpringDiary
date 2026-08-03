@@ -227,6 +227,39 @@ void main() {
     expect(exported, isNot(contains('2026-07-01')));
   });
 
+  test('exportRangeMarkdown concatenates entries within range', () async {
+    const service = DiaryNoteService();
+    await service.saveEntry(
+      diaryNotesDirectory: temp.path,
+      date: DateTime(2026, 6, 10),
+      entry: const DiaryEntry(mood: DiaryMood.joyful, reflection: '范围前'),
+      rawMarkdown: '不应包含',
+    );
+    await service.saveEntry(
+      diaryNotesDirectory: temp.path,
+      date: DateTime(2026, 6, 15),
+      entry: const DiaryEntry(mood: DiaryMood.neutral, reflection: '范围中'),
+      rawMarkdown: '应包含',
+    );
+    await service.saveEntry(
+      diaryNotesDirectory: temp.path,
+      date: DateTime(2026, 6, 20),
+      entry: const DiaryEntry(mood: DiaryMood.down, reflection: '范围后'),
+      rawMarkdown: '不应包含2',
+    );
+
+    final exported = await service.exportRangeMarkdown(
+      diaryNotesDirectory: temp.path,
+      start: DateTime(2026, 6, 12),
+      end: DateTime(2026, 6, 18),
+    );
+
+    expect(exported, contains('# 2026-06-12 至 2026-06-18 日记回顾'));
+    expect(exported, contains('应包含'));
+    expect(exported, isNot(contains('不应包含')));
+    expect(exported, isNot(contains('不应包含2')));
+  });
+
   test('exportMonthMarkdown handles empty month', () async {
     const service = DiaryNoteService();
     final exported = await service.exportMonthMarkdown(

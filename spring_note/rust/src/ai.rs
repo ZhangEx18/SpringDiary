@@ -175,6 +175,27 @@ pub struct DiaryEntryResult {
 }
 
 #[derive(Clone, Debug)]
+pub struct DiaryReviewRequest {
+    pub app_data_dir: String,
+    pub provider: AiProvider,
+    pub model: AiModel,
+    pub period_label: String,
+    pub diary_markdown: String,
+    pub api_log_enabled: bool,
+}
+
+#[derive(Clone, Debug)]
+pub struct DiaryReviewResult {
+    pub ok: bool,
+    pub content: String,
+    pub error_code: String,
+    pub error_message: String,
+    pub input_tokens: i32,
+    pub output_tokens: i32,
+    pub cached_tokens: i32,
+}
+
+#[derive(Clone, Debug)]
 pub struct MemoryToolChatRequest {
     pub app_data_dir: String,
     pub provider: AiProvider,
@@ -557,6 +578,32 @@ fn parse_diary_entry(result: &AiTextResult) -> DiaryEntryResult {
         raw_content: result.content.clone(),
         error_code: String::new(),
         error_message: String::new(),
+        input_tokens: result.input_tokens,
+        output_tokens: result.output_tokens,
+        cached_tokens: result.cached_tokens,
+    }
+}
+
+pub async fn generate_diary_review(request: DiaryReviewRequest) -> DiaryReviewResult {
+    let result = chat(AiChatRequest {
+        app_data_dir: request.app_data_dir,
+        provider: request.provider,
+        model: request.model,
+        system_prompt: DIARY_REVIEW_SYSTEM_PROMPT.to_string(),
+        user_prompt: format!(
+            "周期：{}\n\n日记内容：\n{}",
+            request.period_label, request.diary_markdown
+        ),
+        images: vec![],
+        purpose: "diary_review".to_string(),
+        api_log_enabled: request.api_log_enabled,
+    })
+    .await;
+    DiaryReviewResult {
+        ok: result.ok,
+        content: result.content,
+        error_code: result.error_code,
+        error_message: result.error_message,
         input_tokens: result.input_tokens,
         output_tokens: result.output_tokens,
         cached_tokens: result.cached_tokens,
@@ -1233,6 +1280,15 @@ const DIARY_ENTRY_SYSTEM_PROMPT: &str = r#"你是 SpringNote 的日记反思助�
 7. reflection 用一句自然、克制的话概括今天的状态或启发。
 8. growthPrompt 给出明天的一个小期许或行动建议，语气温和不教条。
 9. 严格基于用户输入，不虚构任何事件、人物、结果或情绪；输入过少时如实整理，不要为了填充而编造。"#;
+
+const DIARY_REVIEW_SYSTEM_PROMPT: &str = r#"你是 SpringNote 的日记回顾助手。请根据用户一段时间内的日记，生成一篇自然、真诚的回顾。
+回顾要求：
+1. 总结这段时间的情绪变化：心情是否波动、总体基调如何（可参考 moodScore 与 mood 标签）。
+2. 提炼 2-4 个高光时刻或值得记住的事。
+3. 指出反复出现的主题（参考 tags），以及可能需要注意的模式（如压力来源、作息）。
+4. 给出 1-2 条温和的、可执行的成长建议。
+5. 使用清晰 Markdown，语气像一位理解你的朋友，不要空洞套话。
+6. 只输出回顾正文，不要解释过程。"#;
 
 fn diary_entry_system_prompt(existing_markdown: &str) -> String {
     let existing = existing_markdown.trim();
