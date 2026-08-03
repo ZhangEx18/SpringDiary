@@ -35,9 +35,6 @@ const defaultDailyMergePrompt = '''你是 SpringNote 的日报整理助手。
 class AppConfig {
   const AppConfig({
     required this.wallpaperSettings,
-    required this.dailyWorkHours,
-    required this.dailySalary,
-    required this.industry,
     required this.appFont,
     required this.fontScale,
     required this.markdownSyntaxHighlightEnabled,
@@ -71,9 +68,6 @@ class AppConfig {
 
   final WallpaperSettings wallpaperSettings;
 
-  final double dailyWorkHours;
-  final double dailySalary;
-  final String industry;
   final String appFont;
   final double fontScale;
   final bool markdownSyntaxHighlightEnabled;
@@ -121,9 +115,6 @@ class AppConfig {
   factory AppConfig.defaults() {
     return AppConfig(
       wallpaperSettings: WallpaperSettings.defaults,
-      dailyWorkHours: 8,
-      dailySalary: 200,
-      industry: '互联网',
       appFont: 'system',
       fontScale: 100,
       markdownSyntaxHighlightEnabled: true,
@@ -168,9 +159,6 @@ class AppConfig {
               (json['wallpaperSettings'] as Map).cast<String, dynamic>(),
             )
           : WallpaperSettings.defaults,
-      dailyWorkHours: _readDouble(json['dailyWorkHours'], 8),
-      dailySalary: _readDouble(json['dailySalary'], 200),
-      industry: json['industry'] as String? ?? '互联网',
       appFont: json['appFont'] as String? ?? 'system',
       fontScale: _readDouble(json['fontScale'], 100),
       markdownSyntaxHighlightEnabled:
@@ -243,9 +231,6 @@ class AppConfig {
   Map<String, Object?> toJson() {
     return {
       'wallpaperSettings': wallpaperSettings.toJson(),
-      'dailyWorkHours': dailyWorkHours,
-      'dailySalary': dailySalary,
-      'industry': industry,
       'appFont': appFont,
       'fontScale': fontScale,
       'markdownSyntaxHighlightEnabled': markdownSyntaxHighlightEnabled,
@@ -282,9 +267,6 @@ class AppConfig {
 
   AppConfig copyWith({
     WallpaperSettings? wallpaperSettings,
-    double? dailyWorkHours,
-    double? dailySalary,
-    String? industry,
     String? appFont,
     double? fontScale,
     bool? markdownSyntaxHighlightEnabled,
@@ -320,9 +302,6 @@ class AppConfig {
         nextShowTrayIcon && (closeToTray ?? this.closeToTray);
     return AppConfig(
       wallpaperSettings: wallpaperSettings ?? this.wallpaperSettings,
-      dailyWorkHours: dailyWorkHours ?? this.dailyWorkHours,
-      dailySalary: dailySalary ?? this.dailySalary,
-      industry: industry ?? this.industry,
       appFont: appFont ?? this.appFont,
       fontScale: fontScale ?? this.fontScale,
       markdownSyntaxHighlightEnabled:

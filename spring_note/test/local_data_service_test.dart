@@ -283,7 +283,7 @@ void main() {
     final state = await service.initialize();
     final provider = ProviderConfig.template('OpenAI');
     final config = state.config.copyWith(
-      dailyWorkHours: 9,
+      appFont: 'TestFont',
       apiLogEnabled: true,
       providers: [provider],
       defaultModels: {
@@ -295,7 +295,7 @@ void main() {
     await service.saveConfig(config);
     final reloaded = await service.readConfig();
 
-    expect(reloaded.dailyWorkHours, 9);
+    expect(reloaded.appFont, 'TestFont');
     expect(reloaded.apiLogEnabled, isTrue);
     expect(reloaded.providers, hasLength(1));
     expect(reloaded.providers.first.name, 'OpenAI');
@@ -343,7 +343,7 @@ void main() {
     ).writeAsString('stale derived index');
     final migrated = await service.migrateDataDirectory(
       currentState: state.copyWith(
-        config: state.config.copyWith(dailyWorkHours: 7),
+        config: state.config.copyWith(appFont: 'MigratedFont'),
       ),
       targetDirectory: target.path,
     );
@@ -368,7 +368,7 @@ void main() {
 
     final reinitialized = await service.initialize();
     expect(reinitialized.dataDirectory, target.absolute.path);
-    expect(reinitialized.config.dailyWorkHours, 7);
+    expect(reinitialized.config.appFont, 'MigratedFont');
   });
 
   test(
@@ -478,7 +478,7 @@ void main() {
       final state = await service.initialize();
       final configFile = File(state.configPath);
       final configJson = jsonDecode(await configFile.readAsString()) as Map;
-      configJson['dailyWorkHours'] = 6;
+      configJson['appFont'] = 'FromJsonFont';
       const encoder = JsonEncoder.withIndent('  ');
       await configFile.writeAsString(
         '${encoder.convert(configJson)}\n  }\n}\n',
@@ -486,7 +486,7 @@ void main() {
 
       final reinitialized = await service.initialize();
 
-      expect(reinitialized.config.dailyWorkHours, 6);
+      expect(reinitialized.config.appFont, 'FromJsonFont');
       expect(
         await configFile.parent.list().any(
           (entity) =>
@@ -565,17 +565,17 @@ void main() {
       await target.create(recursive: true);
       await File(
         '${target.path}${Platform.pathSeparator}config.json',
-      ).writeAsString('{"dailyWorkHours": 6, "showTrayIcon": false}\n');
+      ).writeAsString('{"appFont": "LegacyFont", "showTrayIcon": false}\n');
 
       final migrated = await service.migrateDataDirectory(
         currentState: state.copyWith(
-          config: state.config.copyWith(dailyWorkHours: 9),
+          config: state.config.copyWith(appFont: 'MigratedFont'),
         ),
         targetDirectory: target.path,
       );
 
       expect(migrated.dataDirectory, target.absolute.path);
-      expect(migrated.config.dailyWorkHours, 6);
+      expect(migrated.config.appFont, 'LegacyFont');
       expect(migrated.config.showTrayIcon, isFalse);
       expect(migrated.config.customDataDirectory, target.absolute.path);
       expect(access.savedBookmarks, contains(target.absolute.path));
@@ -583,7 +583,7 @@ void main() {
         await File(
           '${target.path}${Platform.pathSeparator}config.json',
         ).readAsString(),
-        contains('"dailyWorkHours": 6'),
+        contains('"appFont": "LegacyFont"'),
       );
     },
   );
