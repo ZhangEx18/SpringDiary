@@ -514,7 +514,7 @@ class _SelectedDayDetailState extends State<_SelectedDayDetail> {
               children: [
                 const Icon(Icons.sentiment_satisfied_outlined, size: 16),
                 const SizedBox(width: 8),
-                Text('心情分 ${_moodScore} / 10'),
+                Text('心情分 $_moodScore / 10'),
                 Expanded(
                   child: Slider(
                     value: _moodScore.toDouble(),
