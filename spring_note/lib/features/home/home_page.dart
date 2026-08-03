@@ -20,6 +20,8 @@ import '../../core/services/home_overview_service.dart';
 import '../../core/services/image_file_types.dart';
 import '../../core/services/level_progress_controller.dart';
 import '../../core/services/mock_ai_service.dart';
+import '../../core/models/app_config.dart';
+import '../../src/rust/ai.dart' as rust_ai;
 import '../../core/services/pending_image_clipboard_service.dart';
 import '../../core/services/pending_image_service.dart';
 import '../../core/services/stats_service.dart';
@@ -786,6 +788,10 @@ class _HomePageState extends State<HomePage> {
                 diaryNotesDirectory:
                     widget.localDataState.diaryNotesDirectory,
                 diaryNoteService: widget.diaryNoteService,
+                aiClientService: widget.aiClientService,
+                mockAiService: widget.mockAiService,
+                appDataDir: widget.localDataState.dataDirectory,
+                config: widget.localDataState.config,
               ),
               const SizedBox(height: 32),
               _QuickCaptureCard(
@@ -1627,10 +1633,18 @@ class _DiaryQuickCaptureCard extends StatefulWidget {
   const _DiaryQuickCaptureCard({
     required this.diaryNotesDirectory,
     required this.diaryNoteService,
+    required this.aiClientService,
+    required this.mockAiService,
+    required this.appDataDir,
+    required this.config,
   });
 
   final String diaryNotesDirectory;
   final DiaryNoteService diaryNoteService;
+  final AiClientService aiClientService;
+  final MockAiService mockAiService;
+  final String appDataDir;
+  final AppConfig config;
 
   @override
   State<_DiaryQuickCaptureCard> createState() => _DiaryQuickCaptureCardState();
@@ -1659,10 +1673,19 @@ class _DiaryQuickCaptureCardState extends State<_DiaryQuickCaptureCard> {
       _savedMessage = null;
     });
     try {
+      final generated = await _generateEntry(text);
+      final entry = generated != null
+          ? DiaryEntry(
+              mood: _mood,
+              highlights: generated.highlights,
+              reflection: generated.reflection,
+              growthPrompt: generated.growthPrompt,
+            )
+          : DiaryEntry(mood: _mood);
       await widget.diaryNoteService.saveEntry(
         diaryNotesDirectory: widget.diaryNotesDirectory,
         date: DateTime.now(),
-        entry: DiaryEntry(mood: _mood),
+        entry: entry,
         rawMarkdown: text,
       );
       if (!mounted) {
@@ -1671,12 +1694,43 @@ class _DiaryQuickCaptureCardState extends State<_DiaryQuickCaptureCard> {
       setState(() {
         _savedMessage = '已记录到今天的日记';
         _controller.clear();
+        _mood = DiaryMood.neutral;
       });
     } finally {
       if (mounted) {
         setState(() => _saving = false);
       }
     }
+  }
+
+  Future<rust_ai.DiaryEntryResult?> _generateEntry(String text) async {
+    final existing = await widget.diaryNoteService.readDiaryMarkdown(
+      diaryNotesDirectory: widget.diaryNotesDirectory,
+      date: DateTime.now(),
+    );
+    final aiEntry = await widget.aiClientService.generateDiaryEntry(
+      appDataDir: widget.appDataDir,
+      config: widget.config,
+      rawInput: text,
+      existingMarkdown: existing,
+    );
+    if (aiEntry != null && aiEntry.ok) {
+      return aiEntry;
+    }
+    final mock = widget.mockAiService.createDiaryEntry(text);
+    return rust_ai.DiaryEntryResult(
+      ok: true,
+      mood: mock.mood.name,
+      highlights: mock.highlights,
+      reflection: mock.reflection,
+      growthPrompt: mock.growthPrompt,
+      rawContent: '',
+      errorCode: '',
+      errorMessage: '',
+      inputTokens: 0,
+      outputTokens: 0,
+      cachedTokens: 0,
+    );
   }
 
   @override

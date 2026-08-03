@@ -52,6 +52,7 @@ class AppConfig {
     required this.desktopWidgetWallpaperSettings,
     required this.showTrayIcon,
     required this.closeToTray,
+    required this.includeDiaryInWeeklyReport,
     required this.memorySearchLimit,
     required this.memoryResultMaxCharacters,
     required this.memoryWeekDailyNoteLimit,
@@ -87,6 +88,7 @@ class AppConfig {
   final DesktopWidgetWallpaperSettings desktopWidgetWallpaperSettings;
   final bool showTrayIcon;
   final bool closeToTray;
+  final bool includeDiaryInWeeklyReport;
   final double memorySearchLimit;
   final double memoryResultMaxCharacters;
   final double memoryWeekDailyNoteLimit;
@@ -136,6 +138,7 @@ class AppConfig {
       desktopWidgetWallpaperSettings: DesktopWidgetWallpaperSettings.defaults,
       showTrayIcon: true,
       closeToTray: true,
+      includeDiaryInWeeklyReport: false,
       memorySearchLimit: 12,
       memoryResultMaxCharacters: 3600,
       memoryWeekDailyNoteLimit: 31,
@@ -195,6 +198,8 @@ class AppConfig {
       closeToTray:
           (json['showTrayIcon'] as bool? ?? true) &&
           (json['closeToTray'] as bool? ?? true),
+      includeDiaryInWeeklyReport:
+          json['includeDiaryInWeeklyReport'] as bool? ?? false,
       memorySearchLimit: _readDouble(json['memorySearchLimit'], 12),
       memoryResultMaxCharacters: _readDouble(
         json['memoryResultMaxCharacters'],
@@ -255,6 +260,7 @@ class AppConfig {
       'desktopWidgetWallpaperSettings': desktopWidgetWallpaperSettings.toJson(),
       'showTrayIcon': showTrayIcon,
       'closeToTray': closeToTray,
+      'includeDiaryInWeeklyReport': includeDiaryInWeeklyReport,
       'memorySearchLimit': memorySearchLimit,
       'memoryResultMaxCharacters': memoryResultMaxCharacters,
       'memoryWeekDailyNoteLimit': memoryWeekDailyNoteLimit,
@@ -293,6 +299,7 @@ class AppConfig {
     DesktopWidgetWallpaperSettings? desktopWidgetWallpaperSettings,
     bool? showTrayIcon,
     bool? closeToTray,
+    bool? includeDiaryInWeeklyReport,
     double? memorySearchLimit,
     double? memoryResultMaxCharacters,
     double? memoryWeekDailyNoteLimit,
@@ -337,6 +344,8 @@ class AppConfig {
           desktopWidgetWallpaperSettings ?? this.desktopWidgetWallpaperSettings,
       showTrayIcon: nextShowTrayIcon,
       closeToTray: nextCloseToTray,
+      includeDiaryInWeeklyReport:
+          includeDiaryInWeeklyReport ?? this.includeDiaryInWeeklyReport,
       memorySearchLimit: memorySearchLimit ?? this.memorySearchLimit,
       memoryResultMaxCharacters:
           memoryResultMaxCharacters ?? this.memoryResultMaxCharacters,

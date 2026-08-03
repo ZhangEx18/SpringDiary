@@ -38,21 +38,28 @@ class _SettingsStatsPanelState extends State<SettingsStatsPanel> {
   Future<_StatsPanelData> _loadStats() async {
     final today = _dateOnly(DateTime.now());
     final range = _rangeFor(_rangePreset, today);
-    final results = await Future.wait([
-      _statsService.readSnapshot(
-        localDataState: widget.localDataState,
-        start: range.start,
-        end: range.end,
-      ),
-      _statsService.readSnapshot(
-        localDataState: widget.localDataState,
-        start: DateTime(today.year - 1, today.month, today.day),
-        end: today,
-      ),
-    ]);
+    final selectedFuture = _statsService.readSnapshot(
+      localDataState: widget.localDataState,
+      start: range.start,
+      end: range.end,
+    );
+    final yearlyFuture = _statsService.readSnapshot(
+      localDataState: widget.localDataState,
+      start: DateTime(today.year - 1, today.month, today.day),
+      end: today,
+    );
+    final moodsFuture = _statsService.readMoodDistribution(
+      localDataState: widget.localDataState,
+      start: range.start,
+      end: range.end,
+    );
+    final selected = await selectedFuture;
+    final yearly = await yearlyFuture;
+    final moods = await moodsFuture;
     return _StatsPanelData(
-      selected: results[0],
-      yearly: results[1],
+      selected: selected,
+      yearly: yearly,
+      moods: moods,
       range: range,
     );
   }
@@ -155,6 +162,11 @@ class _SettingsStatsPanelState extends State<SettingsStatsPanel> {
               child: _StatsMetricsGrid(snapshot: selected),
             ),
             _StatsSectionCard(
+              title: '日记面板',
+              subtitle: range.label,
+              child: _DiaryMoodPanel(moods: data?.moods ?? const []),
+            ),
+            _StatsSectionCard(
               title: '用量趋势',
               subtitle: range.label,
               child: _UsageTrendChart(snapshot: selected, range: range),
@@ -186,11 +198,13 @@ class _StatsPanelData {
   const _StatsPanelData({
     required this.selected,
     required this.yearly,
+    required this.moods,
     required this.range,
   });
 
   final rust_stats.StatsSnapshot selected;
   final rust_stats.StatsSnapshot yearly;
+  final List<rust_stats.MoodEntry> moods;
   final _StatsDateRange range;
 }
 
@@ -418,6 +432,94 @@ class _StatsSectionCard extends StatelessWidget {
           child,
         ],
       ),
+    );
+  }
+}
+
+class _DiaryMoodPanel extends StatelessWidget {
+  const _DiaryMoodPanel({required this.moods});
+
+  final List<rust_stats.MoodEntry> moods;
+
+  static const _moodOrder = ['joyful', 'neutral', 'down', 'sad', 'angry'];
+  static const _moodEmoji = {
+    'joyful': '😊',
+    'neutral': '😐',
+    'down': '😔',
+    'sad': '😢',
+    'angry': '😠',
+  };
+  static const _moodLabel = {
+    'joyful': '开心',
+    'neutral': '平静',
+    'down': '低落',
+    'sad': '难过',
+    'angry': '生气',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = AppTheme.colors(context);
+    final counts = <String, int>{};
+    for (final mood in moods) {
+      counts[mood.mood] = (counts[mood.mood] ?? 0) + 1;
+    }
+    if (counts.isEmpty) {
+      return Text(
+        '暂无日记记录，去首页写下第一篇日记吧。',
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: colors.textSubtle,
+        ),
+      );
+    }
+
+    final total = counts.values.fold<int>(0, (sum, value) => sum + value);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final key in _moodOrder)
+          if (counts[key] != null) ...[
+            Row(
+              children: [
+                Text(
+                  '${_moodEmoji[key]} ${_moodLabel[key]}',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: colors.textMuted,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(999),
+                    child: LinearProgressIndicator(
+                      value: counts[key]! / total,
+                      minHeight: 8,
+                      backgroundColor: colors.surfaceMuted,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  '${counts[key]}',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: colors.text,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+          ],
+        Text(
+          '共 $total 篇日记',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: colors.textSubtle,
+            fontSize: 11,
+          ),
+        ),
+      ],
     );
   }
 }

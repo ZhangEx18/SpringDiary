@@ -82,6 +82,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   DailyMergeRequest dco_decode_box_autoadd_daily_merge_request(dynamic raw);
 
   @protected
+  DiaryEntryRequest dco_decode_box_autoadd_diary_entry_request(dynamic raw);
+
+  @protected
   FimCompleteRequest dco_decode_box_autoadd_fim_complete_request(dynamic raw);
 
   @protected
@@ -127,6 +130,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   DeleteModifyConflict dco_decode_delete_modify_conflict(dynamic raw);
+
+  @protected
+  DiaryEntryRequest dco_decode_diary_entry_request(dynamic raw);
+
+  @protected
+  DiaryEntryResult dco_decode_diary_entry_result(dynamic raw);
 
   @protected
   double dco_decode_f_64(dynamic raw);
@@ -341,6 +350,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  DiaryEntryRequest sse_decode_box_autoadd_diary_entry_request(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   FimCompleteRequest sse_decode_box_autoadd_fim_complete_request(
     SseDeserializer deserializer,
   );
@@ -394,6 +408,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   DeleteModifyConflict sse_decode_delete_modify_conflict(
     SseDeserializer deserializer,
   );
+
+  @protected
+  DiaryEntryRequest sse_decode_diary_entry_request(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  DiaryEntryResult sse_decode_diary_entry_result(SseDeserializer deserializer);
 
   @protected
   double sse_decode_f_64(SseDeserializer deserializer);
@@ -660,6 +682,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_diary_entry_request(
+    DiaryEntryRequest self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_fim_complete_request(
     FimCompleteRequest self,
     SseSerializer serializer,
@@ -731,6 +759,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_delete_modify_conflict(
     DeleteModifyConflict self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_diary_entry_request(
+    DiaryEntryRequest self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_diary_entry_result(
+    DiaryEntryResult self,
     SseSerializer serializer,
   );
 

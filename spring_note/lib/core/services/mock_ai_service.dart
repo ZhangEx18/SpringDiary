@@ -1,8 +1,55 @@
+import '../models/diary_entry.dart';
 import '../models/structured_note_section_config.dart';
 import '../models/structured_work_note.dart';
 
 class MockAiService {
   const MockAiService();
+
+  DiaryEntry createDiaryEntry(String input) {
+    final trimmed = input.trim();
+    final lines = trimmed
+        .split(RegExp(r'[\r\n。；;]+'))
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList();
+    if (lines.isEmpty && trimmed.isNotEmpty) {
+      lines.add(trimmed);
+    }
+
+    final mood = _inferMood(trimmed);
+    return DiaryEntry(
+      mood: mood,
+      highlights: lines.take(3).toList(),
+      reflection: _defaultReflection(mood),
+      growthPrompt: '保持记录，明天继续观察自己的状态。',
+    );
+  }
+
+  DiaryMood _inferMood(String text) {
+    if (_matches(text, ['开心', '高兴', '棒', '顺利', '爽', '满意', '收获'])) {
+      return DiaryMood.joyful;
+    }
+    if (_matches(text, ['累', '低落', '烦', '焦虑', '压力', '沮丧'])) {
+      return DiaryMood.down;
+    }
+    if (_matches(text, ['难过', '哭', '伤心', '委屈'])) {
+      return DiaryMood.sad;
+    }
+    if (_matches(text, ['生气', '愤怒', '气死', '火大'])) {
+      return DiaryMood.angry;
+    }
+    return DiaryMood.neutral;
+  }
+
+  String _defaultReflection(DiaryMood mood) {
+    return switch (mood) {
+      DiaryMood.joyful => '今天是值得记住的一天。',
+      DiaryMood.down => '今天有些疲惫，允许自己慢一点。',
+      DiaryMood.sad => '今天不太容易，抱抱自己。',
+      DiaryMood.angry => '今天有情绪波动，先深呼吸。',
+      DiaryMood.neutral => '今天平淡但真实。',
+    };
+  }
 
   StructuredWorkNote structureWorkNote(
     String input, {

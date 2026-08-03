@@ -248,6 +248,104 @@ class DailyMergeRequest {
           apiLogEnabled == other.apiLogEnabled;
 }
 
+class DiaryEntryRequest {
+  final String appDataDir;
+  final AiProvider provider;
+  final AiModel model;
+  final String rawInput;
+  final String existingMarkdown;
+  final bool apiLogEnabled;
+
+  const DiaryEntryRequest({
+    required this.appDataDir,
+    required this.provider,
+    required this.model,
+    required this.rawInput,
+    required this.existingMarkdown,
+    required this.apiLogEnabled,
+  });
+
+  @override
+  int get hashCode =>
+      appDataDir.hashCode ^
+      provider.hashCode ^
+      model.hashCode ^
+      rawInput.hashCode ^
+      existingMarkdown.hashCode ^
+      apiLogEnabled.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DiaryEntryRequest &&
+          runtimeType == other.runtimeType &&
+          appDataDir == other.appDataDir &&
+          provider == other.provider &&
+          model == other.model &&
+          rawInput == other.rawInput &&
+          existingMarkdown == other.existingMarkdown &&
+          apiLogEnabled == other.apiLogEnabled;
+}
+
+class DiaryEntryResult {
+  final bool ok;
+  final String mood;
+  final List<String> highlights;
+  final String reflection;
+  final String growthPrompt;
+  final String rawContent;
+  final String errorCode;
+  final String errorMessage;
+  final int inputTokens;
+  final int outputTokens;
+  final int cachedTokens;
+
+  const DiaryEntryResult({
+    required this.ok,
+    required this.mood,
+    required this.highlights,
+    required this.reflection,
+    required this.growthPrompt,
+    required this.rawContent,
+    required this.errorCode,
+    required this.errorMessage,
+    required this.inputTokens,
+    required this.outputTokens,
+    required this.cachedTokens,
+  });
+
+  @override
+  int get hashCode =>
+      ok.hashCode ^
+      mood.hashCode ^
+      highlights.hashCode ^
+      reflection.hashCode ^
+      growthPrompt.hashCode ^
+      rawContent.hashCode ^
+      errorCode.hashCode ^
+      errorMessage.hashCode ^
+      inputTokens.hashCode ^
+      outputTokens.hashCode ^
+      cachedTokens.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DiaryEntryResult &&
+          runtimeType == other.runtimeType &&
+          ok == other.ok &&
+          mood == other.mood &&
+          highlights == other.highlights &&
+          reflection == other.reflection &&
+          growthPrompt == other.growthPrompt &&
+          rawContent == other.rawContent &&
+          errorCode == other.errorCode &&
+          errorMessage == other.errorMessage &&
+          inputTokens == other.inputTokens &&
+          outputTokens == other.outputTokens &&
+          cachedTokens == other.cachedTokens;
+}
+
 class FimCompleteRequest {
   final String appDataDir;
   final AiProvider provider;

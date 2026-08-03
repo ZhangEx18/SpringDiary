@@ -57,6 +57,22 @@ class StatsService {
     }
   }
 
+  Future<List<rust_stats.MoodEntry>> readMoodDistribution({
+    required LocalDataState localDataState,
+    required DateTime start,
+    required DateTime end,
+  }) async {
+    try {
+      return await rust_stats_api.getMoodDistribution(
+        appDataDir: localDataState.dataDirectory,
+        startDate: formatDate(start),
+        endDate: formatDate(end),
+      );
+    } catch (_) {
+      return const [];
+    }
+  }
+
   static String formatDate(DateTime date) {
     final year = date.year.toString().padLeft(4, '0');
     final month = date.month.toString().padLeft(2, '0');
