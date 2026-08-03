@@ -168,7 +168,7 @@ class _ActivityPreview extends StatelessWidget {
         Row(
           children: [
             Text(
-              'ACTIVITY INPUT',
+              'DIARY ACTIVITY',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: colors.textSubtle,
                 fontSize: 11,
@@ -178,7 +178,7 @@ class _ActivityPreview extends StatelessWidget {
             ),
             const Spacer(),
             Text(
-              '最近活跃',
+              '写日记',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: dark ? const Color(0xFF34D399) : const Color(0xFF10B981),
                 fontSize: 11,
@@ -202,15 +202,9 @@ class _ActivityPreview extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _ActivityMetric(label: '本周总结', value: '$weekCount 次'),
+                _ActivityMetric(label: '本周日记', value: '$weekCount 篇'),
                 const SizedBox(width: 24),
                 _ActivityMetric(label: '连续记录', value: '$streak 天'),
-                const SizedBox(width: 24),
-                _ActivityMetric(
-                  label: '上次同步',
-                  value: '刚刚',
-                  valueColor: colors.textSubtle,
-                ),
               ],
             ),
           ),
@@ -263,15 +257,10 @@ class _ActivityPreview extends StatelessWidget {
 }
 
 class _ActivityMetric extends StatelessWidget {
-  const _ActivityMetric({
-    required this.label,
-    required this.value,
-    this.valueColor,
-  });
+  const _ActivityMetric({required this.label, required this.value});
 
   final String label;
   final String value;
-  final Color? valueColor;
 
   @override
   Widget build(BuildContext context) {
@@ -283,7 +272,7 @@ class _ActivityMetric extends StatelessWidget {
           TextSpan(
             text: value,
             style: TextStyle(
-              color: valueColor ?? colors.textMuted,
+              color: colors.textMuted,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -565,7 +554,7 @@ class _HeatmapTooltip extends StatelessWidget {
       style: baseStyle,
       children: [
         TextSpan(
-          text: '$count ${count == 1 ? 'commit' : 'commits'}',
+          text: '$count ${count == 1 ? '篇' : '篇'}',
           style: TextStyle(color: colors.text, fontWeight: FontWeight.w700),
         ),
         TextSpan(
