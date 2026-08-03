@@ -139,4 +139,56 @@ void main() {
     final entry = DiaryNoteService.extractEntry('```json\nnot-json\n```');
     expect(entry.isEmpty, isTrue);
   });
+
+  test('listSameDayInPastYears returns previous years same month-day', () async {
+    const service = DiaryNoteService();
+    await service.saveEntry(
+      diaryNotesDirectory: temp.path,
+      date: DateTime(2023, 6, 18),
+      entry: const DiaryEntry(mood: DiaryMood.joyful, reflection: '2023 年'),
+    );
+    await service.saveEntry(
+      diaryNotesDirectory: temp.path,
+      date: DateTime(2024, 6, 18),
+      entry: const DiaryEntry(mood: DiaryMood.neutral, reflection: '2024 年'),
+    );
+    await service.saveEntry(
+      diaryNotesDirectory: temp.path,
+      date: DateTime(2024, 7, 18),
+      entry: DiaryEntry.empty,
+    );
+
+    final past = await service.listSameDayInPastYears(
+      diaryNotesDirectory: temp.path,
+      date: DateTime(2025, 6, 18),
+    );
+
+    expect(past.length, 2);
+    expect(past[0].year, 2024);
+    expect(past[0].markdown, contains('2024 年'));
+    expect(past[1].year, 2023);
+    expect(past[1].markdown, contains('2023 年'));
+  });
+
+  test('listSameDayInPastYears excludes current year and beyond maxYears', () async {
+    const service = DiaryNoteService();
+    await service.saveEntry(
+      diaryNotesDirectory: temp.path,
+      date: DateTime(2025, 6, 18),
+      entry: const DiaryEntry(mood: DiaryMood.joyful, reflection: '今年'),
+    );
+    await service.saveEntry(
+      diaryNotesDirectory: temp.path,
+      date: DateTime(2000, 6, 18),
+      entry: const DiaryEntry(mood: DiaryMood.neutral, reflection: '太久远'),
+    );
+
+    final past = await service.listSameDayInPastYears(
+      diaryNotesDirectory: temp.path,
+      date: DateTime(2025, 6, 18),
+      maxYears: 5,
+    );
+
+    expect(past, isEmpty);
+  });
 }

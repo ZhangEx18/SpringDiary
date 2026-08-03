@@ -298,6 +298,7 @@ class _SelectedDayDetail extends StatefulWidget {
 class _SelectedDayDetailState extends State<_SelectedDayDetail> {
   late final TextEditingController _contentController;
   late DiaryMood _selectedMood;
+  List<SameDayDiaryEntry> _pastEntries = const [];
 
   @override
   void initState() {
@@ -305,6 +306,7 @@ class _SelectedDayDetailState extends State<_SelectedDayDetail> {
     _contentController = TextEditingController();
     _selectedMood = widget.entry?.mood ?? DiaryMood.neutral;
     _loadMarkdown();
+    _loadPastEntries();
   }
 
   @override
@@ -313,6 +315,7 @@ class _SelectedDayDetailState extends State<_SelectedDayDetail> {
     if (StatsDateKey.of(oldWidget.date) != StatsDateKey.of(widget.date)) {
       _selectedMood = widget.entry?.mood ?? DiaryMood.neutral;
       _loadMarkdown();
+      _loadPastEntries();
     }
   }
 
@@ -333,6 +336,17 @@ class _SelectedDayDetailState extends State<_SelectedDayDetail> {
     _contentController.text = markdown
         .replaceAll(RegExp(r'```json\s*{.*?}\s*```', dotAll: true), '')
         .trim();
+  }
+
+  Future<void> _loadPastEntries() async {
+    final past = await widget.diaryNoteService.listSameDayInPastYears(
+      diaryNotesDirectory: widget.diaryNotesDirectory,
+      date: widget.date,
+    );
+    if (!mounted) {
+      return;
+    }
+    setState(() => _pastEntries = past);
   }
 
   @override
@@ -377,6 +391,44 @@ class _SelectedDayDetailState extends State<_SelectedDayDetail> {
                   ),
               ],
             ),
+            if (_pastEntries.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Text(
+                '往年今日',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 8),
+              for (final past in _pastEntries)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: colors.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${past.year} 年 ${widget.date.month} 月 ${widget.date.day} 日',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: colors.onSurfaceVariant,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _pastPreview(past.markdown),
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+            ],
             const SizedBox(height: 4),
             if (widget.entry != null && widget.entry!.reflection.isNotEmpty)
               Text(
@@ -422,6 +474,13 @@ class _SelectedDayDetailState extends State<_SelectedDayDetail> {
         ),
       ),
     );
+  }
+
+  String _pastPreview(String markdown) {
+    final withoutJson = markdown
+        .replaceAll(RegExp(r'```json\s*{.*?}\s*```', dotAll: true), '')
+        .trim();
+    return withoutJson.replaceAll(RegExp(r'^#+\s*.*$', multiLine: true), '').trim();
   }
 
   Future<void> _saveRaw() async {

@@ -1097,7 +1097,8 @@ mod tests {
         let search_result = search(daily.to_str().unwrap(), "daily", "搜索算法");
         assert!(search_result.ok, "{}", search_result.error_message);
         assert_eq!(search_result.notes.len(), 1);
-        assert_eq!(search_result.notes[0].path, path_key(&first));
+        let canonical_first = fs::canonicalize(&first).unwrap();
+        assert_eq!(search_result.notes[0].path, path_key(&canonical_first));
 
         let bigram_query = search(daily.to_str().unwrap(), "daily", "搜索");
         assert!(bigram_query.ok, "{}", bigram_query.error_message);
