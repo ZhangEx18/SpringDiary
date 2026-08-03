@@ -283,15 +283,14 @@ jobs:
         run: flutter pub get
 
       - name: Configure Sparkle public key
-        if: ${{ secrets.SPARKLE_PUBLIC_ED_KEY != '' }}
         shell: bash
         env:
           SPARKLE_PUBLIC_ED_KEY: ${{ secrets.SPARKLE_PUBLIC_ED_KEY }}
         run: |
           set -euo pipefail
           if [ -z "${SPARKLE_PUBLIC_ED_KEY}" ]; then
-            echo "Missing SPARKLE_PUBLIC_ED_KEY secret."
-            exit 1
+            echo "SPARKLE_PUBLIC_ED_KEY not configured; skipping update signing config."
+            exit 0
           fi
           SPARKLE_PUBLIC_ED_KEY="${SPARKLE_PUBLIC_ED_KEY}" python3 - <<'PY'
           import os
@@ -343,7 +342,6 @@ jobs:
           if-no-files-found: error
 
       - name: Sign macOS update
-        if: ${{ secrets.SPARKLE_ED_PRIVATE_KEY != '' }}
         shell: bash
         env:
           SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
@@ -351,8 +349,8 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${SPARKLE_ED_PRIVATE_KEY}" ]; then
-            echo "Missing SPARKLE_ED_PRIVATE_KEY secret."
-            exit 1
+            echo "SPARKLE_ED_PRIVATE_KEY not configured; skipping update signature."
+            exit 0
           fi
           asset_path="build/macos/Build/Products/Release/${MACOS_ASSET}"
           ed_signature="$(printf '%s' "$SPARKLE_ED_PRIVATE_KEY" | macos/Pods/Sparkle/bin/sign_update --ed-key-file - -p "$asset_path" | tr -d '\r\n')"
@@ -364,7 +362,7 @@ jobs:
           ED_SIGNATURE="$ed_signature" UPDATE_LENGTH="$length" python3 -c 'import json, os, pathlib; pathlib.Path(os.environ["GITHUB_WORKSPACE"], "macos-update-signature.json").write_text(json.dumps({"edSignature": os.environ["ED_SIGNATURE"], "length": os.environ["UPDATE_LENGTH"]}), encoding="utf-8")'
 
       - name: Upload macOS update signature
-        if: ${{ secrets.SPARKLE_ED_PRIVATE_KEY != '' }}
+        if: hashFiles('macos-update-signature.json') != ''
         uses: actions/upload-artifact@v4
         with:
           name: macos-update-signature
