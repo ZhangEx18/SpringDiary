@@ -53,10 +53,7 @@ class NoteService {
   }) async {
     final date = now ?? DateTime.now();
     final name = switch (kind) {
-      NoteKind.daily || NoteKind.diary => _formatDate(date),
-      NoteKind.weekly => _formatIsoWeek(date),
-      NoteKind.monthly =>
-        '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}',
+      NoteKind.diary => _formatDate(date),
     };
     final path = _join(directoryPath, '$name.md');
     final title = '$name ${kind.suffix}';
@@ -213,22 +210,4 @@ class NoteService {
     return '$year-$month-$day';
   }
 
-  int _isoWeekNumber(DateTime date) {
-    final start = _startOfWeek(date);
-    final isoYear = start.add(const Duration(days: 3)).year;
-    final first = _startOfWeek(DateTime(isoYear, 1, 4));
-    return (start.difference(first).inDays ~/ 7) + 1;
-  }
-
-  String _formatIsoWeek(DateTime date) {
-    final start = _startOfWeek(date);
-    final isoYear = start.add(const Duration(days: 3)).year;
-    final week = _isoWeekNumber(date);
-    return '${isoYear.toString().padLeft(4, '0')}-W${week.toString().padLeft(2, '0')}';
-  }
-
-  DateTime _startOfWeek(DateTime date) {
-    final normalized = DateTime(date.year, date.month, date.day);
-    return normalized.subtract(Duration(days: normalized.weekday - 1));
-  }
 }
