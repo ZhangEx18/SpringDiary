@@ -1,2 +1,9 @@
 .DS_Store
 .DS_Store
+
+# 本地环境变量
+.env
+.env.*
+!.env.example
+*.pem
+*.p12
